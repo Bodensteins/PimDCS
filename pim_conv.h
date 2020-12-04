@@ -12,164 +12,396 @@
 using namespace torch;
 using namespace torch::autograd;
 using namespace torch::nn;
+using namespace at::native;
+namespace F = torch::nn::functional;
 
-class PimConv2DFunction : public Function<PimConv2DFunction> {
-public:
-  static Tensor forward(
-      AutogradContext *ctx, SimpleLogicArray &wb, SimpleLogicArray &wb_t, std::vector<SimpleLogicArray &> prev,
-      const Tensor & input, const Tensor & weight, const c10::optional<Tensor>& bias,
-      IntArrayRef stride, IntArrayRef padding, IntArrayRef dilation, int64_t groups) {
-    ctx->save_for_backward({input, weight, bias.has_value() ? bias.value() : Tensor()});
-    ctx->saved_data["stride"] = stride;
-    ctx->saved_data["padding"] = padding;
-    ctx->saved_data["dilation"] = dilation;
-    ctx->saved_data["groups"] = groups;
-
-
-
-    // ============
-    // use intrusive_ptr instead of SimpleLogicArray reference (e.g wb, wb_t, prev)
-    c10::intrusive_ptr<SimpleLogicArray> wb_ptr = c10::make_intrusive<SimpleLogicArray>(wb);
-    c10::intrusive_ptr<SimpleLogicArray> wb_t_ptr = c10::make_intrusive<SimpleLogicArray>(wb_t);
-    c10::intrusive_ptr<SimpleLogicArray> prev_ptr = c10::make_intrusive<SimpleLogicArray>(prev);
-
-    ctx->saved_data["wb"] = wb_ptr;
-    ctx->saved_data["wb_t"] = wb_t_ptr;
-    ctx->saved_data["prev"] = prev_ptr;
-
-    // write parameters to PIM if is trainable
-    if (weight.requires_grad()) {
-      prev_ptr->write_mat(input);
-
-      // update parameters, note that weight shape is (out_features, in_features)
-      if (bias.defined()) {
-        wb_ptr->write_mat(torch::cat({weight.t(), bias.unsqueeze(0)}, 0)); // write transposed weight
-      } else {
-        wb_ptr->write_mat(torch::cat({weight.t(), torch::zeros({1, weight.size(0)})}, 0));
-      }
-      wb_t_ptr->write_mat(weight);
-    }
-
-    ConstantPad2d m(ConstantPad2dOptions({0, 1, 0, 0}, bias.defined() ? 1 : 0));
-    input = m(input);
-
-    Tensor pim_output = wb_ptr->mm(input);   // shape of wb: (in_features, out_features)
-
-    if (!torch::allclose(output, pim_output, 1e-05, 1e-05)) {
-      std::cout << "Forward" << std::endl;
-      Tensor err = output - pim_output;
-      std::cout << err << std::endl;
-    }
-
-    return pim_output;
+namespace PIM {
+  template<typename T>
+  static inline T div_rtn(T x, T y) {
+    int q = x/y;
+    int r = x%y;
+    if ((r!=0) && ((r<0) != (y<0))) --q;
+    return q;
   }
 
-  static tensor_list backward(AutogradContext *ctx, tensor_list grad_outputs) {
-    auto saved = ctx->get_saved_variables();
-    auto input = saved[0];
-    auto weight = saved[1];
-    auto bias = saved[2];
-
-    Tensor grad_output = grad_outputs[0];
-    Tensor grad_input = grad_output.mm(weight);
-    Tensor grad_weight = grad_output.t().mm(input);
-    Tensor grad_bias = Tensor();
-    if (bias.defined()) {
-      grad_bias = grad_output.sum(0);
-    }
-
-    // =============
-
-    // shape of wb_t: (out_features, in_features)
-    Tensor pim_grad_input = ctx->saved_data["wb_t"].toCustomClass<SimpleLogicArray>()->mm(grad_output);
-    Tensor pim_grad_weight = ctx->saved_data["prev"].toCustomClass<SimpleLogicArray>()->mm(grad_output.t());
-
-
-    if (!torch::allclose(grad_input, pim_grad_input, 1e-05, 1e-05)) {
-      std::cout << "Backward::grad_input" << std::endl;
-      Tensor err = grad_input - pim_grad_input;
-      std::cout << err << std::endl;
-    }
-
-    if (!torch::allclose(grad_weight, pim_grad_weight, 1e-05, 1e-05)) {
-      std::cout << "Backward::grad_weight" << std::endl;
-      Tensor err = grad_weight - pim_grad_weight;
-      std::cout << grad_weight << std::endl;
-      std::cout << pim_grad_weight << std::endl;
-      std::cout << err << std::endl;
-    }
-
-    return {Tensor(), Tensor(), Tensor(), pim_grad_input, pim_grad_weight, grad_bias}; // number of returns should be equal to forward's args.
-  }
-};
-
-
-class TORCH_API PimConv2DImpl : public Cloneable<PimConv2DImpl> {
-public:
-  PimConv2DImpl(int64_t in_features, int64_t out_features, int64_t batch_size)
-      : PimConv2DImpl(LinearOptions(in_features, out_features), batch_size) {}
-  explicit PimConv2DImpl(const LinearOptions& options_, int64_t batch_size)
-      : options(options_), batch_size(batch_size),
-        wb(SimpleLogicArray(options_.bias() ? options_.in_features() + 1 : options_.in_features(), options_.out_features())),
-        wb_t(SimpleLogicArray(options_.out_features(), options_.in_features())),
-        prev(SimpleLogicArray(batch_size, options_.in_features())) {
-    reset();
+  Tensor remove_padding(const Tensor& input, IntArrayRef padding) {
+    IntArrayRef out_size = {input.size(0),
+                            input.size(1),
+                            input.size(2) - padding[2] - padding[3],
+                            input.size(3) - padding[0] - padding[1]};
+    Tensor mask = F::pad(torch::ones(out_size), F::PadFuncOptions(padding.vec()));
+    return torch::masked_select(input, mask).view(out_size);
   }
 
-  void reset() override {
-    weight = register_parameter("weight",
-                                torch::empty({options.out_features(), options.in_features()}));
-    if (options.bias()) {
-      bias = register_parameter("bias", torch::empty(options.out_features()));
+  Tensor insert_zeros(const Tensor &input, IntArrayRef stride) {
+    if (stride[0] == 1 && stride[1] == 1 ) {
+      return input;
     } else {
-      bias = register_parameter("bias", {}, /*requires_grad=*/false);
-    }
-
-    reset_parameters();
-  }
-
-  void reset_parameters() {
-    torch::nn::init::kaiming_uniform_(weight, std::sqrt(5)); // NOLINT(cppcoreguidelines-avoid-magic-numbers)
-    if (bias.defined()) {
-      int64_t fan_in, fan_out;
-      std::tie(fan_in, fan_out) =
-          torch::nn::init::_calculate_fan_in_and_fan_out(weight);
-      const auto bound = 1 / std::sqrt(fan_in);
-      torch::nn::init::uniform_(bias, -bound, bound);
+      auto w = input.new_zeros(stride);
+      w[0][0] = 1;
+      Tensor output = F::conv_transpose2d(
+          input, w.expand({input.size(1), 1, stride[0], stride[1]}),
+          F::ConvTranspose2dFuncOptions().stride(stride).groups(input.size(1)));
+      return remove_padding(output, {0, stride[0], 0, stride[1]});
     }
   }
 
-  /// Pretty prints the `Linear` module into the given `stream`.
-  void pretty_print(std::ostream& stream) const override {
-    stream << std::boolalpha
-           << "torch::nn::Linear(in_features=" << options.in_features()
-           << ", out_features=" << options.out_features()
-           << ", bias=" << options.bias() << ")";
+  static inline void conv2d_shape_check(
+      const Tensor& input,
+      const Tensor& weight,
+      const Tensor& bias,
+      IntArrayRef kernel_size,
+      IntArrayRef stride,
+      IntArrayRef padding) {
+    const int64_t kernel_height = kernel_size[0];
+    const int64_t kernel_width = kernel_size[1];
+    const int64_t pad_height = padding[0];
+    const int64_t pad_width = padding[1];
+    const int64_t stride_height = stride[0];
+    const int64_t stride_width = stride[1];
+    TORCH_CHECK(
+        kernel_width > 0 && kernel_height > 0,
+        "kernel size should be greater than zero, but got kernel_height: ",
+        kernel_height,
+        " kernel_width: ",
+        kernel_width);
+    TORCH_CHECK(
+        stride_width > 0 && stride_height > 0,
+        "stride should be greater than zero, but got stride_height: ",
+        stride_height,
+        " stride_width: ",
+        stride_width);
+    if (weight.defined()) {
+      TORCH_CHECK(
+          weight.numel() > 0 && (weight.dim() == 2 || weight.dim() == 4),
+          "non-empty 2D or 4D weight tensor expected, but got: ",
+          weight.sizes());
+      if (bias.defined()) {
+        check_dim_size(bias, 1, 0, weight.size(0));
+      }
+    } else {
+      TORCH_CHECK(false, "weight tensor is undefined");
+    }
+    const int64_t ndim = input.dim();
+    const int64_t dim_batch = 0;
+    const int64_t dim_planes = 1;
+    const int64_t dim_height = 2;
+    const int64_t dim_width = 3;
+
+    // Allow for empty batch size but not other dimensions
+    bool valid_empty = ndim == 4 && input.size(dim_batch) == 0 &&
+                       input.size(dim_planes) != 0 && input.size(dim_height) != 0 &&
+                       input.size(dim_width) != 0;
+
+    TORCH_CHECK(
+        (input.numel() > 0 || valid_empty) && ndim == 4,
+        "non-empty 4D input tensor expected but got: ",
+        input.sizes());
+
+    const int64_t input_height = input.size(dim_height);
+    const int64_t input_width = input.size(dim_width);
+
+    const int64_t exact_input_height = input_height + 2 * pad_height;
+    const int64_t exact_input_width = input_width + 2 * pad_width;
+
+    TORCH_CHECK(
+        exact_input_height >= kernel_height && exact_input_width >= kernel_width,
+        "Calculated padded input size per channel: (",
+        exact_input_height,
+        " x ",
+        exact_input_width,
+        "). ",
+        "Kernel size: (",
+        kernel_height,
+        " x ",
+        kernel_width,
+        "). Kernel size can't be greater than actual input size");
+
+    const int64_t output_height =
+        div_rtn<int64_t>(exact_input_height - kernel_height, stride_height) + 1;
+    const int64_t output_width =
+        div_rtn<int64_t>(exact_input_width - kernel_width, stride_width) + 1;
+
+    TORCH_CHECK(
+        output_width >= 1 && output_height >= 1,
+        "Given input size per channel: (",
+        input_height,
+        " x ",
+        input_width,
+        "). "
+        "Calculated output size per channel: (",
+        output_height,
+        " x ",
+        output_width,
+        "). Output size is too small");
+
+    if (weight.defined()) {
+      int64_t n_input_plane = weight.size(1);
+      if (weight.dim() == 2) {
+        n_input_plane /= (kernel_height * kernel_width);
+      }
+      check_dim_size(input, ndim, dim_planes, n_input_plane);
+    }
   }
 
-  /// Transforms the `input` tensor by multiplying with the `weight` and
-  /// optionally adding the `bias`, if `with_bias` is true in the options.
-  Tensor forward(const Tensor& input) {
-    return PimLinearFunction::apply(wb, wb_t, prev, input, weight, bias);
-  }
 
-  /// The options used to configure this module.
-  LinearOptions options;
 
-  /// The learned weight.
-  Tensor weight;
+  class PimConv2DFunction : public Function<PimConv2DFunction> {
+  public:
+    static torch::Tensor forward(
+        AutogradContext *ctx, PimArrayType pim_type, PimPtr wb, PimPtr wb_t, PimArrayList &prevs,
+        const Tensor &input, const Tensor &weight, const c10::optional<Tensor> &bias,
+        IntArrayRef stride, IntArrayRef padding) {
 
-  /// The learned bias. If `bias` is false in the `options`, this tensor is
-  /// undefined.
-  Tensor bias;
+      IntArrayRef kernel_size = weight.sizes().slice(2);
+      conv2d_shape_check(input, weight, bias.has_value() ? bias.value() : Tensor(), kernel_size, stride, padding);
+      const int64_t kernel_height = kernel_size[0];
+      const int64_t kernel_width = kernel_size[1];
+      const int64_t pad_height = padding[0];
+      const int64_t pad_width = padding[1];
+      const int64_t stride_height = stride[0];
+      const int64_t stride_width = stride[1];
+      const int64_t dim_planes = 1;
+      const int64_t dim_height = 2;
+      const int64_t dim_width = 3;
+      const int64_t n_input_plane = input.size(dim_planes);
+      const int64_t input_height = input.size(dim_height);
+      const int64_t input_width = input.size(dim_width);
+      const int64_t n_output_plane = weight.size(0);
+      const int64_t output_height =
+          (input_height + 2 * pad_height - kernel_height) / stride_height + 1;
+      const int64_t output_width =
+          (input_width + 2 * pad_width - kernel_width) / stride_width + 1;
+      const int64_t batch_size = input.size(0);
 
-  SimpleLogicArray wb;
-  SimpleLogicArray wb_t;
-  SimpleLogicArray prev;
 
-  int64_t batch_size;
-};
+      ctx->save_for_backward({input, weight, bias.has_value() ? bias.value() : Tensor()});
+      ctx->saved_data["pim_type"] = int(pim_type);
+      ctx->saved_data["stride"] = stride;
+      ctx->saved_data["padding"] = padding;
 
-TORCH_MODULE(PimConv2D);
+      auto output = functional::conv2d(
+          input, weight, F::Conv2dFuncOptions().stride(stride).padding(padding));
 
+      // =================
+
+      switch (pim_type) {
+        case PIM::PimArrayType::simple_logic_array: {
+          // use intrusive_ptr instead of SimpleLogicArray reference (e.g wb, wb_t, prev)
+
+          c10::intrusive_ptr<SimpleLogicArray> wb_ptr = c10::make_intrusive<SimpleLogicArray>(
+              *dynamic_cast<SimpleLogicArray *>(wb.get()));
+          c10::intrusive_ptr<SimpleLogicArray> wb_t_ptr = c10::make_intrusive<SimpleLogicArray>(
+              *dynamic_cast<SimpleLogicArray *>(wb_t.get()));
+          c10::intrusive_ptr<PimArrayList> prevs_ptr = c10::make_intrusive<PimArrayList>(prevs);
+
+          ctx->saved_data["wb"] = wb_ptr;
+          ctx->saved_data["wb_t"] = wb_t_ptr;
+          ctx->saved_data["prevs"] = prevs_ptr;
+        }
+        case PimArrayType::wb_logic_array:
+          C10_THROW_ERROR(Error, "This PIM type is not implemented!");
+          break;
+      }
+
+
+      // write parameters to PIM if is trainable
+      if (weight.requires_grad()) {
+        for (int64_t i = 0; i < input.size(0); i++) {
+          prevs.array_ptrs.at(i).get()->write_mat(input[i].permute({1, 2, 0}).reshape({-1, input[i].size(1)}));
+        }
+
+        // update parameters, note that weight shape is (Cin * H * W, Cout)
+        if (bias.has_value()) {
+          wb.get()->write_mat(torch::cat({
+            weight.permute({1, 2, 3, 0}).reshape({-1, n_output_plane}),
+            bias.value().unsqueeze(0)}, 0));
+        } else {
+          wb.get()->write_mat(torch::cat({
+            weight.permute({1, 2, 3, 0}).reshape({-1, n_output_plane}),
+            torch::zeros({1, n_output_plane})}, 0));
+        }
+        // flip kernel
+        wb_t.get()->write_mat(weight.flip({2, 3}).permute({0, 2, 3, 1}).reshape({-1, n_input_plane}));
+      }
+
+      auto pim_output = torch::zeros({batch_size, n_output_plane, output_height, output_width}, weight.options());
+      ConstantPad1d add_bias(ConstantPad1dOptions({0, 1}, bias.has_value() ? 1 : 0));
+      auto pim_input = F::unfold(input, UnfoldOptions(kernel_size).padding(kernel_size));
+      pim_input = add_bias(pim_input);
+
+      at::parallel_for(0, batch_size, 0, [&](int64_t start, int64_t end) {
+        for (int64_t i = start; i < end; i++) {
+          pim_output[i] = wb.get()->mm(pim_input[i]);   // shape of wb: (in_features, out_features)
+        }
+      });
+
+      if (!torch::allclose(output, pim_output, 1e-05, 1e-05)) {
+        std::cout << "Forward" << std::endl;
+        Tensor err = output - pim_output;
+        std::cout << err << std::endl;
+      }
+
+      return output;
+    }
+
+    static tensor_list backward(AutogradContext *ctx, tensor_list grad_outputs) {
+      auto saved = ctx->get_saved_variables();
+      auto input = saved[0];
+      auto weight = saved[1];
+      auto bias = saved[2];
+      const int64_t batch_size = input.size(0);
+
+      IntArrayRef input_size({input.size(2), input.size(3)});
+      IntArrayRef stride = ctx->saved_data["stride"].to<IntArrayRef>();
+      IntArrayRef padding = ctx->saved_data["padding"].to<IntArrayRef>();
+      IntArrayRef kernel_size = weight.sizes().slice(2);
+      IntArrayRef unfold_padding = {kernel_size[0]-1, kernel_size[1]-1};
+      PimArrayType pim_type = PimArrayType(ctx->saved_data["pim_type"].toInt());
+      PimPtr wb = nullptr, wb_t = nullptr;
+      PimArrayList *prevs = nullptr;
+
+      switch (pim_type) {
+        case PIM::PimArrayType::simple_logic_array: {
+          wb = PimPtr(ctx->saved_data["wb"].toCustomClass<SimpleLogicArray>().get());
+          wb_t = PimPtr(ctx->saved_data["wb_t"].toCustomClass<SimpleLogicArray>().get());
+          prevs = ctx->saved_data["prevs"].toCustomClass<PimArrayList>().get();
+        }
+        case PimArrayType::wb_logic_array:
+          C10_THROW_ERROR(Error, "This PIM type is not implemented!");
+      }
+
+      Tensor grad_output = grad_outputs[0];
+      Tensor grad_bias = torch::Tensor();
+
+      Tensor insert_dLdZ = insert_zeros(grad_output, stride);
+      Tensor unf_dLdZ = F::unfold(insert_dLdZ,
+          F::UnfoldFuncOptions(kernel_size).padding(unfold_padding)).transpose(1, 2);
+      Tensor dZ_ = torch::zeros({batch_size, unf_dLdZ.size(1), weight.size(0)}, grad_output.options());
+      at::parallel_for(0, batch_size, 0, [&](int64_t start, int64_t end) {
+        for (int64_t i = start; i < end; i++) {
+          dZ_[i] = wb_t->mm(unf_dLdZ[i]).transpose(1, 2);
+        }
+      });
+      Tensor pim_grad_input = F::fold(dZ_,
+          F::FoldFuncOptions(input_size, {1, 1}).padding(padding));
+
+      Tensor swap_flip_X = input.flip({2, 3}).permute({1, 0, 2, 3}).transpose(1, 2);
+      Tensor unf_swap_dLdZ = F::unfold(insert_dLdZ.permute({1, 0, 2, 3}),
+          F::UnfoldFuncOptions(input_size).padding(unfold_padding));
+      Tensor dW_ = torch::zeros({weight.size(0), swap_flip_X.size(1), input.size(1)});
+      at::parallel_for(0, weight.size(0), 0, [&](int64_t start, int64_t end) {
+        for (int64_t i = start; i < end; i++) {
+          dW_[i] = prevs->array_ptrs[i]->mm(unf_swap_dLdZ[i]).transpose(1, 2);
+        }
+      });
+      Tensor pim_grad_weight = F::fold(dW_,
+          F::FoldFuncOptions(kernel_size, {1, 2}).padding(padding));
+
+      if (bias.defined()) {
+        grad_bias = grad_output.sum({0, 2, 3});
+      }
+
+      return {Tensor(), Tensor(), Tensor(), Tensor(), pim_grad_input, pim_grad_weight,
+              grad_bias, Tensor(), Tensor()}; // number of returns should be equal to forward's args.
+    }
+  };
+
+
+  class TORCH_API PimConv2DImpl : public Cloneable<PimConv2DImpl> {
+  public:
+    PimConv2DImpl(ExpandingArray<4> input_shape,
+                  ExpandingArray<2> kernel_size,
+                  int64_t output_channels,
+                  PimArrayType pim_type)
+        : PimConv2DImpl(input_shape, pim_type, Conv2dOptions((*input_shape)[1], output_channels, kernel_size)) {}
+
+    explicit PimConv2DImpl(ExpandingArray<4> input_shape, PimArrayType pim_type, const Conv2dOptions &options_)
+        : input_shape(input_shape), pim_type(pim_type), options(options_) {
+      ExpandingArray<2> kernel_size = options_.kernel_size();
+      const int64_t n_input_plane = options_.in_channels();
+      const int64_t n_output_plane = options_.out_channels();
+
+      switch (pim_type) {
+        case PimArrayType::simple_logic_array: {
+          wb = std::make_shared<SimpleLogicArray>(
+              options_.bias() ? (*kernel_size)[0] * (*kernel_size)[1] * n_input_plane + 1 :
+                                (*kernel_size)[0] * (*kernel_size)[1] * n_input_plane,
+              n_output_plane);
+          wb_t = std::make_shared<SimpleLogicArray>(
+              (*kernel_size)[0] * (*kernel_size)[1] * n_output_plane, n_input_plane);
+          at::parallel_for(0, (*input_shape)[0], 0, [&](int64_t start, int64_t end) {
+            for (int64_t i = start; i < end; i++) {
+              prevs.array_ptrs.push_back(
+                  std::make_shared<SimpleLogicArray>((*input_shape)[2] * (*input_shape)[3], (*input_shape)[1]));
+            }
+          });
+        }
+        case PimArrayType::wb_logic_array:
+          C10_THROW_ERROR(Error, "This PIM type is not implemented!");
+      }
+      reset();
+    }
+
+
+    void reset() override {
+      weight = register_parameter("weight",
+          torch::empty({options.out_channels(),
+                                    options.in_channels(),
+                                    (*options.kernel_size())[0],
+                                    (*options.kernel_size())[0]}));
+      if (options.bias()) {
+        bias = register_parameter("bias", torch::empty(options.out_channels()));
+      } else {
+        bias = register_parameter("bias", {}, /*requires_grad=*/false);
+      }
+      reset_parameters();
+    }
+
+
+    void reset_parameters() {
+      torch::nn::init::kaiming_uniform_(weight, std::sqrt(5)); // NOLINT(cppcoreguidelines-avoid-magic-numbers)
+      if (bias.defined()) {
+        int64_t fan_in, fan_out;
+        std::tie(fan_in, fan_out) =
+            torch::nn::init::_calculate_fan_in_and_fan_out(weight);
+        const auto bound = 1 / std::sqrt(fan_in);
+        torch::nn::init::uniform_(bias, -bound, bound);
+      }
+    }
+
+    /// Pretty prints the `Linear` module into the given `stream`.
+    void pretty_print(std::ostream &stream) const override {
+      stream << std::boolalpha
+             << "PIM::PimConv2DImpl(input shape=" << input_shape
+             << ", kernel=" << options.kernel_size()
+             << ", output channels=" << options.out_channels()
+             << ", bias=" << options.bias() << ")";
+    }
+
+    /// Transforms the `input` tensor by multiplying with the `weight` and
+    /// optionally adding the `bias`, if `with_bias` is true in the options.
+    Tensor forward(const Tensor &input) {
+      return PimConv2DFunction::apply(pim_type, wb, wb_t, prevs, input, weight, bias, options.stride(), options.padding());
+    }
+
+    /// The options used to configure this module.
+    Conv2dOptions options;
+
+    /// The learned weight.
+    Tensor weight;
+
+    /// The learned bias. If `bias` is false in the `options`, this tensor is
+    /// undefined.
+    Tensor bias;
+
+    PimPtr wb;
+    PimPtr wb_t;
+    PimArrayList prevs;
+    PimArrayType pim_type;
+    ExpandingArray<4> input_shape;
+  };
+
+  TORCH_MODULE(PimConv2D);
+}
 #endif //PIMTORCH_PIM_CONV_H

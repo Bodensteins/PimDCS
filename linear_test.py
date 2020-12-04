@@ -25,6 +25,26 @@ def err_fmt(params, golds, ix, warn_str=""):
   return err_msg
 
 
+def remove_padding(x, padding):
+  out_shape = [x.size(0), x.size(1), x.size(2) - padding[2]-padding[3], x.size(3)-padding[0]-padding[1]]
+  mask = torch.ones(out_shape)
+  mask = torch.nn.functional.pad(mask, padding, "constant", 0)
+  return x[mask.bool()].view(out_shape)
+  # return x[:, :, padding[2]:-padding[3], padding[0]:-padding[1]]
+
+
+def insert_zeros(x, stride):
+  if stride == 1:
+    return x
+  else:
+    w = x.new_zeros(stride, stride)
+    w[0, 0] = 1
+    res = torch.nn.functional.conv_transpose2d(x, w.expand(x.size(1), 1, stride, stride), stride=stride, groups=x.size(1))
+    return remove_padding(res, [0, stride-1, 0, stride-1])
+    # return torch.nn.functional.conv_transpose2d(x, w.expand(x.size(1), 1, stride, stride), stride=stride, groups=x.size(1))[:,:,:-(stride-1),:-(stride-1)]
+
+
+
 def my_backward(grads, N, Cin, Hin, Win, Cout, kH, kW, H_, W_, stride, padding, dilation):
     X = grads["X"]
     W = grads["W"]
@@ -39,17 +59,21 @@ def my_backward(grads, N, Cin, Hin, Win, Cout, kH, kW, H_, W_, stride, padding, 
     # my backward
     flip_W = W.flip((2, 3))
     swap_flip_W = flip_W.permute(1, 0, 2, 3)
-    unf_dLdZ = torch.nn.functional.unfold(dLdZ, (kH, kW), dilation=dilation+1, padding=kW-1, stride=stride)
+    insert_dLdZ = insert_zeros(dLdZ, stride)
+
+    unf_dLdZ = torch.nn.functional.unfold(insert_dLdZ, (kH, kW), dilation=1, padding=kW-1, stride=1)
+    kernel = swap_flip_W.reshape(swap_flip_W.size(0), -1).t()
     dZ_ = unf_dLdZ.transpose(1, 2).matmul(swap_flip_W.reshape(swap_flip_W.size(0), -1).t()).transpose(1, 2)
-    dZ = torch.nn.functional.fold(dZ_, output_size=(Hin, Win), kernel_size=(1, 1))
+    dZ = torch.nn.functional.fold(dZ_, output_size=(Hin, Win), kernel_size=(1, 1), padding=padding)
 
 
     flip_X = X.flip((2, 3))
-    unf_swap_dLdZ = torch.nn.functional.unfold(dLdZ.permute(1, 0, 2, 3), (Hin, Win), dilation=stride, padding=kW-1, stride=1)
     swap_flip_X = flip_X.permute(1, 0, 2, 3)
+
+    unf_swap_dLdZ = torch.nn.functional.unfold(insert_dLdZ.permute(1, 0, 2, 3), (Hin, Win), dilation=1, padding=kW-1, stride=1)
     kernel = swap_flip_X.reshape(swap_flip_X.size(0), -1).t()
     dW_ = unf_swap_dLdZ.transpose(1, 2).matmul(swap_flip_X.reshape(swap_flip_X.size(0), -1).t()).transpose(1, 2)
-    dW = torch.nn.functional.fold(dW_, output_size=(3, 3), kernel_size=(1, 1))
+    dW = torch.nn.functional.fold(dW_, output_size=(kH, kW), kernel_size=(1, 1), padding=padding)
 
     db = dLdZ.sum(dim=[0, 2, 3])
     return dLdZ
@@ -173,13 +197,21 @@ def test_Conv2D(N=15):
     # p, s = np.random.randint(0, 5), np.random.randint(1, 3)
     # d = np.random.randint(0, 5)
 
+    # n_ex = 3
+    # in_rows = 6
+    # in_cols = 2
+    # n_in, n_out = 1, 2
+    # f_shape = (3, 2)
+    # p, s = 2, 2
+    # d = 1
+
     n_ex = 1
     in_rows = 4
     in_cols = 4
     n_in, n_out = 2, 3
-    f_shape = (3, 3)
-    p, s = 0, 1
-    d = 0
+    f_shape = (2, 2)
+    p, s = 1, 2
+    d = 0       # numpy-ml default is 0, but pytorch is 1.
 
     fr, fc = f_shape[0] * (d + 1) - d, f_shape[1] * (d + 1) - d
     out_rows = int(1 + (in_rows + 2 * p - fr) / s)
@@ -189,6 +221,7 @@ def test_Conv2D(N=15):
       continue
 
     X = random_tensor((n_ex, in_rows, in_cols, n_in), standardize=False)   # (N, H, W, C)
+    # X = np.arange(n_ex*n_in*in_rows*in_cols).reshape(n_ex, in_rows, in_cols, n_in)
 
     # randomly select an activation function
     act_fn, torch_fn, act_fn_name = acts[np.random.randint(0, len(acts))]
@@ -216,7 +249,7 @@ def test_Conv2D(N=15):
     )
     golds, torch_grads = gold_mod.extract_grads(X)
 
-    my_backward(torch_grads, n_ex, n_in, in_rows, in_cols, n_out, fr, fc, out_rows, out_cols, s, p, d)
+    my_backward(torch_grads, n_ex, n_in, in_rows, in_cols, n_out, f_shape[0], f_shape[1], out_rows, out_cols, s, p, d)
 
     params = [
       (L1.X[0], "X"),

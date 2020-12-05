@@ -209,8 +209,8 @@ def test_Conv2D(N=15):
     in_rows = 4
     in_cols = 4
     n_in, n_out = 2, 3
-    f_shape = (2, 2)
-    p, s = 1, 2
+    f_shape = (3, 3)
+    p, s = 0, 1
     d = 0       # numpy-ml default is 0, but pytorch is 1.
 
     fr, fc = f_shape[0] * (d + 1) - d, f_shape[1] * (d + 1) - d

@@ -7,6 +7,7 @@
 #include "pim_linear.h"
 
 using namespace std::chrono;
+using namespace PIM;
 
 // Where to find the MNIST dataset.
 const char* kDataRoot = "../data";
@@ -18,7 +19,7 @@ const int64_t kTrainBatchSize = 64;
 const int64_t kTestBatchSize = 1000;
 
 // The number of epochs to train.
-const int64_t kNumberOfEpochs = 5;
+const int64_t kNumberOfEpochs = 1;
 
 // After how many batches to log a new update with the loss value.
 const int64_t kLogInterval = 10;
@@ -30,9 +31,9 @@ struct Net : torch::nn::Module {
 //    fc1 = register_module("fc1", torch::nn::Linear(784, 64));
 //    fc2 = register_module("fc2", torch::nn::Linear(64, 32));
 //    fc3 = register_module("fc3", torch::nn::Linear(32, 10));
-    fc1 = register_module("fc1", PimLinear(784, 64, kTrainBatchSize));
-    fc2 = register_module("fc2", PimLinear(64, 32, kTrainBatchSize));
-    fc3 = register_module("fc3", PimLinear(32, 10, kTrainBatchSize));
+    fc1 = register_module("fc1", PimLinear(784, 64, kTrainBatchSize, PimArrayType::simple_logic_array));
+    fc2 = register_module("fc2", PimLinear(64, 32, kTrainBatchSize, PimArrayType::simple_logic_array));
+    fc3 = register_module("fc3", PimLinear(32, 10, kTrainBatchSize, PimArrayType::simple_logic_array));
   }
 
   // Implement the Net's algorithm.

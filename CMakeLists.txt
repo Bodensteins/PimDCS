@@ -16,7 +16,7 @@ add_executable(original_mnist original_mnist.cpp logic_array_interface.h pim_lin
 target_link_libraries(original_mnist "${TORCH_LIBRARIES}")
 set_property(TARGET original_mnist PROPERTY CXX_STANDARD 14)
 
-add_executable(conv_test conv_test.cpp logic_array_interface.h)
+add_executable(conv_test conv_test.cpp logic_array_interface.h pim_conv.h)
 target_link_libraries(conv_test "${TORCH_LIBRARIES}")
 set_property(TARGET conv_test PROPERTY CXX_STANDARD 14)
 

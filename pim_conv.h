@@ -145,11 +145,11 @@ namespace PIM {
   }
 
 
-
-  class PimConv2DFunction : public Function<PimConv2DFunction> {
+  template<typename PimType>
+  class PimConv2DFunction : public Function<PimConv2DFunction<PimType>> {
   public:
     static torch::Tensor forward(
-        AutogradContext *ctx, PimArrayType pim_type, PimPtr wb, PimPtr wb_t, PimArrayList &prevs,
+        AutogradContext *ctx, PimType wb, PimType wb_t, PimArrayList &prevs,
         const Tensor &input, const Tensor &weight, const c10::optional<Tensor> &bias,
         IntArrayRef stride, IntArrayRef padding) {
 
@@ -176,7 +176,6 @@ namespace PIM {
 
 
       ctx->save_for_backward({input, weight, bias.has_value() ? bias.value() : Tensor()});
-      ctx->saved_data["pim_type"] = int(pim_type);
       ctx->saved_data["stride"] = stride;
       ctx->saved_data["padding"] = padding;
 
@@ -184,58 +183,53 @@ namespace PIM {
           input, weight, F::Conv2dFuncOptions().stride(stride).padding(padding));
 
       // =================
+      // use intrusive_ptr instead of SimpleLogicArray reference (e.g wb_ptr, wb_t_ptr, prev_ptr)
 
-      switch (pim_type) {
-        case PIM::PimArrayType::simple_logic_array: {
-          // use intrusive_ptr instead of SimpleLogicArray reference (e.g wb, wb_t, prev)
+      c10::intrusive_ptr<PimType> wb_ptr = c10::make_intrusive<PimType>(std::move(wb));
+      c10::intrusive_ptr<PimType> wb_t_ptr = c10::make_intrusive<PimType>(wb_t);
+      c10::intrusive_ptr<PimArrayList> prevs_ptr = c10::make_intrusive<PimArrayList>(prevs);
 
-          c10::intrusive_ptr<SimpleLogicArray> wb_ptr = c10::make_intrusive<SimpleLogicArray>(
-              *dynamic_cast<SimpleLogicArray *>(wb.get()));
-          c10::intrusive_ptr<SimpleLogicArray> wb_t_ptr = c10::make_intrusive<SimpleLogicArray>(
-              *dynamic_cast<SimpleLogicArray *>(wb_t.get()));
-          c10::intrusive_ptr<PimArrayList> prevs_ptr = c10::make_intrusive<PimArrayList>(prevs);
-
-          ctx->saved_data["wb"] = wb_ptr;
-          ctx->saved_data["wb_t"] = wb_t_ptr;
-          ctx->saved_data["prevs"] = prevs_ptr;
-        }
-        case PimArrayType::wb_logic_array:
-          C10_THROW_ERROR(Error, "This PIM type is not implemented!");
-          break;
-      }
-
+      ctx->saved_data["wb_ptr"] = wb_ptr;
+      ctx->saved_data["wb_t_ptr"] = wb_t_ptr;
+      ctx->saved_data["prevs_ptr"] = prevs_ptr;
 
       // write parameters to PIM if is trainable
       if (weight.requires_grad()) {
         for (int64_t i = 0; i < input.size(0); i++) {
-          prevs.array_ptrs.at(i).get()->write_mat(input[i].permute({1, 2, 0}).reshape({-1, input[i].size(1)}));
+          prevs_ptr->array_ptrs[i].get()->write_mat(input[i].permute({1, 2, 0}).reshape({-1, input[i].size(1)}));
         }
 
         // update parameters, note that weight shape is (Cin * H * W, Cout)
         if (bias.has_value()) {
-          wb.get()->write_mat(torch::cat({
+          wb_ptr->write_mat(torch::cat({
             weight.permute({1, 2, 3, 0}).reshape({-1, n_output_plane}),
             bias.value().unsqueeze(0)}, 0));
         } else {
-          wb.get()->write_mat(torch::cat({
+          wb_ptr->write_mat(torch::cat({
             weight.permute({1, 2, 3, 0}).reshape({-1, n_output_plane}),
             torch::zeros({1, n_output_plane})}, 0));
         }
         // flip kernel
-        wb_t.get()->write_mat(weight.flip({2, 3}).permute({0, 2, 3, 1}).reshape({-1, n_input_plane}));
+        wb_t_ptr->write_mat(weight.flip({2, 3}).permute({0, 2, 3, 1}).reshape({-1, n_input_plane}));
       }
 
-      auto pim_output = torch::zeros({batch_size, n_output_plane, output_height, output_width}, weight.options());
+
       ConstantPad1d add_bias(ConstantPad1dOptions({0, 1}, bias.has_value() ? 1 : 0));
-      auto pim_input = F::unfold(input, UnfoldOptions(kernel_size).padding(kernel_size));
+      auto pim_input = F::unfold(input,
+          UnfoldOptions(kernel_size).padding(padding).stride(stride)).transpose(1, 2);
+      input.print();
+      pim_input.print();
+      auto pim_output = torch::zeros({batch_size, pim_input.size(1), n_output_plane}, weight.options());
       pim_input = add_bias(pim_input);
 
       at::parallel_for(0, batch_size, 0, [&](int64_t start, int64_t end) {
         for (int64_t i = start; i < end; i++) {
-          pim_output[i] = wb.get()->mm(pim_input[i]);   // shape of wb: (in_features, out_features)
+          pim_output[i] = wb_ptr->mm(pim_input[i]);   // shape of wb_ptr: (in_features, out_features)
         }
       });
-
+      pim_output.transpose_(1, 2);
+      pim_output.print();
+      pim_output = F::fold(pim_output, FoldOptions({output_width, output_height}, {1, 1}).padding(padding));
       if (!torch::allclose(output, pim_output, 1e-05, 1e-05)) {
         std::cout << "Forward" << std::endl;
         Tensor err = output - pim_output;
@@ -253,23 +247,14 @@ namespace PIM {
       const int64_t batch_size = input.size(0);
 
       IntArrayRef input_size({input.size(2), input.size(3)});
-      IntArrayRef stride = ctx->saved_data["stride"].to<IntArrayRef>();
-      IntArrayRef padding = ctx->saved_data["padding"].to<IntArrayRef>();
+      IntArrayRef stride = ctx->saved_data["stride"].toIntVector();
+      IntArrayRef padding = ctx->saved_data["padding"].toIntVector();
       IntArrayRef kernel_size = weight.sizes().slice(2);
       IntArrayRef unfold_padding = {kernel_size[0]-1, kernel_size[1]-1};
-      PimArrayType pim_type = PimArrayType(ctx->saved_data["pim_type"].toInt());
-      PimPtr wb = nullptr, wb_t = nullptr;
-      PimArrayList *prevs = nullptr;
 
-      switch (pim_type) {
-        case PIM::PimArrayType::simple_logic_array: {
-          wb = PimPtr(ctx->saved_data["wb"].toCustomClass<SimpleLogicArray>().get());
-          wb_t = PimPtr(ctx->saved_data["wb_t"].toCustomClass<SimpleLogicArray>().get());
-          prevs = ctx->saved_data["prevs"].toCustomClass<PimArrayList>().get();
-        }
-        case PimArrayType::wb_logic_array:
-          C10_THROW_ERROR(Error, "This PIM type is not implemented!");
-      }
+      c10::intrusive_ptr<PimType> wb_ptr = ctx->saved_data["wb_ptr"].toCustomClass<PimType>();
+      c10::intrusive_ptr<PimType> wb_t_ptr = ctx->saved_data["wb_t_ptr"].toCustomClass<PimType>();
+      c10::intrusive_ptr<PimArrayList> prevs_ptr = ctx->saved_data["prevs_ptr"].toCustomClass<PimArrayList>();
 
       Tensor grad_output = grad_outputs[0];
       Tensor grad_bias = torch::Tensor();
@@ -280,7 +265,7 @@ namespace PIM {
       Tensor dZ_ = torch::zeros({batch_size, unf_dLdZ.size(1), weight.size(0)}, grad_output.options());
       at::parallel_for(0, batch_size, 0, [&](int64_t start, int64_t end) {
         for (int64_t i = start; i < end; i++) {
-          dZ_[i] = wb_t->mm(unf_dLdZ[i]).transpose(1, 2);
+          dZ_[i] = wb_t_ptr->mm(unf_dLdZ[i]).transpose(1, 2);
         }
       });
       Tensor pim_grad_input = F::fold(dZ_,
@@ -292,11 +277,11 @@ namespace PIM {
       Tensor dW_ = torch::zeros({weight.size(0), swap_flip_X.size(1), input.size(1)});
       at::parallel_for(0, weight.size(0), 0, [&](int64_t start, int64_t end) {
         for (int64_t i = start; i < end; i++) {
-          dW_[i] = prevs->array_ptrs[i]->mm(unf_swap_dLdZ[i]).transpose(1, 2);
+          dW_[i] = prevs_ptr->array_ptrs[i]->mm(unf_swap_dLdZ[i]).transpose(1, 2);
         }
       });
       Tensor pim_grad_weight = F::fold(dW_,
-          F::FoldFuncOptions(kernel_size, {1, 2}).padding(padding));
+          F::FoldFuncOptions(kernel_size, {1, 1}).padding(padding));
 
       if (bias.defined()) {
         grad_bias = grad_output.sum({0, 2, 3});
@@ -317,29 +302,22 @@ namespace PIM {
         : PimConv2DImpl(input_shape, pim_type, Conv2dOptions((*input_shape)[1], output_channels, kernel_size)) {}
 
     explicit PimConv2DImpl(ExpandingArray<4> input_shape, PimArrayType pim_type, const Conv2dOptions &options_)
-        : input_shape(input_shape), pim_type(pim_type), options(options_) {
+        : input_shape(input_shape), pim_type(pim_type), options(options_), prevs_ptr((*input_shape)[0]) {
       ExpandingArray<2> kernel_size = options_.kernel_size();
       const int64_t n_input_plane = options_.in_channels();
       const int64_t n_output_plane = options_.out_channels();
 
-      switch (pim_type) {
-        case PimArrayType::simple_logic_array: {
-          wb = std::make_shared<SimpleLogicArray>(
-              options_.bias() ? (*kernel_size)[0] * (*kernel_size)[1] * n_input_plane + 1 :
-                                (*kernel_size)[0] * (*kernel_size)[1] * n_input_plane,
-              n_output_plane);
-          wb_t = std::make_shared<SimpleLogicArray>(
-              (*kernel_size)[0] * (*kernel_size)[1] * n_output_plane, n_input_plane);
-          at::parallel_for(0, (*input_shape)[0], 0, [&](int64_t start, int64_t end) {
-            for (int64_t i = start; i < end; i++) {
-              prevs.array_ptrs.push_back(
-                  std::make_shared<SimpleLogicArray>((*input_shape)[2] * (*input_shape)[3], (*input_shape)[1]));
-            }
-          });
-        }
-        case PimArrayType::wb_logic_array:
-          C10_THROW_ERROR(Error, "This PIM type is not implemented!");
-      }
+      create_pim_array(wb_ptr, {
+        options_.bias() ? (*kernel_size)[0] * (*kernel_size)[1] * n_input_plane + 1 :
+        (*kernel_size)[0] * (*kernel_size)[1] * n_input_plane, n_output_plane
+      }, pim_type);
+      create_pim_array(wb_t_ptr, {
+        (*kernel_size)[0] * (*kernel_size)[1] * n_output_plane, n_input_plane
+      }, pim_type);
+      create_pim_array_list(prevs_ptr, {
+        (*input_shape)[0], (*input_shape)[1] * (*input_shape)[2], (*input_shape)[3]
+      }, pim_type);
+
       reset();
     }
 
@@ -382,7 +360,16 @@ namespace PIM {
     /// Transforms the `input` tensor by multiplying with the `weight` and
     /// optionally adding the `bias`, if `with_bias` is true in the options.
     Tensor forward(const Tensor &input) {
-      return PimConv2DFunction::apply(pim_type, wb, wb_t, prevs, input, weight, bias, options.stride(), options.padding());
+      switch (pim_type) {
+        case PimArrayType::simple_logic_array:
+          return PimConv2DFunction<SimpleLogicArray>::apply(
+              *dynamic_cast<SimpleLogicArray*>(wb_ptr.get()),
+              *dynamic_cast<SimpleLogicArray*>(wb_t_ptr.get()),
+              prevs_ptr,
+              input, weight, bias, options.stride(), options.padding());
+        case PimArrayType::wb_logic_array:
+          C10_THROW_ERROR(Error, "This PIM type is not implemented!");
+      }
     }
 
     /// The options used to configure this module.
@@ -395,9 +382,9 @@ namespace PIM {
     /// undefined.
     Tensor bias;
 
-    PimPtr wb;
-    PimPtr wb_t;
-    PimArrayList prevs;
+    PimPtr wb_ptr;
+    PimPtr wb_t_ptr;
+    PimArrayList prevs_ptr;
     PimArrayType pim_type;
     ExpandingArray<4> input_shape;
   };

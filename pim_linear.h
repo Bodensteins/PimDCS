@@ -22,7 +22,7 @@ namespace PIM {
 
     // bias is an optional argument
     static Tensor forward(
-        AutogradContext *ctx, PimType &wb, PimType &wb_t, PimType &prev,
+        AutogradContext *ctx, PimArrayPtr &wb, PimArrayPtr &wb_t, PimArrayPtr &prev,
         Tensor input, Tensor weight, Tensor bias = Tensor()) {
       ctx->save_for_backward({input, weight, bias});
       Tensor output = input.mm(weight.t());
@@ -32,31 +32,28 @@ namespace PIM {
 
       // ============
       // use intrusive_ptr instead of SimpleLogicArray reference (e.g wb_ptr, wb_t_ptr, prev_ptr)
-      c10::intrusive_ptr<PimType> wb_ptr = c10::make_intrusive<PimType>(wb);
-      c10::intrusive_ptr<PimType> wb_t_ptr = c10::make_intrusive<PimType>(wb_t);
-      c10::intrusive_ptr<PimType> prev_ptr = c10::make_intrusive<PimType>(prev);
 
-      ctx->saved_data["wb_ptr"] = wb_ptr;
-      ctx->saved_data["wb_t_ptr"] = wb_t_ptr;
-      ctx->saved_data["prev_ptr"] = prev_ptr;
+      ctx->saved_data["wb_ptr"] = c10::make_intrusive<PimArrayPtr>(wb);
+      ctx->saved_data["wb_t_ptr"] = c10::make_intrusive<PimArrayPtr>(wb_t);
+      ctx->saved_data["prev_ptr"] = c10::make_intrusive<PimArrayPtr>(prev);
 
       // write parameters to PIM if is trainable
       if (weight.requires_grad()) {
-        prev_ptr->write_mat(input);
+        prev.ptr->write_mat(input);
 
         // update parameters, note that weight shape is (out_features, in_features)
         if (bias.defined()) {
-          wb_ptr->write_mat(torch::cat({weight.t(), bias.unsqueeze(0)}, 0)); // write transposed weight
+          wb.ptr->write_mat(torch::cat({weight.t(), bias.unsqueeze(0)}, 0)); // write transposed weight
         } else {
-          wb_ptr->write_mat(torch::cat({weight.t(), torch::zeros({1, weight.size(0)})}, 0));
+          wb.ptr->write_mat(torch::cat({weight.t(), torch::zeros({1, weight.size(0)})}, 0));
         }
-        wb_t_ptr->write_mat(weight);
+        wb_t.ptr->write_mat(weight);
       }
 
       ConstantPad2d m(ConstantPad2dOptions({0, 1, 0, 0}, bias.defined() ? 1 : 0));
       input = m(input);
 
-      Tensor pim_output = wb_ptr->mm(input);   // shape of wb_ptr: (in_features, out_features)
+      Tensor pim_output = wb.ptr->mm(input);   // shape of wb_ptr: (in_features, out_features)
 
       if (!torch::allclose(output, pim_output, 1e-05, 1e-05)) {
         std::cout << "Forward" << std::endl;
@@ -84,8 +81,8 @@ namespace PIM {
       // =============
 
       // shape of wb_t_ptr: (out_features, in_features)
-      Tensor pim_grad_input = ctx->saved_data["wb_t_ptr"].toCustomClass<PimType>()->mm(grad_output);
-      Tensor pim_grad_weight = ctx->saved_data["prev_ptr"].toCustomClass<PimType>()->mm(grad_output.t());
+      Tensor pim_grad_input = ctx->saved_data["wb_t_ptr"].toCustomClass<PimArrayPtr>()->ptr->mm(grad_output);
+      Tensor pim_grad_weight = ctx->saved_data["prev_ptr"].toCustomClass<PimArrayPtr>()->ptr->mm(grad_output.t());
 
 
       if (!torch::allclose(grad_input, pim_grad_input, 1e-05, 1e-05)) {
@@ -159,11 +156,7 @@ namespace PIM {
     Tensor forward(const Tensor &input) {
       switch (pim_type) {
         case PimArrayType::simple_logic_array:
-          return PimLinearFunction<SimpleLogicArray>::apply(
-              *dynamic_cast<SimpleLogicArray*>(wb_ptr.get()),
-              *dynamic_cast<SimpleLogicArray*>(wb_t_ptr.get()),
-              *dynamic_cast<SimpleLogicArray*>(prev_ptr.get()),
-              input, weight, bias);
+          return PimLinearFunction<SimpleLogicArray>::apply(wb_ptr, wb_t_ptr, prev_ptr, input, weight, bias);
         case PimArrayType::wb_logic_array:
           C10_THROW_ERROR(Error, "This PIM type is not implemented!");
       }
@@ -179,9 +172,9 @@ namespace PIM {
     /// undefined.
     Tensor bias;
 
-    PimPtr wb_ptr;
-    PimPtr wb_t_ptr;
-    PimPtr prev_ptr;
+    PimArrayPtr wb_ptr;
+    PimArrayPtr wb_t_ptr;
+    PimArrayPtr prev_ptr;
     PimArrayType pim_type;
     int64_t batch_size;
   };

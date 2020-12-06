@@ -149,17 +149,17 @@ namespace PIM {
     SimpleLogicArray(int64_t rowSize, int64_t colSize, torch::ScalarType dtype = torch::kFloat)
         : LogicArrayInterface(rowSize, colSize, dtype) {
       arr = torch::zeros({rowSize, colSize}, dtype);
-      std::cout << "call normal constructor. (" << this << ")" << std::endl;
+//      std::cout << "call normal constructor. (" << this << ")" << std::endl;
     }
 
     SimpleLogicArray(const SimpleLogicArray &other) : LogicArrayInterface(other) {
       arr = other.arr.clone();
-      std::cout << "call copy constructor. (" << this << " <- "<< &other <<")" << std::endl;
+//      std::cout << "call copy constructor. (" << this << " <- "<< &other <<")" << std::endl;
     }
 
     SimpleLogicArray(SimpleLogicArray &&other) : LogicArrayInterface(other) {
       arr = std::move(other.arr);
-      std::cout << "call move constructor. (" << this << " <- "<< &other <<")" << std::endl;
+//      std::cout << "call move constructor. (" << this << " <- "<< &other <<")" << std::endl;
     }
 
     void write_cell(int64_t row, int64_t col, const torch::Scalar &value) override {
@@ -176,7 +176,6 @@ namespace PIM {
 //      l.push_back(mv(mat.select(0, i)));
 //    }
 //    return torch::stack(l, 0);
-      mat.print();
       return torch::mm(mat, arr);
     }
 
@@ -277,17 +276,29 @@ namespace PIM {
     return arr.print(os);
   }
 
+
   typedef std::shared_ptr<LogicArrayInterface> PimPtr;
 
-  class PimArrayList : public torch::CustomClassHolder {
+  class PimArrayPtr : public torch::CustomClassHolder {
     public:
-      explicit PimArrayList(size_t size) : array_ptrs(std::vector<PimPtr>(size)){}
-      std::vector<PimPtr> array_ptrs;
+      PimArrayPtr() = default;
+      PimPtr ptr = nullptr;
+  };
+  TORCH_LIBRARY(PimArrayPtr, m) {
+    m.class_<PimArrayPtr>("PimArrayPtr")
+        .def(torch::init());
+  }
+
+  class PimArrayPtrList : public torch::CustomClassHolder {
+    public:
+      PimArrayPtrList() = default;
+//      explicit PimArrayPtrList(int64_t size) : ptrs(std::vector<PimPtr>(size)) {}
+      std::vector<PimPtr> ptrs;
   };
 
-  TORCH_LIBRARY(PimArrayList, m) {
-    m.class_<PimArrayList>("PimArrayList")
-        .def(torch::init<int64_t>());
+  TORCH_LIBRARY(PimArrayPtrList, m) {
+    m.class_<PimArrayPtrList>("PimArrayPtrList")
+        .def(torch::init());
   }
 
   /**
@@ -296,10 +307,10 @@ namespace PIM {
    * @param arr_size shape of 2D Tensor
    * @param pim_type type of PIM array
    */
-  void create_pim_array(PimPtr &arr, torch::ExpandingArray<2> arr_size, PimArrayType pim_type) {
+  void create_pim_array(PimArrayPtr &arr_ptr, torch::ExpandingArray<2> arr_size, PimArrayType pim_type) {
     switch (pim_type) {
       case PimArrayType::simple_logic_array: {
-        arr = std::make_shared<SimpleLogicArray>((*arr_size)[0], (*arr_size)[1]);
+        arr_ptr.ptr = std::make_shared<SimpleLogicArray>((*arr_size)[0], (*arr_size)[1]);
         break;
       }
       case PimArrayType::wb_logic_array:
@@ -313,12 +324,13 @@ namespace PIM {
    * @param arr_shape shape of 3D Tensor
    * @param pim_type type of PIM array
    */
-  void create_pim_array_list(PimArrayList &pim_list, torch::ExpandingArray<3> arr_shape, PimArrayType pim_type) {
+  void create_pim_array_list(PimArrayPtrList &array_ptrs, torch::ExpandingArray<3> arr_shape, PimArrayType pim_type) {
     switch (pim_type) {
       case PimArrayType::simple_logic_array: {
+        array_ptrs.ptrs.resize((*arr_shape)[0]);
         at::parallel_for(0, (*arr_shape)[0], 0, [&](int64_t start, int64_t end) {
           for (int64_t i = start; i < end; i++) {
-            pim_list.array_ptrs[i] = std::make_shared<SimpleLogicArray>((*arr_shape)[1], (*arr_shape)[2]);
+            array_ptrs.ptrs[i] = std::make_shared<SimpleLogicArray>((*arr_shape)[1], (*arr_shape)[2]);
           }
         });
         break;

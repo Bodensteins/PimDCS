@@ -17,6 +17,15 @@ namespace PIM {
     simple_logic_array, wb_logic_array
   };
 
+  std::ostream &operator << ( std::ostream& stream, const PimArrayType &type)
+  {
+    const std::string name[] = {
+        "PIM::simple_logic_array",
+        "PIM::wb_logic_array"
+    };
+    return stream << name[(int)type];
+  }
+
 /**
  * LogicArrayInterface is a API for libtorch to map operations to PIM simulator.
  */

@@ -199,7 +199,8 @@ namespace PIM {
       // write parameters to PIM if is trainable
       if (weight.requires_grad()) {
         for (int64_t i = 0; i < input.size(0); i++) {
-          prevs.ptrs[i]->write_mat(input[i].permute({1, 2, 0}).reshape({-1, input[i].size(1)}));
+          prevs.ptrs[i]->write_mat(input[i].flip({1, 2}).reshape({input[i].size(0), -1}).t());
+//          prevs.ptrs[i]->write_mat(input[i].permute({1, 2, 0}).reshape({-1, input[i].size(1)}));
         }
 
         // update parameters, note that weight shape is (Cin * H * W, Cout)
@@ -208,20 +209,20 @@ namespace PIM {
             weight.permute({1, 2, 3, 0}).reshape({-1, n_output_plane}),
             bias.value().unsqueeze(0)}, 0));
         } else {
-          wb.ptr->write_mat(torch::cat({
-            weight.permute({1, 2, 3, 0}).reshape({-1, n_output_plane}),
-            torch::zeros({1, n_output_plane})}, 0));
+          wb.ptr->write_mat(weight.permute({1, 2, 3, 0}).reshape({-1, n_output_plane}));
         }
         // flip kernel
         wb_t.ptr->write_mat(weight.flip({2, 3}).permute({0, 2, 3, 1}).reshape({-1, n_input_plane}));
       }
 
-
-      ConstantPad1d add_bias(ConstantPad1dOptions({0, 1}, bias.has_value() ? 1 : 0));
       auto pim_input = F::unfold(input,
           UnfoldOptions(kernel_size).padding(padding).stride(stride)).transpose(1, 2);
       auto pim_output = torch::zeros({batch_size, pim_input.size(1), n_output_plane}, weight.options());
-      pim_input = add_bias(pim_input);
+
+      if (bias.has_value()) {
+        ConstantPad1d add_bias(ConstantPad1dOptions({0, 1}, 1));
+        pim_input = add_bias(pim_input);
+      }
 
       at::parallel_for(0, batch_size, 0, [&](int64_t start, int64_t end) {
         for (int64_t i = start; i < end; i++) {
@@ -274,23 +275,28 @@ namespace PIM {
 
       Tensor swap_flip_X = input.flip({2, 3}).permute({1, 0, 2, 3}).transpose(1, 2);
       Tensor unf_swap_dLdZ = F::unfold(insert_dLdZ.permute({1, 0, 2, 3}),
-          F::UnfoldFuncOptions(input_size).padding(unfold_padding));
-      unf_swap_dLdZ.print();
-      Tensor dW_ = torch::zeros({weight.size(0), input.size(1), unf_swap_dLdZ.size(2)});
-      dW_.print();
-      at::parallel_for(0, weight.size(0), 0, [&](int64_t start, int64_t end) {
+          F::UnfoldFuncOptions(input_size).padding(unfold_padding)).transpose(1, 2);
+      std::vector<Tensor> dW_(batch_size);
+      auto dLdZ_chunks = unf_swap_dLdZ.chunk(batch_size, 2);
+
+      at::parallel_for(0, batch_size, 0, [&](int64_t start, int64_t end) {
         for (int64_t i = start; i < end; i++) {
-          dW_[i] = prev_ptrs->ptrs[i]->mm(unf_swap_dLdZ[i]).transpose(0, 1);
+          dW_[i] = torch::zeros({weight.size(0), input.size(1), unf_swap_dLdZ.size(1)});
+          for (int64_t j = 0; j < weight.size(0); j++) {
+            dW_[i][j] = prev_ptrs->ptrs[i]->mm(dLdZ_chunks[i][j]).transpose(0, 1);
+          }
         }
       });
-      Tensor pim_grad_weight = F::fold(dW_,
+      auto dW = torch::stack(dW_, 0).sum(0);
+
+      Tensor pim_grad_weight = F::fold(dW,
           F::FoldFuncOptions(kernel_size, {1, 1}).padding(padding));
 
       if (bias.defined()) {
         pim_grad_bias = grad_output.sum({0, 2, 3});
       }
 
-      return {Tensor(), Tensor(), Tensor(), Tensor(), pim_grad_input, pim_grad_weight,
+      return {Tensor(), Tensor(), Tensor(), pim_grad_input, pim_grad_weight,
               pim_grad_bias, Tensor(), Tensor()}; // number of returns should be equal to forward's args.
     }
   };
@@ -318,7 +324,7 @@ namespace PIM {
         (*kernel_size)[0] * (*kernel_size)[1] * n_output_plane, n_input_plane
       }, pim_type);
       create_pim_array_list(prev_ptrs, {
-        (*input_shape)[0], (*input_shape)[1] * (*input_shape)[2], (*input_shape)[3]
+        (*input_shape)[0], (*input_shape)[2] * (*input_shape)[3], (*input_shape)[1]
       }, pim_type);
 
       reset();

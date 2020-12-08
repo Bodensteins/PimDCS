@@ -44,14 +44,14 @@ namespace PIM {
         // update parameters, note that weight shape is (out_features, in_features)
         if (bias.defined()) {
           wb.ptr->write_mat(torch::cat({weight.t(), bias.unsqueeze(0)}, 0)); // write transposed weight
-        } else {
-          wb.ptr->write_mat(torch::cat({weight.t(), torch::zeros({1, weight.size(0)})}, 0));
         }
         wb_t.ptr->write_mat(weight);
       }
 
-      ConstantPad2d m(ConstantPad2dOptions({0, 1, 0, 0}, bias.defined() ? 1 : 0));
-      input = m(input);
+      if (bias.defined()) {
+        ConstantPad2d m(ConstantPad2dOptions({0, 1, 0, 0}, 1));
+        input = m(input);
+      }
 
       Tensor pim_output = wb.ptr->mm(input);   // shape of wb_ptr: (in_features, out_features)
 

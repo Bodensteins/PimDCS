@@ -16,7 +16,7 @@ using namespace PIM;
 struct Net : torch::nn::Module {
   Net() {
     conv1 = register_module("conv1",
-        PimConv2d(ExpandingArray<4>({1, 2, 4, 4}),
+        PimConv2d(ExpandingArray<4>({2, 2, 4, 4}),
             ExpandingArray<2>({3, 3}), 3, PimArrayType::simple_logic_array));
   }
 
@@ -50,8 +50,8 @@ int main() {
   torch_conv->weight = model.conv1->weight;
   torch_conv->bias = model.conv1->bias;
 
-  Tensor input = torch::arange(32).reshape({1, 2, 4, 4}).toType(torch::kFloat);
-  Tensor torch_input = input.clone();
+  Tensor input = torch::arange(64).reshape({2, 2, 4, 4}).toType(torch::kFloat).requires_grad_();
+  Tensor torch_input = torch::arange(64).reshape({2, 2, 4, 4}).toType(torch::kFloat).requires_grad_();
 
   auto output = model.forward(input);
   auto torch_output = torch_conv->forward(torch_input);

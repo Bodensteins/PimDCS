@@ -37,7 +37,7 @@ namespace PIM {
      * @param colSize column size
      * @param dtype data type
      */
-    LogicArrayInterface(int64_t rowSize, int64_t colSize, torch::ScalarType dtype = torch::kFloat)
+    LogicArrayInterface(int64_t rowSize, int64_t colSize, const torch::TensorOptions& options = {})
         : rowSize(rowSize), colSize(colSize) {}
 
     /**
@@ -155,9 +155,9 @@ namespace PIM {
 
   class SimpleLogicArray : public LogicArrayInterface {
   public:
-    SimpleLogicArray(int64_t rowSize, int64_t colSize, torch::ScalarType dtype = torch::kFloat)
-        : LogicArrayInterface(rowSize, colSize, dtype) {
-      arr = torch::zeros({rowSize, colSize}, dtype);
+    SimpleLogicArray(int64_t rowSize, int64_t colSize, const torch::TensorOptions& options = {})
+        : LogicArrayInterface(rowSize, colSize, options) {
+      arr = torch::zeros({rowSize, colSize}, options);
 //      std::cout << "call normal constructor. (" << this << ")" << std::endl;
     }
 
@@ -315,11 +315,13 @@ namespace PIM {
    * @param arr shared_ptr of LogicArrayInterface
    * @param arr_size shape of 2D Tensor
    * @param pim_type type of PIM array
+   * @param options Tensor options
    */
-  void create_pim_array(PimArrayPtr &arr_ptr, torch::ExpandingArray<2> arr_size, PimArrayType pim_type) {
+  void create_pim_array(PimArrayPtr &arr_ptr, torch::ExpandingArray<2> arr_size, PimArrayType pim_type,
+      const torch::TensorOptions& options = {}) {
     switch (pim_type) {
       case PimArrayType::simple_logic_array: {
-        arr_ptr.ptr = std::make_shared<SimpleLogicArray>((*arr_size)[0], (*arr_size)[1]);
+        arr_ptr.ptr = std::make_shared<SimpleLogicArray>((*arr_size)[0], (*arr_size)[1], options);
         break;
       }
       case PimArrayType::wb_logic_array:
@@ -332,14 +334,16 @@ namespace PIM {
    * @param arr_list reference of PimArrayList
    * @param arr_shape shape of 3D Tensor
    * @param pim_type type of PIM array
+   * @param options Tensor options
    */
-  void create_pim_array_list(PimArrayPtrList &array_ptrs, torch::ExpandingArray<3> arr_shape, PimArrayType pim_type) {
+  void create_pim_array_list(PimArrayPtrList &array_ptrs, torch::ExpandingArray<3> arr_shape, PimArrayType pim_type,
+      const torch::TensorOptions& options = {}) {
     switch (pim_type) {
       case PimArrayType::simple_logic_array: {
         array_ptrs.ptrs.resize((*arr_shape)[0]);
         at::parallel_for(0, (*arr_shape)[0], 0, [&](int64_t start, int64_t end) {
           for (int64_t i = start; i < end; i++) {
-            array_ptrs.ptrs[i] = std::make_shared<SimpleLogicArray>((*arr_shape)[1], (*arr_shape)[2]);
+            array_ptrs.ptrs[i] = std::make_shared<SimpleLogicArray>((*arr_shape)[1], (*arr_shape)[2], options);
           }
         });
         break;

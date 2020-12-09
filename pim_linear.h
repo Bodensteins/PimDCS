@@ -112,12 +112,12 @@ namespace PIM {
 
     explicit PimLinearImpl(const LinearOptions &options_, int64_t batch_size, PimArrayType pim_type)
         : options(options_), batch_size(batch_size), pim_type(pim_type) {
+      reset();
       create_pim_array(wb_ptr, {
           options_.bias() ? options_.in_features() + 1 : options_.in_features(), options_.out_features()
-        }, pim_type);
-      create_pim_array(wb_t_ptr, {options_.out_features(), options_.in_features()}, pim_type);
-      create_pim_array(prev_ptr, {batch_size, options_.in_features()}, pim_type);
-      reset();
+        }, pim_type, weight.options());
+      create_pim_array(wb_t_ptr, {options_.out_features(), options_.in_features()}, pim_type, weight.options());
+      create_pim_array(prev_ptr, {batch_size, options_.in_features()}, pim_type, weight.options());
     }
 
     void reset() override {

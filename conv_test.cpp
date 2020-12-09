@@ -15,9 +15,15 @@ using namespace PIM;
 // Define a new Module.
 struct Net : torch::nn::Module {
   Net() {
+//    conv1 = register_module("conv1",
+//        PimConv2d(ExpandingArray<4>({2, 2, 4, 4}),
+//            ExpandingArray<2>({3, 3}), 3, PimArrayType::simple_logic_array));
     conv1 = register_module("conv1",
-        PimConv2d(ExpandingArray<4>({2, 2, 4, 4}),
-            ExpandingArray<2>({3, 3}), 3, PimArrayType::simple_logic_array));
+        PimConv2d(
+            ExpandingArray<4>({2, 2, 4, 4}),
+            PimArrayType::simple_logic_array,
+            Conv2dOptions(2, 3, {2, 2}).stride(2).padding(1)
+            ));
   }
 
   // Implement the Net's algorithm.
@@ -46,12 +52,13 @@ int main() {
   Net model;
   model.to(device);
 
-  Conv2d torch_conv = torch::nn::Conv2d(2, 3, ExpandingArray<2>({3, 3}));
+  Conv2d torch_conv = torch::nn::Conv2d(
+      Conv2dOptions(2, 3, 2).stride(2).padding(1));
   torch_conv->weight = model.conv1->weight;
   torch_conv->bias = model.conv1->bias;
 
-  Tensor input = torch::arange(64).reshape({2, 2, 4, 4}).toType(torch::kFloat).requires_grad_();
-  Tensor torch_input = torch::arange(64).reshape({2, 2, 4, 4}).toType(torch::kFloat).requires_grad_();
+  Tensor input = torch::arange(32).reshape({1, 2, 4, 4}).toType(torch::kFloat).requires_grad_();
+  Tensor torch_input = torch::arange(32).reshape({1, 2, 4, 4}).toType(torch::kFloat).requires_grad_();
 
   auto output = model.forward(input);
   auto torch_output = torch_conv->forward(torch_input);

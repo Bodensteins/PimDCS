@@ -151,7 +151,7 @@ namespace PIM {
     static torch::Tensor forward(
         AutogradContext *ctx, PimArrayPtr &wb, PimArrayPtr &wb_t, PimArrayPtrList &prevs,
         const Tensor &input, const Tensor &weight, const c10::optional<Tensor> &bias,
-        IntArrayRef stride, IntArrayRef padding, bool isTraining) {
+        IntArrayRef stride, IntArrayRef padding, bool is_training) {
 
       IntArrayRef kernel_size = weight.sizes().slice(2);
       conv2d_shape_check(input, weight, bias.has_value() ? bias.value() : Tensor(), kernel_size, stride, padding);
@@ -197,7 +197,7 @@ namespace PIM {
       ctx->saved_data["prev_ptrs"] = c10::make_intrusive<PimArrayPtrList>(prevs);;
 
       // write parameters to PIM if is trainable
-      if (weight.requires_grad() && isTraining) {
+      if (is_training && weight.requires_grad()) {
         for (int64_t i = 0; i < input.size(0); i++) {
           prevs.ptrs[i]->write_mat(input[i].flip({1, 2}).reshape({input[i].size(0), -1}).t());
 //          prevs.ptrs[i]->write_mat(input[i].permute({1, 2, 0}).reshape({-1, input[i].size(1)}));
@@ -388,12 +388,30 @@ namespace PIM {
       switch (pim_type) {
         case PimArrayType::simple_logic_array:
           return PimConv2dFunction<SimpleLogicArray>::apply(
-              wb_ptr, wb_t_ptr, prev_ptrs, input, weight, bias, options.stride(), options.padding(), is_training());
+              wb_ptr, wb_t_ptr, prev_ptrs,
+              input, weight, options.bias() ? bias : c10::optional<Tensor>(),
+              options.stride(), options.padding(), is_training_);
         case PimArrayType::wb_logic_array:
           C10_THROW_ERROR(Error, "This PIM type is not implemented!");
       }
     }
 
+    void sync_weight() {
+      if (options.bias()) {
+        wb_ptr.ptr->write_mat(torch::cat({
+               weight.permute({1, 2, 3, 0}).reshape({-1, options.out_channels()}),
+               bias.unsqueeze(0)}, 0));
+      } else {
+        wb_ptr.ptr->write_mat(weight.permute({1, 2, 3, 0}).reshape({-1, options.out_channels()}));
+      }
+    }
+
+    void train(bool on = true) override {
+      if (!on) {
+        sync_weight();
+      }
+      is_training_ = on;
+    }
 
     /// The options used to configure this module.
     Conv2dOptions options;
@@ -405,11 +423,15 @@ namespace PIM {
     /// undefined.
     Tensor bias;
 
+    /// Whether the module is in training mode.
+    bool is_training_{true};
+
     PimArrayPtr wb_ptr;
     PimArrayPtr wb_t_ptr;
     PimArrayPtrList prev_ptrs;
     PimArrayType pim_type;
     ExpandingArray<4> input_shape;
+
   };
 
   TORCH_MODULE(PimConv2d);

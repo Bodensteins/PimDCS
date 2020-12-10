@@ -31,9 +31,15 @@ struct Net : torch::nn::Module {
 //    fc1 = register_module("fc1", torch::nn::Linear(784, 64));
 //    fc2 = register_module("fc2", torch::nn::Linear(64, 32));
 //    fc3 = register_module("fc3", torch::nn::Linear(32, 10));
-    fc1 = register_module("fc1", PimLinear(784, 64, kTrainBatchSize, PimArrayType::simple_logic_array));
-    fc2 = register_module("fc2", PimLinear(64, 32, kTrainBatchSize, PimArrayType::simple_logic_array));
-    fc3 = register_module("fc3", PimLinear(32, 10, kTrainBatchSize, PimArrayType::simple_logic_array));
+//    fc1 = register_module("fc1", PimLinear(784, 64, kTrainBatchSize, PimArrayType::simple_logic_array));
+//    fc2 = register_module("fc2", PimLinear(64, 32, kTrainBatchSize, PimArrayType::simple_logic_array));
+//    fc3 = register_module("fc3", PimLinear(32, 10, kTrainBatchSize, PimArrayType::simple_logic_array));
+    fc1 = register_module("fc1", PimLinear(kTrainBatchSize, PimArrayType::simple_logic_array,
+        LinearOptions(784, 64).bias(false)));
+    fc2 = register_module("fc2", PimLinear(kTrainBatchSize, PimArrayType::simple_logic_array,
+        LinearOptions(64, 32).bias(false)));
+    fc3 = register_module("fc3", PimLinear(kTrainBatchSize, PimArrayType::simple_logic_array,
+        LinearOptions(32, 10).bias(false)));
   }
 
   // Implement the Net's algorithm.

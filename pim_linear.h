@@ -23,11 +23,11 @@ namespace PIM {
     // bias is an optional argument
     static Tensor forward(
         AutogradContext *ctx, PimArrayPtr &wb, PimArrayPtr &wb_t, PimArrayPtr &prev,
-        Tensor input, Tensor weight, Tensor bias = Tensor()) {
-      ctx->save_for_backward({input, weight, bias});
+        const Tensor &input, const Tensor &weight, const c10::optional<Tensor> &bias, bool is_training) {
+      ctx->save_for_backward({input, weight, bias.has_value() ? bias.value() : Tensor()});
       Tensor output = input.mm(weight.t());
-      if (bias.defined()) {
-        output += bias.unsqueeze(0).expand_as(output);
+      if (bias.has_value()) {
+        output += bias.value().unsqueeze(0).expand_as(output);
       }
 
       // ============
@@ -38,22 +38,25 @@ namespace PIM {
       ctx->saved_data["prev_ptr"] = c10::make_intrusive<PimArrayPtr>(prev);
 
       // write parameters to PIM if is trainable
-      if (weight.requires_grad()) {
+      if (is_training && weight.requires_grad()) {
         prev.ptr->write_mat(input);
 
         // update parameters, note that weight shape is (out_features, in_features)
-        if (bias.defined()) {
-          wb.ptr->write_mat(torch::cat({weight.t(), bias.unsqueeze(0)}, 0)); // write transposed weight
+        if (bias.has_value()) {
+          wb.ptr->write_mat(torch::cat({weight.t(), bias.value().unsqueeze(0)}, 0)); // write transposed weight
+        } else {
+          wb.ptr->write_mat(weight.t());
         }
         wb_t.ptr->write_mat(weight);
       }
 
-      if (bias.defined()) {
+      Tensor pim_input = input;
+      if (bias.has_value()) {
         ConstantPad2d m(ConstantPad2dOptions({0, 1, 0, 0}, 1));
-        input = m(input);
+        pim_input = m(input);
       }
 
-      Tensor pim_output = wb.ptr->mm(input);   // shape of wb_ptr: (in_features, out_features)
+      Tensor pim_output = wb.ptr->mm(pim_input);   // shape of wb_ptr: (in_features, out_features)
 
       if (!torch::allclose(output, pim_output, 1e-05, 1e-05)) {
         std::cout << "Forward" << std::endl;
@@ -100,7 +103,7 @@ namespace PIM {
       }
 
       // number of returns should be equal to forward's args.
-      return {Tensor(), Tensor(), Tensor(), pim_grad_input, pim_grad_weight, grad_bias};
+      return {Tensor(), Tensor(), Tensor(), pim_grad_input, pim_grad_weight, grad_bias, Tensor()};
     }
   };
 
@@ -108,9 +111,9 @@ namespace PIM {
   class TORCH_API PimLinearImpl : public Cloneable<PimLinearImpl> {
   public:
     PimLinearImpl(int64_t in_features, int64_t out_features, int64_t batch_size, PimArrayType pim_type)
-        : PimLinearImpl(LinearOptions(in_features, out_features), batch_size, pim_type) {}
+        : PimLinearImpl(batch_size, pim_type, LinearOptions(in_features, out_features)) {}
 
-    explicit PimLinearImpl(const LinearOptions &options_, int64_t batch_size, PimArrayType pim_type)
+    explicit PimLinearImpl(int64_t batch_size, PimArrayType pim_type, const LinearOptions &options_)
         : options(options_), batch_size(batch_size), pim_type(pim_type) {
       reset();
       create_pim_array(wb_ptr, {
@@ -156,10 +159,26 @@ namespace PIM {
     Tensor forward(const Tensor &input) {
       switch (pim_type) {
         case PimArrayType::simple_logic_array:
-          return PimLinearFunction<SimpleLogicArray>::apply(wb_ptr, wb_t_ptr, prev_ptr, input, weight, bias);
+          return PimLinearFunction<SimpleLogicArray>::apply(wb_ptr, wb_t_ptr, prev_ptr, input, weight,
+              options.bias() ? bias : c10::optional<Tensor>(), is_training_);
         case PimArrayType::wb_logic_array:
           C10_THROW_ERROR(Error, "This PIM type is not implemented!");
       }
+    }
+
+    void sync_weight() {
+      if (bias.defined()) {
+        wb_ptr.ptr->write_mat(torch::cat({weight.t(), bias.unsqueeze(0)}, 0)); // write transposed weight
+      } else {
+        wb_ptr.ptr->write_mat(weight.t());
+      }
+    }
+
+    void train(bool on = true) override {
+      if (!on) {
+        sync_weight();
+      }
+      is_training_ = on;
     }
 
     /// The options used to configure this module.
@@ -171,6 +190,9 @@ namespace PIM {
     /// The learned bias. If `bias` is false in the `options`, this tensor is
     /// undefined.
     Tensor bias;
+
+    /// Whether the module is in training mode.
+    bool is_training_{true};
 
     PimArrayPtr wb_ptr;
     PimArrayPtr wb_t_ptr;

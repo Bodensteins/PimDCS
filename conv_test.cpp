@@ -22,7 +22,7 @@ struct Net : torch::nn::Module {
         PimConv2d(
             ExpandingArray<4>({2, 2, 4, 4}),
             PimArrayType::simple_logic_array,
-            Conv2dOptions(2, 3, {2, 2}).stride(2).padding(1)
+            Conv2dOptions(2, 3, {2, 2}).stride(2).padding(1).bias(false)
             ));
   }
 
@@ -53,9 +53,9 @@ int main() {
   model.to(device);
 
   Conv2d torch_conv = torch::nn::Conv2d(
-      Conv2dOptions(2, 3, 2).stride(2).padding(1));
+      Conv2dOptions(2, 3, 2).stride(2).padding(1).bias(false));
   torch_conv->weight = model.conv1->weight;
-  torch_conv->bias = model.conv1->bias;
+//  torch_conv->bias = model.conv1->bias;
 
   Tensor input = torch::arange(32).reshape({1, 2, 4, 4}).toType(torch::kFloat).requires_grad_();
   Tensor torch_input = torch::arange(32).reshape({1, 2, 4, 4}).toType(torch::kFloat).requires_grad_();
@@ -79,11 +79,11 @@ int main() {
     Tensor err = weight_grad - t_weight_grad;
     std::cout << err << std::endl;
   }
-  if (!torch::allclose(bias_grad, t_bias_grad, 1e-05, 1e-05)) {
-    std::cout << "bias grad" << std::endl;
-    Tensor err = bias_grad - t_bias_grad;
-    std::cout << err << std::endl;
-  }
+//  if (!torch::allclose(bias_grad, t_bias_grad, 1e-05, 1e-05)) {
+//    std::cout << "bias grad" << std::endl;
+//    Tensor err = bias_grad - t_bias_grad;
+//    std::cout << err << std::endl;
+//  }
   if (!torch::allclose(input_grad, t_input_grad, 1e-05, 1e-05)) {
     std::cout << "input grad" << std::endl;
     Tensor err = input_grad - t_input_grad;

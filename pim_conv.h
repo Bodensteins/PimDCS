@@ -237,6 +237,7 @@ namespace PIM {
         std::cout << err << std::endl;
         TORCH_INTERNAL_ASSERT(false);
       }
+      TORCH_INTERNAL_ASSERT(output.device() == input.device(), "The device of forward output is not same as input.");
       return output;
     }
 
@@ -247,7 +248,6 @@ namespace PIM {
       auto bias = saved[2];
 
       const int64_t batch_size = input.size(0);
-
       std::vector<int64_t> input_size({input.size(2), input.size(3)});
       auto stride = ctx->saved_data["stride"].toIntVector();
       auto padding = ctx->saved_data["padding"].toIntVector();
@@ -259,13 +259,14 @@ namespace PIM {
       c10::intrusive_ptr<PimArrayPtrList> prev_ptrs = ctx->saved_data["prev_ptrs"].toCustomClass<PimArrayPtrList>();
 
       Tensor grad_output = grad_outputs[0];
+      TensorOptions device_options(grad_output.device());
       Tensor pim_grad_bias = torch::Tensor();
 
       Tensor insert_dLdZ = insert_zeros(grad_output, stride);
 
       Tensor unf_dLdZ = F::unfold(insert_dLdZ,
           F::UnfoldFuncOptions(kernel_size).padding(unfold_padding)).transpose(1, 2);
-      Tensor dZ_ = torch::zeros({batch_size, input.size(1), unf_dLdZ.size(1)}, grad_output.options());
+      Tensor dZ_ = torch::zeros({batch_size, input.size(1), unf_dLdZ.size(1)}, device_options);
       at::parallel_for(0, batch_size, 0, [&](int64_t start, int64_t end) {
         for (int64_t i = start; i < end; i++) {
           dZ_[i] = wb_t_ptr->ptr->mm(unf_dLdZ[i]).transpose(0, 1);
@@ -282,7 +283,7 @@ namespace PIM {
 
       at::parallel_for(0, batch_size, 0, [&](int64_t start, int64_t end) {
         for (int64_t i = start; i < end; i++) {
-          dW_[i] = torch::zeros({weight.size(0), input.size(1), unf_swap_dLdZ.size(1)});
+          dW_[i] = torch::zeros({weight.size(0), input.size(1), unf_swap_dLdZ.size(1)}, device_options);
           for (int64_t j = 0; j < weight.size(0); j++) {
             dW_[i][j] = prev_ptrs->ptrs[i]->mm(dLdZ_chunks[i][j]).transpose(0, 1);
           }
@@ -297,6 +298,9 @@ namespace PIM {
         pim_grad_bias = grad_output.sum({0, 2, 3});
       }
 
+      TORCH_INTERNAL_ASSERT(pim_grad_input.device() == input.device(), "The device of backward grad_input is not same as input.");
+      TORCH_INTERNAL_ASSERT(pim_grad_weight.device() == input.device(), "The device of backward grad_weight is not same as input.");
+      TORCH_INTERNAL_ASSERT(pim_grad_bias.device() == input.device(), "The device of backward grad_bias is not same as input.");
       return {Tensor(), Tensor(), Tensor(), pim_grad_input, pim_grad_weight,
               pim_grad_bias, Tensor(), Tensor(), Tensor()}; // number of returns should be equal to forward's args.
     }

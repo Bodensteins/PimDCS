@@ -25,10 +25,10 @@ namespace PIM {
         AutogradContext *ctx, PimArrayPtr &wb, PimArrayPtr &wb_t, PimArrayPtr &prev,
         const Tensor &input, const Tensor &weight, const c10::optional<Tensor> &bias, bool is_training) {
       ctx->save_for_backward({input, weight, bias.has_value() ? bias.value() : Tensor()});
-      Tensor output = input.mm(weight.t());
-      if (bias.has_value()) {
-        output += bias.value().unsqueeze(0).expand_as(output);
-      }
+//      Tensor output = input.mm(weight.t());
+//      if (bias.has_value()) {
+//        output += bias.value().unsqueeze(0).expand_as(output);
+//      }
 
       // ============
       // use intrusive_ptr instead of SimpleLogicArray reference (e.g wb_ptr, wb_t_ptr, prev_ptr)
@@ -58,11 +58,11 @@ namespace PIM {
 
       Tensor pim_output = wb.ptr->mm(pim_input);   // shape of wb_ptr: (in_features, out_features)
 
-      if (!torch::allclose(output, pim_output, 1e-05, 1e-05)) {
-        std::cout << "Forward" << std::endl;
-        Tensor err = output - pim_output;
-        std::cout << err << std::endl;
-      }
+//      if (!torch::allclose(output, pim_output, 1e-05, 1e-05)) {
+//        std::cout << "Forward" << std::endl;
+//        Tensor err = output - pim_output;
+//        std::cout << err << std::endl;
+//      }
 
       return pim_output;
     }
@@ -74,8 +74,8 @@ namespace PIM {
       auto bias = saved[2];
 
       Tensor grad_output = grad_outputs[0];
-      Tensor grad_input = grad_output.mm(weight);
-      Tensor grad_weight = grad_output.t().mm(input);
+//      Tensor grad_input = grad_output.mm(weight);
+//      Tensor grad_weight = grad_output.t().mm(input);
       Tensor grad_bias = Tensor();
       if (bias.defined()) {
         grad_bias = grad_output.sum(0);
@@ -88,19 +88,19 @@ namespace PIM {
       Tensor pim_grad_weight = ctx->saved_data["prev_ptr"].toCustomClass<PimArrayPtr>()->ptr->mm(grad_output.t());
 
 
-      if (!torch::allclose(grad_input, pim_grad_input, 1e-05, 1e-05)) {
-        std::cout << "Backward::grad_input" << std::endl;
-        Tensor err = grad_input - pim_grad_input;
-        std::cout << err << std::endl;
-      }
-
-      if (!torch::allclose(grad_weight, pim_grad_weight, 1e-05, 1e-05)) {
-        std::cout << "Backward::grad_weight" << std::endl;
-        Tensor err = grad_weight - pim_grad_weight;
-        std::cout << grad_weight << std::endl;
-        std::cout << pim_grad_weight << std::endl;
-        std::cout << err << std::endl;
-      }
+//      if (!torch::allclose(grad_input, pim_grad_input, 1e-05, 1e-05)) {
+//        std::cout << "Backward::grad_input" << std::endl;
+//        Tensor err = grad_input - pim_grad_input;
+//        std::cout << err << std::endl;
+//      }
+//
+//      if (!torch::allclose(grad_weight, pim_grad_weight, 1e-05, 1e-05)) {
+//        std::cout << "Backward::grad_weight" << std::endl;
+//        Tensor err = grad_weight - pim_grad_weight;
+//        std::cout << grad_weight << std::endl;
+//        std::cout << pim_grad_weight << std::endl;
+//        std::cout << err << std::endl;
+//      }
 
       // number of returns should be equal to forward's args.
       return {Tensor(), Tensor(), Tensor(), pim_grad_input, pim_grad_weight, grad_bias, Tensor()};

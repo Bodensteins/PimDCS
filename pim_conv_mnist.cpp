@@ -130,8 +130,7 @@ auto main() -> int {
     std::cout << "Training on CPU." << std::endl;
     device_type = torch::kCPU;
   }
-//  torch::Device device(device_type);
-  torch::Device device(torch::kCPU);
+  torch::Device device(device_type);
 
   Net model;
   model.to(device);

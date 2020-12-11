@@ -19,7 +19,7 @@ const int64_t kTrainBatchSize = 64;
 const int64_t kTestBatchSize = 1000;
 
 // The number of epochs to train.
-const int64_t kNumberOfEpochs = 1;
+const int64_t kNumberOfEpochs = 10;
 
 // After how many batches to log a new update with the loss value.
 const int64_t kLogInterval = 10;
@@ -31,9 +31,9 @@ struct Net : torch::nn::Module {
 //    fc1 = register_module("fc1", torch::nn::Linear(784, 64));
 //    fc2 = register_module("fc2", torch::nn::Linear(64, 32));
 //    fc3 = register_module("fc3", torch::nn::Linear(32, 10));
-    fc1 = register_module("fc1", PimLinear(784, 512, kTrainBatchSize, PimArrayType::simple_logic_array));
-    fc2 = register_module("fc2", PimLinear(512, 512, kTrainBatchSize, PimArrayType::simple_logic_array));
-    fc3 = register_module("fc3", PimLinear(512, 10, kTrainBatchSize, PimArrayType::simple_logic_array));
+    fc1 = register_module("fc1", PimLinear(784, 64, kTrainBatchSize, PimArrayType::simple_logic_array));
+    fc2 = register_module("fc2", PimLinear(64, 32, kTrainBatchSize, PimArrayType::simple_logic_array));
+    fc3 = register_module("fc3", PimLinear(32, 10, kTrainBatchSize, PimArrayType::simple_logic_array));
 //    fc1 = register_module("fc1", PimLinear(kTrainBatchSize, PimArrayType::simple_logic_array,
 //        LinearOptions(784, 64).bias(false)));
 //    fc2 = register_module("fc2", PimLinear(kTrainBatchSize, PimArrayType::simple_logic_array,
@@ -68,7 +68,7 @@ void train(
   model.train();
   size_t batch_idx = 0;
   for (auto& batch : data_loader) {
-    auto data = batch.data.to(device), targets = batch.target.to(device);
+    auto data = batch.data.to(device, torch::kFloat64), targets = batch.target.to(device);
     optimizer.zero_grad();
     auto output = model.forward(data);
     auto loss = torch::nll_loss(output, targets);
@@ -78,7 +78,7 @@ void train(
 
     if (batch_idx++ % kLogInterval == 0) {
       std::printf(
-          "\nTrain Epoch: %ld [%5ld/%5ld] Loss: %.4f",
+          "\rTrain Epoch: %ld [%5ld/%5ld] Loss: %.4f",
           epoch,
           batch_idx * batch.data.size(0),
           dataset_size,
@@ -98,7 +98,7 @@ void test(
   double test_loss = 0;
   int32_t correct = 0;
   for (const auto& batch : data_loader) {
-    auto data = batch.data.to(device), targets = batch.target.to(device);
+    auto data = batch.data.to(device, torch::kFloat64), targets = batch.target.to(device);
     auto output = model.forward(data);
     test_loss += torch::nll_loss(
         output,
@@ -131,7 +131,7 @@ auto main() -> int {
   torch::Device device(device_type);
 
   Net model;
-  model.to(device);
+  model.to(device, torch::kFloat64);
 
   auto start = high_resolution_clock::now();
 

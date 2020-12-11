@@ -19,7 +19,7 @@ const int64_t kTrainBatchSize = 64;
 const int64_t kTestBatchSize = 1000;
 
 // The number of epochs to train.
-const int64_t kNumberOfEpochs = 1;
+const int64_t kNumberOfEpochs = 40;
 
 // After how many batches to log a new update with the loss value.
 const int64_t kLogInterval = 10;
@@ -70,7 +70,7 @@ void train(
   model.train();
   size_t batch_idx = 0;
   for (auto& batch : data_loader) {
-    auto data = batch.data.to(device), targets = batch.target.to(device);
+    auto data = batch.data.to(device, torch::kFloat64), targets = batch.target.to(device);
     optimizer.zero_grad();
     auto output = model.forward(data);
     auto loss = torch::nll_loss(output, targets);
@@ -80,7 +80,7 @@ void train(
 
     if (batch_idx++ % kLogInterval == 0) {
       std::printf(
-          "\nTrain Epoch: %ld [%5ld/%5ld] Loss: %.4f",
+          "\rTrain Epoch: %ld [%5ld/%5ld] Loss: %.4f",
           epoch,
           batch_idx * batch.data.size(0),
           dataset_size,
@@ -100,7 +100,7 @@ void test(
   double test_loss = 0;
   int32_t correct = 0;
   for (const auto& batch : data_loader) {
-    auto data = batch.data.to(device), targets = batch.target.to(device);
+    auto data = batch.data.to(device, torch::kFloat64), targets = batch.target.to(device);
     auto output = model.forward(data);
     test_loss += torch::nll_loss(
         output,
@@ -133,7 +133,7 @@ auto main() -> int {
   torch::Device device(device_type);
 
   Net model;
-  model.to(device);
+  model.to(device, torch::kFloat64);
 
   auto start = high_resolution_clock::now();
 
@@ -154,7 +154,8 @@ auto main() -> int {
       torch::data::make_data_loader(std::move(test_dataset), kTestBatchSize);
 
   torch::optim::SGD optimizer(
-      model.parameters(), torch::optim::SGDOptions(0.01).momentum(0.5));
+      model.parameters(), torch::optim::SGDOptions(0.0035).momentum(0.5));
+//  torch::optim::Adam optimizer(model.parameters(), torch::optim::AdamOptions(1e-3));
 
   for (size_t epoch = 1; epoch <= kNumberOfEpochs; ++epoch) {
     train(epoch, model, device, *train_loader, optimizer, train_dataset_size);

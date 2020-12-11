@@ -174,24 +174,9 @@ namespace PIM {
           (input_width + 2 * pad_width - kernel_width) / stride_width + 1;
       const int64_t batch_size = input.size(0);
 
-      Tensor output;
-      if (bias.has_value()) {
-        output = functional::conv2d(
-            input, weight, F::Conv2dFuncOptions().bias(bias.value()).stride(stride).padding(padding));
-      } else {
-        output = functional::conv2d(
-            input, weight, F::Conv2dFuncOptions().stride(stride).padding(padding));
-      }
-
       ctx->save_for_backward({input, weight, bias.has_value() ? bias.value() : Tensor()});
-
       ctx->saved_data["stride"] = std::vector<int64_t>(stride.vec());
       ctx->saved_data["padding"] = std::vector<int64_t>(padding.vec());
-
-
-      // =================
-      // use intrusive_ptr instead of SimpleLogicArray reference (e.g wb_ptr, wb_t_ptr, prev_ptr)
-
       ctx->saved_data["wb_ptr"] = c10::make_intrusive<PimArrayPtr>(wb);
       ctx->saved_data["wb_t_ptr"] = c10::make_intrusive<PimArrayPtr>(wb_t);;
       ctx->saved_data["prev_ptrs"] = c10::make_intrusive<PimArrayPtrList>(prevs);;
@@ -200,7 +185,6 @@ namespace PIM {
       if (is_training && weight.requires_grad()) {
         for (int64_t i = 0; i < input.size(0); i++) {
           prevs.ptrs[i]->write_mat(input[i].flip({1, 2}).reshape({input[i].size(0), -1}).t());
-//          prevs.ptrs[i]->write_mat(input[i].permute({1, 2, 0}).reshape({-1, input[i].size(1)}));
         }
 
         // update parameters, note that weight shape is (Cin * H * W, Cout)
@@ -212,7 +196,18 @@ namespace PIM {
           wb.ptr->write_mat(weight.permute({1, 2, 3, 0}).reshape({-1, n_output_plane}));
         }
         // flip kernel
-        wb_t.ptr->write_mat(weight.flip({2, 3}).permute({0, 2, 3, 1}).reshape({-1, n_input_plane}));
+        wb_t.ptr->write_mat(weight.flip({2, 3}).permute({1, 0, 2, 3}).reshape({n_input_plane, -1}).t());
+//        wb_t.ptr->write_mat(weight.flip({2, 3}).permute({0, 2, 3, 1}).reshape({-1, n_input_plane}));
+      }
+
+      // gold result
+      Tensor output;
+      if (bias.has_value()) {
+        output = functional::conv2d(
+            input, weight, F::Conv2dFuncOptions().bias(bias.value()).stride(stride).padding(padding));
+      } else {
+        output = functional::conv2d(
+            input, weight, F::Conv2dFuncOptions().stride(stride).padding(padding));
       }
 
       auto pim_input = F::unfold(input,
@@ -231,14 +226,15 @@ namespace PIM {
       });
       pim_output.transpose_(1, 2);
       pim_output = F::fold(pim_output, FoldOptions({output_width, output_height}, {1, 1}));
-      if (!torch::allclose(output, pim_output, 1e-05, 1e-05)) {
-        std::cout << "Forward" << std::endl;
-        Tensor err = output - pim_output;
-        std::cout << err << std::endl;
-        TORCH_INTERNAL_ASSERT(false);
+
+      if (!torch::allclose(output, pim_output, 1e-05, 1e-08)) {
+        TORCH_INTERNAL_ASSERT(false, "calculation error");
       }
-      TORCH_INTERNAL_ASSERT(output.device() == input.device(), "The device of forward output is not same as input.");
-      return output;
+//      std::cout << "forward output" << std::endl;
+//      Tensor err = output - pim_output;
+//      std::cout << err << std::endl;
+
+      return pim_output;
     }
 
     static tensor_list backward(AutogradContext *ctx, tensor_list grad_outputs) {
@@ -249,47 +245,46 @@ namespace PIM {
 
       const int64_t batch_size = input.size(0);
       std::vector<int64_t> input_size({input.size(2), input.size(3)});
-      auto stride = ctx->saved_data["stride"].toIntVector();
-      auto padding = ctx->saved_data["padding"].toIntVector();
       std::vector<int64_t> kernel_size({weight.size(2), weight.size(3)});
       std::vector<int64_t> unfold_padding({kernel_size[0]-1 , kernel_size[1]-1});
+      auto stride = ctx->saved_data["stride"].toIntVector();
+      auto padding = ctx->saved_data["padding"].toIntVector();
 
       c10::intrusive_ptr<PimArrayPtr> wb_ptr = ctx->saved_data["wb_ptr"].toCustomClass<PimArrayPtr>();
       c10::intrusive_ptr<PimArrayPtr> wb_t_ptr = ctx->saved_data["wb_t_ptr"].toCustomClass<PimArrayPtr>();
       c10::intrusive_ptr<PimArrayPtrList> prev_ptrs = ctx->saved_data["prev_ptrs"].toCustomClass<PimArrayPtrList>();
 
       Tensor grad_output = grad_outputs[0];
-      TensorOptions device_options(grad_output.device());
-      Tensor pim_grad_bias = torch::Tensor();
+      Tensor pim_grad_bias = Tensor();
 
       Tensor insert_dLdZ = insert_zeros(grad_output, stride);
 
+      // grad of input
       Tensor unf_dLdZ = F::unfold(insert_dLdZ,
           F::UnfoldFuncOptions(kernel_size).padding(unfold_padding)).transpose(1, 2);
-      Tensor dZ_ = torch::zeros({batch_size, input.size(1), unf_dLdZ.size(1)}, device_options);
+      Tensor dZ_ = torch::zeros({batch_size, input.size(1), unf_dLdZ.size(1)}, grad_output.options());
       at::parallel_for(0, batch_size, 0, [&](int64_t start, int64_t end) {
         for (int64_t i = start; i < end; i++) {
           dZ_[i] = wb_t_ptr->ptr->mm(unf_dLdZ[i]).transpose(0, 1);
         }
       });
-      Tensor pim_grad_input = F::fold(dZ_,
-          F::FoldFuncOptions(input_size, {1, 1}).padding(padding));
+      Tensor pim_grad_input = F::fold(dZ_,F::FoldFuncOptions(input_size, {1, 1}).padding(padding));
 
+      // grad of weight
       Tensor swap_flip_X = input.flip({2, 3}).permute({1, 0, 2, 3}).transpose(1, 2);
       Tensor unf_swap_dLdZ = F::unfold(insert_dLdZ.permute({1, 0, 2, 3}),
           F::UnfoldFuncOptions(input_size).padding(unfold_padding)).transpose(1, 2);
       std::vector<Tensor> dW_(batch_size);
       auto dLdZ_chunks = unf_swap_dLdZ.chunk(batch_size, 2);
-
       at::parallel_for(0, batch_size, 0, [&](int64_t start, int64_t end) {
         for (int64_t i = start; i < end; i++) {
-          dW_[i] = torch::zeros({weight.size(0), input.size(1), unf_swap_dLdZ.size(1)}, device_options);
+          dW_[i] = torch::zeros({weight.size(0), input.size(1), unf_swap_dLdZ.size(1)}, grad_output.options());
           for (int64_t j = 0; j < weight.size(0); j++) {
             dW_[i][j] = prev_ptrs->ptrs[i]->mm(dLdZ_chunks[i][j]).transpose(0, 1);
           }
         }
       });
-      auto dW = torch::stack(dW_, 0).sum(0);
+      Tensor dW = torch::stack(dW_, 0).sum(0);
 
       Tensor pim_grad_weight = F::fold(dW,
           F::FoldFuncOptions(kernel_size, {1, 1}).padding(padding));
@@ -298,9 +293,6 @@ namespace PIM {
         pim_grad_bias = grad_output.sum({0, 2, 3});
       }
 
-      TORCH_INTERNAL_ASSERT(pim_grad_input.device() == input.device(), "The device of backward grad_input is not same as input.");
-      TORCH_INTERNAL_ASSERT(pim_grad_weight.device() == input.device(), "The device of backward grad_weight is not same as input.");
-      TORCH_INTERNAL_ASSERT(pim_grad_bias.device() == input.device(), "The device of backward grad_bias is not same as input.");
       return {Tensor(), Tensor(), Tensor(), pim_grad_input, pim_grad_weight,
               pim_grad_bias, Tensor(), Tensor(), Tensor()}; // number of returns should be equal to forward's args.
     }

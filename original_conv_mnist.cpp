@@ -18,7 +18,7 @@ const int64_t kTrainBatchSize = 64;
 const int64_t kTestBatchSize = 1000;
 
 // The number of epochs to train.
-const int64_t kNumberOfEpochs = 5;
+const int64_t kNumberOfEpochs = 20;
 
 // After how many batches to log a new update with the loss value.
 const int64_t kLogInterval = 10;

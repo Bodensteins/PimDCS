@@ -29,3 +29,7 @@ set_property(TARGET logic_array_interface_test PROPERTY CXX_STANDARD 14)
 add_executable(conv_test conv_test.cpp logic_array_interface.h pim_conv.h)
 target_link_libraries(conv_test "${TORCH_LIBRARIES}")
 set_property(TARGET conv_test PROPERTY CXX_STANDARD 14)
+
+add_executable(simple_test simple_test.cpp)
+target_link_libraries(simple_test "${TORCH_LIBRARIES}")
+set_property(TARGET simple_test PROPERTY CXX_STANDARD 14)

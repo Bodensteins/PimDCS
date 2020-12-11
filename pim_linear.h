@@ -20,22 +20,37 @@ namespace PIM {
   public:
     // Note that both forward and backward are static functions
 
-    // bias is an optional argument
+    /**
+     * Forward function for linear module.
+     *
+     *  Tensor output = input.mm(weight.t());
+     *  if (bias.has_value()) {
+     *    output += bias.value().unsqueeze(0).expand_as(output);
+     *  }
+     *
+     * @param ctx autograd context
+     * @param wb pim array for weight and bias
+     * @param wb_t pim array for transposed weight
+     * @param prev pim array to save input data
+     * @param input input tensor
+     * @param weight weight tensor
+     * @param bias bias tensor(optional)
+     * @param is_training training status
+     * @return
+     */
     static Tensor forward(
         AutogradContext *ctx, PimArrayPtr &wb, PimArrayPtr &wb_t, PimArrayPtr &prev,
         const Tensor &input, const Tensor &weight, const c10::optional<Tensor> &bias, bool is_training) {
       ctx->save_for_backward({input, weight, bias.has_value() ? bias.value() : Tensor()});
-//      Tensor output = input.mm(weight.t());
-//      if (bias.has_value()) {
-//        output += bias.value().unsqueeze(0).expand_as(output);
-//      }
-
-      // ============
-      // use intrusive_ptr instead of SimpleLogicArray reference (e.g wb_ptr, wb_t_ptr, prev_ptr)
 
       ctx->saved_data["wb_ptr"] = c10::make_intrusive<PimArrayPtr>(wb);
       ctx->saved_data["wb_t_ptr"] = c10::make_intrusive<PimArrayPtr>(wb_t);
       ctx->saved_data["prev_ptr"] = c10::make_intrusive<PimArrayPtr>(prev);
+
+      Tensor output = input.mm(weight.t());
+      if (bias.has_value()) {
+        output += bias.value().unsqueeze(0).expand_as(output);
+      }
 
       // write parameters to PIM if is trainable
       if (is_training && weight.requires_grad()) {
@@ -58,15 +73,23 @@ namespace PIM {
 
       Tensor pim_output = wb.ptr->mm(pim_input);   // shape of wb_ptr: (in_features, out_features)
 
-//      if (!torch::allclose(output, pim_output, 1e-05, 1e-05)) {
-//        std::cout << "Forward" << std::endl;
-//        Tensor err = output - pim_output;
-//        std::cout << err << std::endl;
-//      }
+      if (!torch::allclose(output, pim_output, 1e-05, 1e-06)) {
+        TORCH_INTERNAL_ASSERT(false, "calculation error");
+      }
 
       return pim_output;
     }
 
+    /**
+     * Backward function for linear module.
+     *
+     *  Tensor grad_input = grad_output.mm(weight);
+     *  Tensor grad_weight = grad_output.t().mm(input);
+     *
+     * @param ctx autograd context
+     * @param grad_outputs tensor list for grad outputs
+     * @return tensor list of grad outputs
+     */
     static tensor_list backward(AutogradContext *ctx, tensor_list grad_outputs) {
       auto saved = ctx->get_saved_variables();
       auto input = saved[0];
@@ -74,36 +97,29 @@ namespace PIM {
       auto bias = saved[2];
 
       Tensor grad_output = grad_outputs[0];
-//      Tensor grad_input = grad_output.mm(weight);
-//      Tensor grad_weight = grad_output.t().mm(input);
-      Tensor grad_bias = Tensor();
-      if (bias.defined()) {
-        grad_bias = grad_output.sum(0);
-      }
 
-      // =============
+      Tensor grad_input = grad_output.mm(weight);
+      Tensor grad_weight = grad_output.t().mm(input);
+
+      Tensor pim_grad_bias = Tensor();
+      if (bias.defined()) {
+        pim_grad_bias = grad_output.sum(0);
+      }
 
       // shape of wb_t_ptr: (out_features, in_features)
       Tensor pim_grad_input = ctx->saved_data["wb_t_ptr"].toCustomClass<PimArrayPtr>()->ptr->mm(grad_output);
       Tensor pim_grad_weight = ctx->saved_data["prev_ptr"].toCustomClass<PimArrayPtr>()->ptr->mm(grad_output.t());
 
+      if (!torch::allclose(grad_input, pim_grad_input, 1e-05, 1e-06)) {
+        TORCH_INTERNAL_ASSERT(false, "calculation error");
+      }
 
-//      if (!torch::allclose(grad_input, pim_grad_input, 1e-05, 1e-05)) {
-//        std::cout << "Backward::grad_input" << std::endl;
-//        Tensor err = grad_input - pim_grad_input;
-//        std::cout << err << std::endl;
-//      }
-//
-//      if (!torch::allclose(grad_weight, pim_grad_weight, 1e-05, 1e-05)) {
-//        std::cout << "Backward::grad_weight" << std::endl;
-//        Tensor err = grad_weight - pim_grad_weight;
-//        std::cout << grad_weight << std::endl;
-//        std::cout << pim_grad_weight << std::endl;
-//        std::cout << err << std::endl;
-//      }
+      if (!torch::allclose(grad_weight, pim_grad_weight, 1e-05, 1e-06)) {
+        TORCH_INTERNAL_ASSERT(false, "calculation error");
+      }
 
       // number of returns should be equal to forward's args.
-      return {Tensor(), Tensor(), Tensor(), pim_grad_input, pim_grad_weight, grad_bias, Tensor()};
+      return {Tensor(), Tensor(), Tensor(), pim_grad_input, pim_grad_weight, pim_grad_bias, Tensor()};
     }
   };
 

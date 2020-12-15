@@ -3,6 +3,20 @@ project(pimtorch)
 
 find_package(Torch REQUIRED)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
+#include_directories(/usr/local/Cellar//python@3.8/3.8.5/Frameworks/Python.framework/Versions/3.8/include/python3.8)
+
+# interface library
+#add_library(logic_array_interface SHARED logic_array_interface.h)
+#target_link_libraries(logic_array_interface "${TORCH_LIBRARIES}")
+#set_property(TARGET logic_array_interface PROPERTY CXX_STANDARD 14)
+#set_property(TARGET logic_array_interface PROPERTY LINKER_LANGUAGE CXX)
+#target_compile_options(logic_array_interface PUBLIC -lpython -dynamiclib -shared -fPIC -Wl,-undefined,dynamic_lookup)
+#
+#add_library(simple_pim_linear SHARED pim_linear.h)
+#target_link_libraries(simple_pim_linear "${TORCH_LIBRARIES}")
+#set_property(TARGET simple_pim_linear PROPERTY CXX_STANDARD 14)
+#set_property(TARGET simple_pim_linear PROPERTY LINKER_LANGUAGE CXX)
+#target_compile_options(simple_pim_linear PUBLIC -shared -lpython -dynamiclib -fPIC -Wl,-undefined,dynamic_lookup)
 
 add_executable(pim_conv_mnist pim_conv_mnist.cpp logic_array_interface.h pim_linear.h pim_conv.h)
 target_link_libraries(pim_conv_mnist "${TORCH_LIBRARIES}")

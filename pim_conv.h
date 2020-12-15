@@ -309,22 +309,7 @@ namespace PIM {
 
     explicit PimConv2dImpl(ExpandingArray<4> input_shape, PimArrayType pim_type, const Conv2dOptions &options_)
         : input_shape(input_shape), pim_type(pim_type), options(options_) {
-
-      ExpandingArray<2> kernel_size = options_.kernel_size();
-      const int64_t n_input_plane = options_.in_channels();
-      const int64_t n_output_plane = options_.out_channels();
-
       reset();
-      create_pim_array(wb_ptr, {
-        options_.bias() ? (*kernel_size)[0] * (*kernel_size)[1] * n_input_plane + 1 :
-        (*kernel_size)[0] * (*kernel_size)[1] * n_input_plane, n_output_plane
-      }, pim_type, weight.options());
-      create_pim_array(wb_t_ptr, {
-        (*kernel_size)[0] * (*kernel_size)[1] * n_output_plane, n_input_plane
-      }, pim_type, weight.options());
-      create_pim_array_list(prev_ptrs, {
-        (*input_shape)[0], (*input_shape)[2] * (*input_shape)[3], (*input_shape)[1]
-      }, pim_type, weight.options());
     }
 
 
@@ -339,6 +324,18 @@ namespace PIM {
       } else {
         bias = register_parameter("bias", {}, /*requires_grad=*/false);
       }
+
+      create_pim_array(wb_ptr, {
+          options.bias() ? (*options.kernel_size())[0] * (*options.kernel_size())[1] * options.in_channels() + 1 :
+          (*options.kernel_size())[0] * (*options.kernel_size())[1] * options.in_channels(), options.out_channels()
+      }, pim_type, "wb", *this, weight.options());
+      create_pim_array(wb_t_ptr, {
+          (*options.kernel_size())[0] * (*options.kernel_size())[1] * options.out_channels(), options.in_channels()
+      }, pim_type, "wb_t", *this,weight.options());
+      create_pim_array_list(prev_ptrs, {
+          (*input_shape)[0], (*input_shape)[2] * (*input_shape)[3], (*input_shape)[1]
+      }, pim_type, "prevs", *this, weight.options());
+
       reset_parameters();
     }
 

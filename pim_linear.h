@@ -123,7 +123,6 @@ namespace PIM {
     }
   };
 
-
   class TORCH_API PimLinearImpl : public Cloneable<PimLinearImpl> {
   public:
     PimLinearImpl(int64_t in_features, int64_t out_features, int64_t batch_size, PimArrayType pim_type)
@@ -132,11 +131,6 @@ namespace PIM {
     explicit PimLinearImpl(int64_t batch_size, PimArrayType pim_type, const LinearOptions &options_)
         : options(options_), batch_size(batch_size), pim_type(pim_type) {
       reset();
-      create_pim_array(wb_ptr, {
-          options_.bias() ? options_.in_features() + 1 : options_.in_features(), options_.out_features()
-        }, pim_type, weight.options());
-      create_pim_array(wb_t_ptr, {options_.out_features(), options_.in_features()}, pim_type, weight.options());
-      create_pim_array(prev_ptr, {batch_size, options_.in_features()}, pim_type, weight.options());
     }
 
     void reset() override {
@@ -147,6 +141,14 @@ namespace PIM {
       } else {
         bias = register_parameter("bias", {}, /*requires_grad=*/false);
       }
+
+      create_pim_array(wb_ptr, {
+          options.bias() ? options.in_features() + 1 : options.in_features(), options.out_features()}, pim_type,
+              "wb", *this, weight.options());
+      create_pim_array(wb_t_ptr, {options.out_features(), options.in_features()}, pim_type,
+          "wb_t", *this, weight.options());
+      create_pim_array(prev_ptr, {batch_size, options.in_features()}, pim_type,
+          "prev", *this, weight.options());
 
       reset_parameters();
     }
@@ -223,5 +225,18 @@ namespace PIM {
 /// See the documentation for `ModuleHolder` to learn about PyTorch's
 /// module storage semantics.
   TORCH_MODULE(PimLinear);
+
+//  template<typename PimType>
+//  void declare_pim_linear(pybind11::module &m, const std::string &typestr) {
+//    using Class = PimLinearFunction<PimType>;
+//    std::string pyclass_name = typestr + std::string("PimLinearFunction");
+//    pybind11::class_<Class>(m, pyclass_name.c_str())
+//        .def("forward", &Class::forward)
+//        .def("backward", &Class::backward);
+//  }
+//
+//  PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
+//    declare_pim_linear<SimpleLogicArray>(m, "Simple");
+//  }
 }
 #endif //PIMTORCH_PIM_LINEAR_H

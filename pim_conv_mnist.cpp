@@ -154,7 +154,7 @@ auto main() -> int {
       torch::data::make_data_loader(std::move(test_dataset), kTestBatchSize);
 
   torch::optim::SGD optimizer(
-      model.parameters(), torch::optim::SGDOptions(0.0035).momentum(0.5));
+      model.parameters(), torch::optim::SGDOptions(0.004).momentum(0.5));
 //  torch::optim::Adam optimizer(model.parameters(), torch::optim::AdamOptions(1e-3));
 
   for (size_t epoch = 1; epoch <= kNumberOfEpochs; ++epoch) {

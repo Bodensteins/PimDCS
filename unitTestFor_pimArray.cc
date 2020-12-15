@@ -1,0 +1,84 @@
+#include <torch/torch.h>
+#include "pim_array_example.h"
+#include <ctime>
+
+using std::cout;
+using std::endl;
+
+// struct pim_array_config
+// {
+//     int32_t rowSize, colSize;
+//     int32_t phyArrRowSize, phyArrColSize;
+//     int32_t inBits, outBits, unitBits, cellBits;
+
+//     bool has_negative_input;
+//     double max_phy_input_value;
+//     bool trunc_input;
+//     bool dynamic_max_input;
+// };
+
+pim_array_config cf={
+    .rowSize = 256,
+    .colSize = 256,
+    .phyArrRowSize = 64,
+    .phyArrColSize = 64,
+    .inBits = 10,
+    .outBits = 10,
+    .unitBits = 10,
+    .cellBits = 1,
+    .has_negative_input = true,
+    .max_phy_input_value = 1,
+    .trunc_input = false,
+    .dynamic_max_input = true
+};
+
+const int N = 64;  // array of N x M
+const int M = 7;   // 
+const int len = 7;   // #len vectors
+
+// we test a matrix of (len x N) mul (N x M)
+int main()
+{
+
+    torch::Tensor k = torch::ones({3, 4}).to(torch::kCUDA);
+    std::cout << k << std::endl;
+    pimArrayExample p(N, M, {torch::kFloat64}, cf);
+    SimpleLogicArray pp(N, M, {torch::kFloat64});
+    torch::Tensor v=torch::ones({len, N}, torch::kFloat64);
+    srand(time(0));
+    for (int i=0; i<N; ++i)
+    {
+        for (int j=0; j<M; ++j)
+        {
+            double x= (rand()%1024-512)/512.0;
+            pp.write_cell(i, j, x);
+            p.write_cell(i, j, x);
+        }
+    }
+
+    for (int i=0; i<len; ++i)
+    {
+        v[i] = torch::randn({N}, torch::kFloat64);
+        v[i].div_(v[i].abs().max());
+    }
+
+    //cout << "v=\n" << v << endl;
+
+
+    auto st = clock();
+    auto out = pp.mm(v);
+    auto ed = clock();
+    cout << (ed-st)/1.0/CLOCKS_PER_SEC << endl;
+    
+    st = clock();
+    auto out1 = p.mm(v);
+
+
+    ed = clock();
+    cout << (ed-st)/1.0/CLOCKS_PER_SEC << endl;
+    // cout << "diff percent = \n" << (out-out1).div(out)*100 << endl;
+    cout << "real out=\n" << out <<endl;
+    cout << "our out1=\n" << out1 << endl;
+    cout << (((out-out1).div(out)*100).abs()>=10).sum(0).sum(0).template item<double>()/len*100/M << "%" << endl;
+    return 0;
+}

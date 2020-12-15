@@ -7,7 +7,7 @@
 
 #pragma once
 #include <torch/torch.h>
-#include "logic_array_interface.h"
+#include "pure_array.h"
 
 using namespace torch;
 using namespace torch::autograd;
@@ -73,9 +73,9 @@ namespace PIM {
 
       Tensor pim_output = wb.ptr->mm(pim_input);   // shape of wb_ptr: (in_features, out_features)
 
-      if (!torch::allclose(output, pim_output, 1e-05, 1e-06)) {
-        TORCH_INTERNAL_ASSERT(false, "calculation error");
-      }
+      // if (!torch::allclose(output, pim_output, 1e-05, 1e-06)) {
+      //   TORCH_INTERNAL_ASSERT(false, "calculation error");
+      // }
 
       return pim_output;
     }
@@ -110,13 +110,13 @@ namespace PIM {
       Tensor pim_grad_input = ctx->saved_data["wb_t_ptr"].toCustomClass<PimArrayPtr>()->ptr->mm(grad_output);
       Tensor pim_grad_weight = ctx->saved_data["prev_ptr"].toCustomClass<PimArrayPtr>()->ptr->mm(grad_output.t());
 
-      if (!torch::allclose(grad_input, pim_grad_input, 1e-05, 1e-06)) {
-        TORCH_INTERNAL_ASSERT(false, "calculation error");
-      }
+      // if (!torch::allclose(grad_input, pim_grad_input, 1e-05, 1e-06)) {
+      //   TORCH_INTERNAL_ASSERT(false, "calculation error");
+      // }
 
-      if (!torch::allclose(grad_weight, pim_grad_weight, 1e-05, 1e-06)) {
-        TORCH_INTERNAL_ASSERT(false, "calculation error");
-      }
+      // if (!torch::allclose(grad_weight, pim_grad_weight, 1e-05, 1e-06)) {
+      //   TORCH_INTERNAL_ASSERT(false, "calculation error");
+      // }
 
       // number of returns should be equal to forward's args.
       return {Tensor(), Tensor(), Tensor(), pim_grad_input, pim_grad_weight, pim_grad_bias, Tensor()};
@@ -178,7 +178,8 @@ namespace PIM {
           return PimLinearFunction<SimpleLogicArray>::apply(wb_ptr, wb_t_ptr, prev_ptr, input, weight,
               options.bias() ? bias : c10::optional<Tensor>(), is_training_);
         case PimArrayType::wb_logic_array:
-          C10_THROW_ERROR(Error, "This PIM type is not implemented!");
+          return PimLinearFunction<pimArrayExample>::apply(wb_ptr, wb_t_ptr, prev_ptr, input, weight,
+              options.bias() ? bias : c10::optional<Tensor>(), is_training_);
       }
     }
 

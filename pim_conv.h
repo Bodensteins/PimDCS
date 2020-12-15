@@ -7,7 +7,7 @@
 
 #pragma once
 #include <torch/torch.h>
-#include "logic_array_interface.h"
+#include "pure_array.h"
 
 using namespace torch;
 using namespace torch::autograd;
@@ -388,7 +388,10 @@ namespace PIM {
               input, weight, options.bias() ? bias : c10::optional<Tensor>(),
               options.stride(), options.padding(), is_training_);
         case PimArrayType::wb_logic_array:
-          C10_THROW_ERROR(Error, "This PIM type is not implemented!");
+          return PimConv2dFunction<pimArrayExample>::apply(
+              wb_ptr, wb_t_ptr, prev_ptrs,
+              input, weight, options.bias() ? bias : c10::optional<Tensor>(),
+              options.stride(), options.padding(), is_training_);
       }
     }
 

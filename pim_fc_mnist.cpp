@@ -31,9 +31,9 @@ struct Net : torch::nn::Module {
 //    fc1 = register_module("fc1", torch::nn::Linear(784, 64));
 //    fc2 = register_module("fc2", torch::nn::Linear(64, 32));
 //    fc3 = register_module("fc3", torch::nn::Linear(32, 10));
-    fc1 = register_module("fc1", PimLinear(784, 64, kTrainBatchSize, PimArrayType::wb_logic_array));
-    fc2 = register_module("fc2", PimLinear(64, 32, kTrainBatchSize, PimArrayType::wb_logic_array));
-    fc3 = register_module("fc3", PimLinear(32, 10, kTrainBatchSize, PimArrayType::wb_logic_array));
+    fc1 = register_module("fc1", PimLinear(784, 64, kTrainBatchSize, PimArrayType::wb_logic_array, torch::kCUDA));
+    fc2 = register_module("fc2", PimLinear(64, 32, kTrainBatchSize, PimArrayType::wb_logic_array, torch::kCUDA));
+    fc3 = register_module("fc3", PimLinear(32, 10, kTrainBatchSize, PimArrayType::wb_logic_array, torch::kCUDA));
 //    fc1 = register_module("fc1", PimLinear(kTrainBatchSize, PimArrayType::simple_logic_array,
 //        LinearOptions(784, 64).bias(false)));
 //    fc2 = register_module("fc2", PimLinear(kTrainBatchSize, PimArrayType::simple_logic_array,
@@ -68,6 +68,7 @@ void train(
   model.train();
   size_t batch_idx = 0;
   for (auto& batch : data_loader) {
+    std::cout << batch_idx << std::endl;
     auto data = batch.data.to(device, torch::kFloat64), targets = batch.target.to(device);
     optimizer.zero_grad();
     auto output = model.forward(data);
@@ -122,13 +123,13 @@ auto main() -> int {
   torch::manual_seed(1);
 
   torch::DeviceType device_type;
-  // if (torch::cuda::is_available()) {
-  //   std::cout << "CUDA available! Training on GPU." << std::endl;
-  //   device_type = torch::kCUDA;
-  // } else {
+  if (torch::cuda::is_available()) {
+    std::cout << "CUDA available! Training on GPU." << std::endl;
+    device_type = torch::kCUDA;
+  } else {
     std::cout << "Training on CPU." << std::endl;
     device_type = torch::kCPU;
-  // }
+  }
   torch::Device device(device_type);
 
   Net model;

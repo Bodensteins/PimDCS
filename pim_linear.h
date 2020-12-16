@@ -126,12 +126,16 @@ namespace PIM {
 
   class TORCH_API PimLinearImpl : public Cloneable<PimLinearImpl> {
   public:
-    PimLinearImpl(int64_t in_features, int64_t out_features, int64_t batch_size, PimArrayType pim_type)
-        : PimLinearImpl(batch_size, pim_type, LinearOptions(in_features, out_features)) {}
+    PimLinearImpl(int64_t in_features, int64_t out_features, int64_t batch_size, PimArrayType pim_type, const TensorOptions op = {})
+        : PimLinearImpl(batch_size, pim_type, LinearOptions(in_features, out_features), op) {}
 
-    explicit PimLinearImpl(int64_t batch_size, PimArrayType pim_type, const LinearOptions &options_)
+    explicit PimLinearImpl(int64_t batch_size, PimArrayType pim_type, const LinearOptions &options_, const TensorOptions op = {})
         : options(options_), batch_size(batch_size), pim_type(pim_type) {
       reset();
+      if (op.device()==torch::kCUDA)
+      {
+        this->to(torch::kCUDA);
+      }
       create_pim_array(wb_ptr, {
           options_.bias() ? options_.in_features() + 1 : options_.in_features(), options_.out_features()
         }, pim_type, weight.options());

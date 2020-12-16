@@ -42,8 +42,9 @@ int main()
 
     torch::Tensor k = torch::ones({3, 4}).to(torch::kCUDA);
     std::cout << k << std::endl;
-    pimArrayExample p(N, M, {torch::kFloat64}, cf);
-    SimpleLogicArray pp(N, M, {torch::kFloat64});
+    auto op = torch::TensorOptions(torch::kCUDA).dtype(torch::kFloat64);
+    pimArrayExample p(N, M, op, cf);
+    SimpleLogicArray pp(N, M, op);
     torch::Tensor v=torch::ones({len, N}, torch::kFloat64);
     srand(time(0));
     for (int i=0; i<N; ++i)
@@ -62,9 +63,8 @@ int main()
         v[i].div_(v[i].abs().max());
     }
 
-    //cout << "v=\n" << v << endl;
-
-
+    v = v.to(torch::kCUDA);
+    // cout << "v=\n" << v << endl;
     auto st = clock();
     auto out = pp.mm(v);
     auto ed = clock();
@@ -76,7 +76,7 @@ int main()
 
     ed = clock();
     cout << (ed-st)/1.0/CLOCKS_PER_SEC << endl;
-    // cout << "diff percent = \n" << (out-out1).div(out)*100 << endl;
+    cout << "diff percent = \n" << (out-out1).div(out)*100 << endl;
     cout << "real out=\n" << out <<endl;
     cout << "our out1=\n" << out1 << endl;
     cout << (((out-out1).div(out)*100).abs()>=10).sum(0).sum(0).template item<double>()/len*100/M << "%" << endl;

@@ -1,6 +1,7 @@
 #include <torch/torch.h>
 #include "pim_array_example.h"
 #include <ctime>
+#include <omp.h>
 
 using std::cout;
 using std::endl;
@@ -32,14 +33,15 @@ pim_array_config cf={
     .dynamic_max_input = true
 };
 
-const int N = 64;  // array of N x M
-const int M = 7;   // 
-const int len = 7;   // #len vectors
+const int N = 100;  // array of N x M
+const int M = 100;   // 
+const int len = 10;   // #len vectors
 
 // we test a matrix of (len x N) mul (N x M)
+void someSmallTest();
 int main()
 {
-
+    someSmallTest();
     torch::Tensor k = torch::ones({3, 4}).to(torch::kCUDA);
     std::cout << k << std::endl;
     auto op = torch::TensorOptions(torch::kCUDA).dtype(torch::kFloat64);
@@ -76,9 +78,22 @@ int main()
 
     ed = clock();
     cout << (ed-st)/1.0/CLOCKS_PER_SEC << endl;
-    cout << "diff percent = \n" << (out-out1).div(out)*100 << endl;
-    cout << "real out=\n" << out <<endl;
-    cout << "our out1=\n" << out1 << endl;
+    // cout << "diff percent = \n" << (out-out1).div(out)*100 << endl;
+    // cout << "real out=\n" << out <<endl;
+    // cout << "our out1=\n" << out1 << endl;
     cout << (((out-out1).div(out)*100).abs()>=10).sum(0).sum(0).template item<double>()/len*100/M << "%" << endl;
     return 0;
+}
+
+void someSmallTest()
+{
+    torch::Tensor a = torch::full({9, 9}, 1);
+    at::parallel_for(0, 8, 0, [&](int st, int ed)->void
+    {
+        for (int i=st; i<ed; ++i)
+            a[i][i] = i;
+        printf("I am thread %d / %d \n",
+            omp_get_thread_num(), omp_get_num_threads());
+    });
+    std::cout << a << std::endl;
 }

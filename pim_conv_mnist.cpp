@@ -27,10 +27,10 @@ const int64_t kLogInterval = 10;
 struct Net : torch::nn::Module {
   Net()
       : conv1(ExpandingArray<4>({kTrainBatchSize, 1, 28, 28}),
-              PIM::PimArrayType::simple_logic_array,
+              PIM::PimArrayType::wb_logic_array,
               Conv2dOptions(1, 10, {5, 5})),
         conv2(ExpandingArray<4>({kTrainBatchSize, 10, 24, 24}),
-              PIM::PimArrayType::simple_logic_array,
+              PIM::PimArrayType::wb_logic_array,
               Conv2dOptions(10, 20, {5, 5})),
         fc1(320, 50),
         fc2(50, 10) {
@@ -123,13 +123,13 @@ auto main() -> int {
   torch::manual_seed(1);
 
   torch::DeviceType device_type;
-  if (torch::cuda::is_available()) {
-    std::cout << "CUDA available! Training on GPU." << std::endl;
-    device_type = torch::kCUDA;
-  } else {
+  // if (torch::cuda::is_available()) {
+  //   std::cout << "CUDA available! Training on GPU." << std::endl;
+  //   device_type = torch::kCUDA;
+  // } else {
     std::cout << "Training on CPU." << std::endl;
     device_type = torch::kCPU;
-  }
+  // }
   torch::Device device(device_type);
 
   Net model;

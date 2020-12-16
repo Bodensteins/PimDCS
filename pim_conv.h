@@ -227,9 +227,9 @@ namespace PIM {
       pim_output.transpose_(1, 2);
       pim_output = F::fold(pim_output, FoldOptions({output_width, output_height}, {1, 1}));
 
-      if (!torch::allclose(output, pim_output, 1e-05, 1e-08)) {
-        TORCH_INTERNAL_ASSERT(false, "calculation error");
-      }
+      // if (!torch::allclose(output, pim_output, 1e-05, 1e-08)) {
+      //   TORCH_INTERNAL_ASSERT(false, "calculation error");
+      // }
 //      std::cout << "forward output" << std::endl;
 //      Tensor err = output - pim_output;
 //      std::cout << err << std::endl;
@@ -304,10 +304,11 @@ namespace PIM {
     PimConv2dImpl(ExpandingArray<4> input_shape,
                   ExpandingArray<2> kernel_size,
                   int64_t output_channels,
-                  PimArrayType pim_type)
-        : PimConv2dImpl(input_shape, pim_type, Conv2dOptions((*input_shape)[1], output_channels, kernel_size)) {}
+                  PimArrayType pim_type,
+                  const torch::TensorOptions &op = {})
+        : PimConv2dImpl(input_shape, pim_type, Conv2dOptions((*input_shape)[1], output_channels, kernel_size), op) {}
 
-    explicit PimConv2dImpl(ExpandingArray<4> input_shape, PimArrayType pim_type, const Conv2dOptions &options_)
+    explicit PimConv2dImpl(ExpandingArray<4> input_shape, PimArrayType pim_type, const Conv2dOptions &options_, const torch::TensorOptions &op = {})
         : input_shape(input_shape), pim_type(pim_type), options(options_) {
 
       ExpandingArray<2> kernel_size = options_.kernel_size();
@@ -315,6 +316,7 @@ namespace PIM {
       const int64_t n_output_plane = options_.out_channels();
 
       reset();
+      this->to(op.device());
       create_pim_array(wb_ptr, {
         options_.bias() ? (*kernel_size)[0] * (*kernel_size)[1] * n_input_plane + 1 :
         (*kernel_size)[0] * (*kernel_size)[1] * n_input_plane, n_output_plane

@@ -51,6 +51,7 @@ using torch::indexing::Ellipsis;
 using torch::indexing::None;
 using PIM::LogicArrayInterface;
 using PIM::SimpleLogicArray;
+using torch::TensorOptions;
 using namespace PIM;
 
 template <typename T>
@@ -82,20 +83,21 @@ struct phyArraySimple
         totalCmpWrCnt = totalWrCnt = 0;
 
         device = toGPU? torch::kCUDA : torch::kCPU;
-        data = at::empty({rowSize, colSize}, at::dtype(torch::kFloat64)).fill_(IminPCell).to(device);   //data in type of current, Imin or Imax
-        dataDigit = at::empty({rowSize, colSize}, at::dtype(torch::kInt8)).fill_(0).to(device);         //data in type of digit value 0(Imin)/1(Imax)
-        cellWrCnt = at::zeros({rowSize, colSize}, at::dtype(torch::kInt64)).to(device);                 
+        torch::TensorOptions op(device);
+        data = at::full({rowSize, colSize}, IminPCell, op.dtype(torch::kFloat64));   //data in type of current, Imin or Imax
+        dataDigit = at::full({rowSize, colSize}, 0, op.dtype(torch::kInt8));         //data in type of digit value 0(Imin)/1(Imax)
+        cellWrCnt = at::zeros({rowSize, colSize}, op.dtype(torch::kInt64));                 
     }
 
     void writeCell(int row, int col, int len, const at::Tensor &in)
     {
-        at::Tensor writeIn = torch::empty({len}, at::dtype(torch::kFloat64)).fill_(deltaI).to(device);
+        at::Tensor writeIn = at::full({len}, deltaI, TensorOptions(device).dtype(torch::kFloat64));
         at::Tensor rowAdd = dataDigit[row];
 
         totalWrCnt += len;
 
         rowAdd = rowAdd.index({torch::indexing::Slice(col, col + len)}).bitwise_xor(in);
-        totalCmpWrCnt += rowAdd.sum().item().to<int64_t>();
+        totalCmpWrCnt += rowAdd.sum().item<int64_t>();
 
         cellWrCnt[row].index_put_({torch::indexing::Slice(col, col + len)},
                                   cellWrCnt[row].index({torch::indexing::Slice(col, col + len)}).add(rowAdd));
@@ -213,7 +215,7 @@ pim_array_config decf = {
     .colSize = 256,
     .phyArrRowSize = 64,
     .phyArrColSize = 64,
-    .inBits = 8,
+    .inBits = 16,
     .outBits = 8,
     .unitBits = 8,
     .cellBits = 1,
@@ -272,7 +274,7 @@ public:
                 int k = phyArrMan.allocPhyArray(phyArrRowSize, phyArrColSize + 2, toGPU);
                 arr[i][j] = k;
                 for (int r = 0; r < phyArrRowSize; ++r)
-                    phyArrMan[k].writeCell(r, phyArrColSize + 1, 1, torch::tensor({1}).to(device));
+                    phyArrMan[k].writeCell(r, phyArrColSize + 1, 1, torch::tensor({1}, TensorOptions(device)));
             }
         ImaxPCell = phyArrMan[0].ImaxPCell;
         IminPCell = phyArrMan[0].IminPCell;
@@ -384,7 +386,7 @@ void pimArrayExample::write_cell(int64_t row, int64_t col, const torch::Scalar &
 
     getPosition(row, col, arrX, arrY, arrRowId, arrColId);
     int d = unit2digit(value.to<double>());
-    at::Tensor data = torch::empty({unitBits}, torch::kInt8).to(device);
+    at::Tensor data = torch::empty({unitBits}, TensorOptions(device).dtype(torch::kInt8));
     for (int i = 0; i < unitBits; ++i)
         data[i] = (d >> i) & 1;
     phyArrMan[arr[arrX][arrY]].writeCell(arrRowId, arrColId, unitBits, data);
@@ -411,13 +413,16 @@ void pimArrayExample::write_row(int64_t row, int64_t col, const torch::Tensor &v
 
     int arrX, st_arrY, ed_arrY, arrRowId, st_arrColId, ed_arrColId;
 
-    at::Tensor data = torch::empty({len * unitBits}, torch::kInt8).to(device);
-    for (int i = 0; i < len; ++i)
+    at::Tensor data = torch::empty({len * unitBits}, TensorOptions(device).dtype(torch::kInt8));
+    at::parallel_for(0, len, 64, [&](int st, int ed)->void 
     {
-        int d = unit2digit(vec[i].item<double>());
-        for (int j = 0; j < unitBits; ++j)
-            data[i * unitBits + j] = (d >> j) & 1;
-    }
+        for (int i = st; i < ed; ++i)
+        {
+            int d = unit2digit(vec[i].item<double>());
+            for (int j = 0; j < unitBits; ++j)
+                data[i * unitBits + j] = (d >> j) & 1;
+        }
+    });
 
     getRowPos(row, arrX, arrRowId);
     getColPos(col, st_arrY, st_arrColId);
@@ -432,6 +437,7 @@ void pimArrayExample::write_row(int64_t row, int64_t col, const torch::Tensor &v
         int ed = usedcellsPerRow - st_arrColId;
 
         phyArrMan[arr[arrX][st_arrY]].writeCell(arrRowId, st_arrColId, ed, data.slice(0, 0, ed));
+
         for (int y = st_arrY + 1; y < ed_arrY; ++y)
         {
             phyArrMan[arr[arrX][y]].writeCell(arrRowId, 0, usedcellsPerRow, data.slice(0, ed, ed + usedcellsPerRow));
@@ -463,7 +469,7 @@ torch::Tensor pimArrayExample::read_row(int64_t row, int64_t col, int64_t size) 
     {
         int ed = usedcellsPerRow - st_arrColId;
         at::Tensor out;
-        data = torch::empty({size*unitBits}, torch::kInt8).to(device);
+        data = torch::empty({size*unitBits}, TensorOptions(device).dtype(torch::kInt8));
 
         phyArrMan[arr[arrX][st_arrY]].readCell(arrRowId, st_arrColId, ed, out);
         data.index_put_({torch::indexing::Slice(0, ed)}, out);
@@ -481,7 +487,7 @@ torch::Tensor pimArrayExample::read_row(int64_t row, int64_t col, int64_t size) 
             data.index_put_({torch::indexing::Slice(ed, ed + ed_arrColId)}, out);
         }
     }
-    at::Tensor out=torch::zeros({size}, torch::kFloat64).to(device);
+    at::Tensor out=torch::zeros({size}, TensorOptions(device).dtype(torch::kFloat64));
     for (int i=0; i<size; ++i)
     {
         int d = 0;
@@ -542,14 +548,14 @@ at::Tensor pimArrayExample::input2digit(const at::Tensor &vec, double &max_one)
     
     if (out.dim()==1)
     {
-        at::Tensor vecOut=torch::empty({inBits, out.size(0)}, torch::kInt32).to(device);
+        at::Tensor vecOut=torch::empty({inBits, out.size(0)}, TensorOptions(device).dtype(torch::kInt32));
         for (int i=0; i<inBits; ++i)
         {
             vecOut[i] = (out.bitwise_and(1 <<i)!=0);
         }
         return vecOut.t();
     }
-    at::Tensor vecOut=torch::empty({out.size(1), out.size(0), inBits}, torch::kInt32).to(device);
+    at::Tensor vecOut=torch::empty({out.size(1), out.size(0), inBits}, TensorOptions(device).dtype(torch::kInt32));
     out = out.t();
     for (int i=0; i<inBits; ++i)
     {
@@ -573,10 +579,10 @@ torch::Tensor pimArrayExample::mv(const torch::Tensor &vec)
     }
     vecDigit = input2digit(v, max_one).to(torch::kFloat64);
 
-    at::Tensor Iout = torch::zeros({arrX_size, arrY_size, usedcellsPerRow, inBits}, torch::kFloat64).to(device);
-    at::Tensor out_digit = torch::zeros({arrX_size, arrY_size, unitNumPerRow, inBits}, torch::kInt64).to(device);
-    at::Tensor Iref0 = torch::zeros({arrX_size, arrY_size, 1, inBits}, torch::kFloat64).to(device);
-    at::Tensor Iref1 = torch::zeros({arrX_size, arrY_size, 1, inBits}, torch::kFloat64).to(device);
+    at::Tensor Iout = torch::zeros({arrX_size, arrY_size, usedcellsPerRow, inBits}, TensorOptions(device).dtype(torch::kFloat64));
+    at::Tensor out_digit = torch::zeros({arrX_size, arrY_size, unitNumPerRow, inBits}, TensorOptions(device).dtype(torch::kInt64));
+    at::Tensor Iref0 = torch::zeros({arrX_size, arrY_size, 1, inBits}, TensorOptions(device).dtype(torch::kFloat64));
+    at::Tensor Iref1 = torch::zeros({arrX_size, arrY_size, 1, inBits}, TensorOptions(device).dtype(torch::kFloat64));
     auto outADC=[&](const at::Tensor &x)->at::Tensor
     {   
         return x.mul((outLevels-1)/maxIsumPerPhyCol).add(0.5).to(torch::kInt64);
@@ -600,7 +606,7 @@ torch::Tensor pimArrayExample::mv(const torch::Tensor &vec)
 
     Iout = outADC(Iout) - Iref0_digit;
 
-    at::Tensor unitScalar = torch::empty({usedcellsPerRow, inBits}, torch::kInt64).to(device);
+    at::Tensor unitScalar = torch::empty({usedcellsPerRow, inBits}, TensorOptions(device).dtype(torch::kInt64));
     for (int i=0; i<unitBits; ++i)
     {
         unitScalar.index_put_({Slice(i, usedcellsPerRow, unitBits)}, 1 <<i);
@@ -618,7 +624,7 @@ torch::Tensor pimArrayExample::mv(const torch::Tensor &vec)
 
     out_digit = out_digit.__lshift__(1)-refValue;
 
-    unitScalar = torch::empty({inBits}, torch::kFloat64).to(device);
+    unitScalar = torch::empty({inBits}, TensorOptions(device).dtype(torch::kFloat64));
 
     for (int i=0; i<inBits-1; ++i)
     {
@@ -655,7 +661,7 @@ torch::Tensor pimArrayExample::mm(const torch::Tensor &mat)
     // std::cout << "in1" << std::endl;
     if (v.size(0)<phyAllRowSize)
     {
-        auto tmp = torch::zeros({phyAllRowSize-v.size(0), v.size(1)}, torch::kFloat64).to(device);
+        auto tmp = torch::zeros({phyAllRowSize-v.size(0), v.size(1)}, TensorOptions(device).dtype(torch::kFloat64));
         // std::cout << tmp << std::endl;
         // std::cout << (device == torch::kCUDA) << std::endl;
         v = torch::cat({v, tmp});
@@ -665,10 +671,10 @@ torch::Tensor pimArrayExample::mm(const torch::Tensor &mat)
     // std::cout << "in2" << std::endl;
     vecDigit = input2digit(v, max_one).to(torch::kFloat64);
 
-    at::Tensor Iout = torch::zeros({arrX_size, arrY_size, len, usedcellsPerRow, inBits}, torch::kFloat64).to(device);
-    at::Tensor out_digit = torch::zeros({arrX_size, arrY_size, len, unitNumPerRow, inBits}, torch::kInt64).to(device);
-    at::Tensor Iref0 = torch::zeros({arrX_size, arrY_size, len, 1, inBits}, torch::kFloat64).to(device);
-    at::Tensor Iref1 = torch::zeros({arrX_size, arrY_size, len, 1, inBits}, torch::kFloat64).to(device);
+    at::Tensor Iout = torch::zeros({arrX_size, arrY_size, len, usedcellsPerRow, inBits}, TensorOptions(device).dtype(torch::kFloat64));
+    at::Tensor out_digit = torch::zeros({arrX_size, arrY_size, len, unitNumPerRow, inBits}, TensorOptions(device).dtype(torch::kInt64));
+    at::Tensor Iref0 = torch::zeros({arrX_size, arrY_size, len, 1, inBits}, TensorOptions(device).dtype(torch::kFloat64));
+    at::Tensor Iref1 = torch::zeros({arrX_size, arrY_size, len, 1, inBits}, TensorOptions(device).dtype(torch::kFloat64));
     
     auto outADC=[&](const at::Tensor &x)->at::Tensor
     {   
@@ -677,7 +683,7 @@ torch::Tensor pimArrayExample::mm(const torch::Tensor &mat)
 
     for (int i=0; i<arrX_size; ++i)
     {
-        at::parallel_for(0, arrY_size, 64, [&](int start, int end) {
+        at::parallel_for(0, arrY_size, 0, [&](int start, int end) {
             for (int j=start; j<end; ++j)
             {
                 at::Tensor tmp_out;
@@ -697,7 +703,7 @@ torch::Tensor pimArrayExample::mm(const torch::Tensor &mat)
 
     Iout = outADC(Iout) - Iref0_digit;
     //std::cout << Iout << std::endl;
-    at::Tensor unitScalar = torch::empty({usedcellsPerRow, inBits}, torch::kInt64).to(device);
+    at::Tensor unitScalar = torch::empty({usedcellsPerRow, inBits}, TensorOptions(device).dtype(torch::kInt64));
     //std::cout << "---" << std::endl;
     for (int i=0; i<unitBits; ++i)
     {
@@ -715,7 +721,7 @@ torch::Tensor pimArrayExample::mm(const torch::Tensor &mat)
     
     out_digit = out_digit.__lshift__(1)-refValue;
     //std::cout << out_digit << std::endl;
-    unitScalar = torch::empty({inBits}, torch::kFloat64).to(device);
+    unitScalar = torch::empty({inBits}, TensorOptions(device).dtype(torch::kFloat64));
 
     for (int i=0; i<inBits-1; ++i)
     {
@@ -728,7 +734,7 @@ torch::Tensor pimArrayExample::mm(const torch::Tensor &mat)
     at::Tensor out = (out_digit.to(torch::kFloat64)*unitScalar*max_one).sum(4).sum(0);
     
 
-    at::Tensor real_out = torch::empty({len, colSize}, torch::kFloat64).to(device);
+    at::Tensor real_out = torch::empty({len, colSize}, TensorOptions(device).dtype(torch::kFloat64));
     for (int i=0; i<len; ++i)
         real_out[i] = out.index({Slice(), Slice(i, i+1)}).reshape({-1}).slice(0, 0, colSize);
     return real_out;
@@ -743,7 +749,7 @@ void pimArrayExample::write_mat(const torch::Tensor &mat)
 
 torch::Tensor pimArrayExample::read_mat() 
 {
-    at::Tensor out=torch::empty({rowSize, colSize}).to(device);
+    at::Tensor out=torch::empty({rowSize, colSize}, TensorOptions(device).dtype(torch::kFloat64));
     for (int i=0; i<rowSize; ++i)
     {
         out[i] = read_row(i, 0, colSize); 

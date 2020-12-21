@@ -125,8 +125,8 @@ struct phyArraySimple
     void print(std::ostream &os)
     {
         using std::endl;
-        os << "data = " << endl;
-        os << data << endl;
+        // os << "data = " << endl;
+        // os << data << endl;
         os << "dataDigit = " << endl;
         os << dataDigit << endl;
         os << "cell write cnt = " << endl;
@@ -215,7 +215,7 @@ pim_array_config decf = {
     .colSize = 256,
     .phyArrRowSize = 64,
     .phyArrColSize = 64,
-    .inBits = 16,
+    .inBits = 10,
     .outBits = 8,
     .unitBits = 8,
     .cellBits = 1,
@@ -414,7 +414,7 @@ void pimArrayExample::write_row(int64_t row, int64_t col, const torch::Tensor &v
     int arrX, st_arrY, ed_arrY, arrRowId, st_arrColId, ed_arrColId;
 
     at::Tensor data = torch::empty({len * unitBits}, TensorOptions(device).dtype(torch::kInt8));
-    at::parallel_for(0, len, 64, [&](int st, int ed)->void 
+    at::parallel_for(0, len, 16, [&](int st, int ed)->void 
     {
         for (int i = st; i < ed; ++i)
         {
@@ -507,7 +507,7 @@ at::Tensor pimArrayExample::input2digit(const at::Tensor &vec, double &max_one)
             max_one = std::min(max_phy_input_value, vec.abs().max().item<double>());
         else
             max_one = std::min(max_phy_input_value, vec.max().item<double>()); 
-        //std::cout << "max_one = " << max_one << std::endl;
+        std::cout << "max_one = " << max_one << std::endl;
     }
     else
         max_one = max_phy_input_value;
@@ -740,20 +740,30 @@ torch::Tensor pimArrayExample::mm(const torch::Tensor &mat)
     return real_out;
 }
 
+/*
+*   write mat to our pimArray.
+*   Now the implementation is not well (parallism is low). need to speed up.  
+*   write_mat/write_row/write_cell need to re-think the implementation.
+*/
 void pimArrayExample::write_mat(const torch::Tensor &mat) 
 {
     int len = std::min(mat.size(0), rowSize);
-    for (int i=0; i<len; ++i)
-        write_row(i, 0, mat[i]);
+    at::parallel_for(0, len, 0, [&](int st, int ed)->void
+    {
+        for (int i=st; i<ed; ++i)
+            write_row(i, 0, mat[i]);
+    });
+    
 }
 
 torch::Tensor pimArrayExample::read_mat() 
 {
     at::Tensor out=torch::empty({rowSize, colSize}, TensorOptions(device).dtype(torch::kFloat64));
-    for (int i=0; i<rowSize; ++i)
+    at::parallel_for(0, rowSize, 0, [&](int st, int ed)->void
     {
-        out[i] = read_row(i, 0, colSize); 
-    }
+        for (int i=st; i<ed; ++i)
+            out[i] = read_row(i, 0, colSize); 
+    });
     return out;
 }
 #endif

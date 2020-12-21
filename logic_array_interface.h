@@ -14,14 +14,15 @@
 namespace PIM {
 
   enum class PimArrayType {
-    simple_logic_array, wb_logic_array
+    simple_logic_array, pim_array, only_counters_pim_array
   };
 
   std::ostream &operator << ( std::ostream& stream, const PimArrayType &type)
   {
     const std::string name[] = {
         "PIM::simple_logic_array",
-        "PIM::wb_logic_array"
+        "PIM::pim_array",
+        "PIM::only_counters_pim_array"
     };
     return stream << name[(int)type];
   }

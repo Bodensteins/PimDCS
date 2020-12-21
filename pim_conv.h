@@ -389,11 +389,18 @@ namespace PIM {
               wb_ptr, wb_t_ptr, prev_ptrs,
               input, weight, options.bias() ? bias : c10::optional<Tensor>(),
               options.stride(), options.padding(), is_training_);
-        case PimArrayType::wb_logic_array:
+        case PimArrayType::pim_array:
           return PimConv2dFunction<pimArrayExample>::apply(
               wb_ptr, wb_t_ptr, prev_ptrs,
               input, weight, options.bias() ? bias : c10::optional<Tensor>(),
               options.stride(), options.padding(), is_training_);
+        case PimArrayType::only_counters_pim_array:
+          return PimConv2dFunction<pimArrayExampleCounters>::apply(
+              wb_ptr, wb_t_ptr, prev_ptrs,
+              input, weight, options.bias() ? bias : c10::optional<Tensor>(),
+              options.stride(), options.padding(), is_training_);
+        default:
+          TORCH_INTERNAL_ASSERT(false, "pim conv, forward type not supported!")
       }
     }
 

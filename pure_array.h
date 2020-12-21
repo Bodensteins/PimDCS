@@ -4,6 +4,7 @@
 
 #include "logic_array_interface.h"
 #include "pim_array_example.h"
+#include "pim_only_counters.h"
 
 namespace PIM
 {
@@ -24,8 +25,14 @@ namespace PIM
             arr_ptr.ptr = std::make_shared<SimpleLogicArray>((*arr_size)[0], (*arr_size)[1], options);
             break;
         }
-        case PimArrayType::wb_logic_array:
+        case PimArrayType::pim_array:
             arr_ptr.ptr = std::make_shared<pimArrayExample>((*arr_size)[0], (*arr_size)[1], options);
+            break;
+        case PimArrayType::only_counters_pim_array:
+            arr_ptr.ptr = std::make_shared<pimArrayExampleCounters>((*arr_size)[0], (*arr_size)[1], options);
+            break;
+        default:
+            TORCH_INTERNAL_ASSERT(false, "create array, pimArrayType not support!");
             break;
         }
     }
@@ -53,7 +60,7 @@ namespace PIM
             });
             break;
         }
-        case PimArrayType::wb_logic_array:
+        case PimArrayType::pim_array:
             array_ptrs.ptrs.resize((*arr_shape)[0]);
             at::parallel_for(0, (*arr_shape)[0], 0, [&](int64_t start, int64_t end) {
                 for (int64_t i = start; i < end; i++)
@@ -61,6 +68,18 @@ namespace PIM
                     array_ptrs.ptrs[i] = std::make_shared<pimArrayExample>((*arr_shape)[1], (*arr_shape)[2], options);
                 }
             });
+            break;
+        case PimArrayType::only_counters_pim_array:
+            array_ptrs.ptrs.resize((*arr_shape)[0]);
+            at::parallel_for(0, (*arr_shape)[0], 0, [&](int64_t start, int64_t end) {
+                for (int64_t i = start; i < end; i++)
+                {
+                    array_ptrs.ptrs[i] = std::make_shared<pimArrayExampleCounters>((*arr_shape)[1], (*arr_shape)[2], options);
+                }
+            });
+            break;
+        default:
+            TORCH_INTERNAL_ASSERT(false, "create arraylist, pimArrayType not support!");
             break;
         }
     }

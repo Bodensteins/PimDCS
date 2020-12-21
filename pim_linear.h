@@ -181,9 +181,14 @@ namespace PIM {
         case PimArrayType::simple_logic_array:
           return PimLinearFunction<SimpleLogicArray>::apply(wb_ptr, wb_t_ptr, prev_ptr, input, weight,
               options.bias() ? bias : c10::optional<Tensor>(), is_training_);
-        case PimArrayType::wb_logic_array:
+        case PimArrayType::pim_array:
           return PimLinearFunction<pimArrayExample>::apply(wb_ptr, wb_t_ptr, prev_ptr, input, weight,
               options.bias() ? bias : c10::optional<Tensor>(), is_training_);
+        case PimArrayType::only_counters_pim_array:
+          return PimLinearFunction<pimArrayExampleCounters>::apply(wb_ptr, wb_t_ptr, prev_ptr, input, weight,
+              options.bias() ? bias : c10::optional<Tensor>(), is_training_);
+        default:
+          TORCH_INTERNAL_ASSERT(false, "pimlinear, forward type not support!")
       }
     }
 

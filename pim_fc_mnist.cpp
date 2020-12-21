@@ -5,6 +5,7 @@
 #include <string>
 #include <chrono>
 #include "pim_linear.h"
+#include "omp.h"
 
 using namespace std::chrono;
 using namespace PIM;
@@ -31,8 +32,8 @@ struct Net : torch::nn::Module {
 //    fc1 = register_module("fc1", torch::nn::Linear(784, 64));
 //    fc2 = register_module("fc2", torch::nn::Linear(64, 32));
 //    fc3 = register_module("fc3", torch::nn::Linear(32, 10));
-    fc1 = register_module("fc1", PimLinear(784, 10, kTrainBatchSize, PimArrayType::wb_logic_array, runDev));
-    // fc2 = register_module("fc2", PimLinear(64, 32, kTrainBatchSize, PimArrayType::wb_logic_array, runDev));
+    fc1 = register_module("fc1", PimLinear(784, 64, kTrainBatchSize, PimArrayType::only_counters_pim_array, runDev));
+    fc2 = register_module("fc2", PimLinear(64, 10, kTrainBatchSize, PimArrayType::only_counters_pim_array, runDev));
     // fc3 = register_module("fc3", PimLinear(32, 10, kTrainBatchSize, PimArrayType::wb_logic_array, runDev));
 //    fc1 = register_module("fc1", PimLinear(kTrainBatchSize, PimArrayType::simple_logic_array,
 //        LinearOptions(784, 64).bias(false)));
@@ -45,10 +46,10 @@ struct Net : torch::nn::Module {
   // Implement the Net's algorithm.
   torch::Tensor forward(torch::Tensor x) {
     // Use one of many tensor manipulation functions.
-    // x = torch::relu(fc1->forward(x.reshape({x.size(0), 784})));
+    x = torch::relu(fc1->forward(x.reshape({x.size(0), 784})));
     // x = torch::dropout(x, /*p=*/0.5, /*train=*/is_training());
     // x = torch::relu(fc2->forward(x));
-    x = torch::log_softmax(fc1->forward(x.reshape({x.size(0), 784})), /*dim=*/1);
+    x = torch::log_softmax(fc2->forward(x), /*dim=*/1);
     return x;
   }
 
@@ -121,7 +122,7 @@ void test(
 
 auto main() -> int {
   torch::manual_seed(1);
-
+  
   torch::DeviceType device_type;
   // if (torch::cuda::is_available()) {
   //   std::cout << "CUDA available! Training on GPU." << std::endl;
@@ -157,6 +158,7 @@ auto main() -> int {
   torch::optim::SGD optimizer(
       model.parameters(), torch::optim::SGDOptions(lr).momentum(0.5));
 
+  // torch::optim::Adam optimizer( model.parameters(), torch::optim::AdamOptions(lr));
   for (size_t epoch = 1; epoch <= kNumberOfEpochs; ++epoch) {
     train(epoch, model, device, *train_loader, optimizer, train_dataset_size);
     test(model, device, *test_loader, test_dataset_size);

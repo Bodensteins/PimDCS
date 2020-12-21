@@ -27,10 +27,10 @@ const int64_t kLogInterval = 10;
 struct Net : torch::nn::Module {
   Net()
       : conv1(ExpandingArray<4>({kTrainBatchSize, 1, 28, 28}),
-              PIM::PimArrayType::wb_logic_array,
+              PIM::PimArrayType::only_counters_pim_array,
               Conv2dOptions(1, 10, {5, 5})),
         conv2(ExpandingArray<4>({kTrainBatchSize, 10, 24, 24}),
-              PIM::PimArrayType::wb_logic_array,
+              PIM::PimArrayType::only_counters_pim_array,
               Conv2dOptions(10, 20, {5, 5})),
         fc1(320, 50),
         fc2(50, 10) {
@@ -80,12 +80,13 @@ void train(
 
     if (batch_idx++ % kLogInterval == 0) {
       std::printf(
-          "\rTrain Epoch: %ld [%5ld/%5ld] Loss: %.4f",
+          "Train Epoch: %ld [%5ld/%5ld] Loss: %.4f\n",
           epoch,
           batch_idx * batch.data.size(0),
           dataset_size,
           loss.template item<float>());
     }
+    std::fflush(stdout);
   }
 }
 

@@ -172,6 +172,15 @@ namespace PIM {
              << "PIM::PimLinear(in_features=" << options.in_features()
              << ", out_features=" << options.out_features()
              << ", bias=" << options.bias() << ")";
+      if (pim_type != PimArrayType::simple_logic_array)
+      {
+        stream << "array" << std::endl;
+        wb_ptr.ptr->print(stream);
+        stream << "array_t" << std::endl;
+        wb_t_ptr.ptr->print(stream);
+        stream << "prev" << std::endl;
+        prev_ptr.ptr->print(stream);
+      }
     }
 
     /// Transforms the `input` tensor by multiplying with the `weight` and

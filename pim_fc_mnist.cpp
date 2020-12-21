@@ -20,7 +20,7 @@ const int64_t kTrainBatchSize = 64;
 const int64_t kTestBatchSize = 1000;
 
 // The number of epochs to train.
-const int64_t kNumberOfEpochs = 10;
+const int64_t kNumberOfEpochs = 1;
 
 // After how many batches to log a new update with the loss value.
 const int64_t kLogInterval = 10;
@@ -56,6 +56,14 @@ struct Net : torch::nn::Module {
   // Use one of many "standard library" modules.
 //  torch::nn::Linear fc1{nullptr}, fc2{nullptr}, fc3{nullptr};
   PimLinear fc1{nullptr}, fc2{nullptr}, fc3{nullptr};
+  // void pretty_print(std::ostream &stream) const override {
+  //   stream << "layer 1" << std::endl;
+  //   fc1->pretty_print(stream);
+  //   stream << "layer 2" << std::endl;
+  //   fc2->pretty_print(stream);
+  //   // stream << "layer 3" << std::endl;
+  //   // fc3->pretty_print(stream);
+  // }
 };
 
 template <typename DataLoader>
@@ -77,7 +85,7 @@ void train(
     AT_ASSERT(!std::isnan(loss.template item<float>()));
     loss.backward();
     optimizer.step();
-
+    if (batch_idx>50) break;
     if (batch_idx++ % kLogInterval == 0) {
       std::printf(
           "Train Epoch: %ld [%5ld/%5ld] Loss: %.4f\n",
@@ -167,4 +175,6 @@ auto main() -> int {
   auto stop = high_resolution_clock::now();
   auto duration = duration_cast<milliseconds>(stop - start);
   std::cout << "Time: " << duration.count() / 1000. << " seconds" << std::endl;
+  std::cout << model << std::endl;
+  return 0;
 }

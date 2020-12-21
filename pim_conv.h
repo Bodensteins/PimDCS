@@ -377,7 +377,19 @@ namespace PIM {
       if (!c10::get_if<enumtype::kZeros>(&options.padding_mode())) {
         stream << ", padding_mode=" << enumtype::get_enum_name(options.padding_mode());
       }
-      stream << ")";
+      stream << ")" << std::endl;
+      if (pim_type != PimArrayType::simple_logic_array)
+      {
+        wb_ptr.ptr->print(stream);
+        stream << "array_t" << std::endl;
+        wb_t_ptr.ptr->print(stream);
+        stream << "prevs" << std::endl;
+        for (auto &i : prev_ptrs.ptrs)
+        {
+          i->print(stream);
+        }
+      }
+
     }
 
     /// Transforms the `input` tensor by multiplying with the `weight` and

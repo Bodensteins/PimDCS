@@ -133,6 +133,7 @@ struct phyArraySimple
         os << cellWrCnt << endl;
         os << "totalWrCnt = " << totalWrCnt << endl;
         os << "totalCmpWrcnt = " << totalCmpWrCnt << endl;
+        os << "--------------------" << endl;
     }
     at::Tensor data;
     at::Tensor dataDigit;

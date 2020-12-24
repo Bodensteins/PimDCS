@@ -42,6 +42,7 @@ void someSmallTest();
 int main()
 {
     someSmallTest();
+    return 0;
     torch::Tensor k = torch::ones({3, 4}).to(torch::kCUDA);
     std::cout << k << std::endl;
     auto op = torch::TensorOptions(torch::kCUDA).dtype(torch::kFloat64);
@@ -88,6 +89,11 @@ int main()
 void someSmallTest()
 {
     torch::Tensor a = torch::full({9, 9}, 1);
+    cout << a.sum() << endl;
+    pimArrayExample p(N, M, {}, cf);
+    p.write_mat(torch::tensor({{1.0, 0.5}}));
+    std::cout << "---" << std::endl;
+    std::cout << p.read_cell(0, 0).toDouble() << std::endl;
     at::parallel_for(0, 8, 0, [&](int st, int ed)->void
     {
         for (int i=st; i<ed; ++i)

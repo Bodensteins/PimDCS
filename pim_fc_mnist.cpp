@@ -85,7 +85,6 @@ void train(
     AT_ASSERT(!std::isnan(loss.template item<float>()));
     loss.backward();
     optimizer.step();
-    if (batch_idx>50) break;
     if (batch_idx++ % kLogInterval == 0) {
       std::printf(
           "Train Epoch: %ld [%5ld/%5ld] Loss: %.4f\n",
@@ -175,6 +174,6 @@ auto main() -> int {
   auto stop = high_resolution_clock::now();
   auto duration = duration_cast<milliseconds>(stop - start);
   std::cout << "Time: " << duration.count() / 1000. << " seconds" << std::endl;
-  std::cout << model << std::endl;
+  // std::cout << model << std::endl;
   return 0;
 }

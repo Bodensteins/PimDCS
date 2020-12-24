@@ -253,9 +253,19 @@ public:
         return trunc_45((x + 1) / 2 * (unitLevels - 1));
     }
 
+    torch::Tensor unit2digit(const torch::Tensor &x)
+    {
+        return x.add(1).div(2.0).mul(unitLevels - 1).add(0.5).to(torch::kInt32);
+    }
+
     double digit2unit(int x)
     {
         return 1.0 * x / (unitLevels - 1) * 2 - 1;
+    }
+
+    torch::Tensor digit2unit(const torch::Tensor &x)
+    {
+        return x.to(torch::kFloat64).div(unitLevels-1).mul(2).subtract(1);
     }
 
 private:
@@ -449,15 +459,90 @@ torch::Tensor pimArrayExampleCounters::mm(const torch::Tensor &mat)
         return torch::matmul(mat, realMat);
 }
 
+/*
+*   in face, now we only use write_mat in pim_linear & pim_conv.
+*   so we optimizer it first. and then come to write_row & write_cell
+*/
 void pimArrayExampleCounters::write_mat(const torch::Tensor &mat) 
 {
-    int len = std::min(mat.size(0), rowSize);
-    at::parallel_for(0, len, 0, [&](int st, int ed)->void
+    int M = std::min(mat.size(0), rowSize);
+    int N = std::min(mat.size(1), colSize);
+    // at::parallel_for(0, len, 0, [&](int st, int ed)->void
+    // {
+    //     for (int i=st; i<ed; ++i)
+    //         write_row(i, 0, mat[i]);
+    // });
+    torch::Tensor data = unit2digit(mat).index({Slice(0, M), Slice(0, N)});
+    realMat.index_put_({Slice(0, M), Slice(0, N)}, digit2unit(data)); 
+    torch::Tensor dataDigit = torch::empty({M, N * unitBits}, TensorOptions(device).dtype(torch::kInt8));
+
+    for (int i=0; i<unitBits; ++i)
     {
-        for (int i=st; i<ed; ++i)
-            write_row(i, 0, mat[i]);
-    });
+        dataDigit.index_put_({Slice(), Slice(i, N*unitBits, unitBits)}, (data.bitwise_and(1<<i)!=0));
+    }
+
+    int ed_arrY, ed_arrColId;
+    int ed_arrX, ed_arrRowId;
+    getColPos(N, ed_arrY, ed_arrColId);
+    getRowPos(M, ed_arrX, ed_arrRowId);
     
+    at::parallel_for(0, ed_arrX*ed_arrY, 0, [&](int st, int ed)->void
+    {
+        for (int k=st; k<ed; ++k)
+        {
+            int i=k/ed_arrY;
+            int j=k%ed_arrY;
+            phyArrMan[arr[i][j]].writeMat(dataDigit.index({Slice(i*phyArrRowSize, (i+1)*phyArrRowSize), Slice(j*usedcellsPerRow, (j+1)*usedcellsPerRow)}),\
+                            phyArrRowSize, phyArrColSize);
+        }
+    });
+    // for (int i=0; i<ed_arrX; ++i)
+    // {
+    //     for (int j=0; j<ed_arrY; ++j)
+    //     {
+    //         phyArrMan[arr[i][j]].writeMat(dataDigit.index({Slice(i*phyArrRowSize, (i+1)*phyArrRowSize), Slice(j*usedcellsPerRow, (j+1)*usedcellsPerRow)}),\
+    //                      phyArrRowSize, phyArrColSize);
+    //     }
+    // }
+    if (ed_arrRowId!=0)
+    {
+        at::parallel_for(0, ed_arrY, 0, [&](int st, int ed)
+        {
+            for (int j=st; j<ed; ++j)
+            {
+                phyArrMan[arr[ed_arrX][j]].writeMat(dataDigit.index({Slice(ed_arrX*phyArrRowSize, M), Slice(j*usedcellsPerRow, (j+1)*usedcellsPerRow)}),\
+                            ed_arrRowId, phyArrColSize);
+            }
+        });
+        // for (int j=0; j<ed_arrY; ++j)
+        // {
+        //     phyArrMan[arr[ed_arrX][j]].writeMat(dataDigit.index({Slice(ed_arrX*phyArrRowSize, M), Slice(j*usedcellsPerRow, (j+1)*usedcellsPerRow)}),\
+        //                  ed_arrRowId, phyArrColSize);
+        // }
+    }
+
+    if (ed_arrColId!=0)
+    {
+        at::parallel_for(0, ed_arrX, 0, [&](int st, int ed)
+        {
+            for (int i=st; i<ed; ++i)
+            {
+                phyArrMan[arr[i][ed_arrY]].writeMat(dataDigit.index({Slice(i*phyArrRowSize, (i+1)*phyArrRowSize), Slice(ed_arrY*usedcellsPerRow, N*unitBits)}),\
+                            phyArrRowSize, ed_arrColId);
+            }
+        });
+        // for (int i=0; i<ed_arrX; ++i)
+        // {
+        //     phyArrMan[arr[i][ed_arrY]].writeMat(dataDigit.index({Slice(i*phyArrRowSize, (i+1)*phyArrRowSize), Slice(ed_arrY*usedcellsPerRow, N*unitBits)}),\
+        //                  phyArrRowSize, ed_arrColId);
+        // }
+    }
+
+    if (ed_arrColId!=0 && ed_arrColId!=0)
+    {
+        phyArrMan[arr[ed_arrX][ed_arrY]].writeMat(dataDigit.index({Slice(ed_arrX*phyArrRowSize, M), Slice(ed_arrY*usedcellsPerRow, N*unitBits)}),\
+                         ed_arrRowId, ed_arrColId);
+    }
 }
 
 torch::Tensor pimArrayExampleCounters::read_mat() 

@@ -36,6 +36,9 @@ add_executable(unittest_only_counters unitTestFor_onlyCounters.cc pure_array.h p
 target_link_libraries(unittest_only_counters "${TORCH_LIBRARIES}")
 set_property(TARGET unittest_only_counters PROPERTY CXX_STANDARD 14)
 
+add_executable(original_vgg8_cifar10 original_vgg8_cifar10.cc pure_array.h pim_array_example.h pim_only_counters.h pim_linear.h pim_conv.h)
+target_link_libraries(original_vgg8_cifar10 "${TORCH_LIBRARIES}")
+set_property(TARGET original_vgg8_cifar10 PROPERTY CXX_STANDARD 14)
 # Test
 
 add_executable(logic_array_interface_test logic_array_interface_test.cpp pure_array.h)

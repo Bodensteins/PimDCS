@@ -41,7 +41,8 @@ const int len = 10;   // #len vectors
 void someSmallTest();
 int main()
 {
-    //someSmallTest();
+    someSmallTest();
+    return 0;
     // torch::Tensor k = torch::ones({3, 4}).to(torch::kCUDA);
     // std::cout << k << std::endl;
     auto op = torch::TensorOptions(torch::kCUDA).dtype(torch::kFloat64);
@@ -90,8 +91,16 @@ int main()
 
 void someSmallTest()
 {
-    torch::Tensor tmp = torch::tensor({5, 7, 9, 10});
+    torch::Tensor tmp = torch::tensor({-0.5, 0.5, 0.2, 0.55});
+    pimArrayExampleCounters p(5, 5, {}, cf);
+    tmp = p.unit2digit(tmp);
+    
     std::cout << tmp.reshape({1, -1}) << std::endl;
+
+    tmp = p.digit2unit(tmp);
+
+    std::cout << tmp.reshape({1, -1}) << std::endl;
+
     torch::Tensor a = torch::full({9, 9}, 1);
     at::parallel_for(0, 8, 0, [&](int st, int ed)->void
     {

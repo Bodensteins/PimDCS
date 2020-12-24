@@ -5,7 +5,7 @@
 
 struct VGG8_Net: torch::nn::Module
 {
-    VGG8_Net(): conv(7, nullptr), fc(nullptr)
+    VGG8_Net(): conv(6, nullptr), fc1(nullptr), fc2(nullptr)
     {
         conv[0] = register_module("conv0", torch::nn::Conv2d(torch::nn::Conv2dOptions(3, 128, 3).padding(1)));
         conv[1] = register_module("conv1", torch::nn::Conv2d(torch::nn::Conv2dOptions(128, 128, 3).padding(1)));
@@ -13,9 +13,9 @@ struct VGG8_Net: torch::nn::Module
         conv[3] = register_module("conv3", torch::nn::Conv2d(torch::nn::Conv2dOptions(256, 256, 3).padding(1)));
         conv[4] = register_module("conv4", torch::nn::Conv2d(torch::nn::Conv2dOptions(256, 512, 3).padding(1)));
         conv[5] = register_module("conv5", torch::nn::Conv2d(torch::nn::Conv2dOptions(512, 512, 3).padding(1)));
-        conv[6] = register_module("conv6", torch::nn::Conv2d(torch::nn::Conv2dOptions(512, 1024, 3).padding(1)));
-        // conv_drop = register_module("drop", torch::nn::Dropout2d(0.5));
-        fc = register_module("fc", torch::nn::Linear(4096, 10));
+        // conv[6] = register_module("conv6", torch::nn::Conv2d(torch::nn::Conv2dOptions(512, 1024, 3).padding(1)));
+        fc1 = register_module("fc1", torch::nn::Linear(8192, 512));
+        fc2 = register_module("fc2", torch::nn::Linear(512, 10));
     }
 
     // Implement the Net's algorithm.
@@ -29,20 +29,19 @@ struct VGG8_Net: torch::nn::Module
 
         x = F::max_pool2d( relu(conv[5](relu(conv[4](x)))), F::MaxPool2dFuncOptions(2).stride(2) ); 
 
-        x = F::max_pool2d( relu(conv[6](x)), F::MaxPool2dFuncOptions(2).stride(2) );
-        // x = conv_drop->forward(x);
+        // x = F::max_pool2d( relu(conv[6](x)), F::MaxPool2dFuncOptions(2).stride(2) );
         x = x.view({x.size(0), -1});
-        x = torch::dropout(x, /*p=*/0.5, /*training=*/is_training());
-        x = fc(x);
-        
+        x = torch::dropout(x, /*p=*/0.6, /*training=*/is_training());
+        x = torch::relu(fc1(x));
+        x = torch::dropout(x, /*p=*/0.6, /*training=*/is_training());
+        x = fc2(x);
         x = torch::log_softmax(x, 1);
         return x;
     }
 
     // Use one of many "standard library" modules.
     std::vector<torch::nn::Conv2d> conv;
-    torch::nn::Dropout2d conv_drop;
-    torch::nn::Linear fc;
+    torch::nn::Linear fc1, fc2;
 };
 
 
@@ -66,7 +65,7 @@ public:
             return;
         }
 
-        char buf[4096];
+        unsigned char buf[4096];
         std::vector<float> data(3072);
         std::cout << "read file: " << path << std::endl;
         std::cout << '[';
@@ -92,8 +91,14 @@ public:
 
             for (int j=0; j<3072; ++j)
                 data[j] = (int)buf[j];
+            // if (i<=2)
+            // {
+            //     for (int j=0; j<10; ++j)
+            //         std::cout << data[j] << ' ' << std::endl;
+            // }
             auto tharray = torch::zeros({3, 32, 32}, torch::kFloat);
             std::memcpy(tharray.data_ptr(), data.data(), sizeof(float)*3072);
+            tharray.div_(255);
             images.push_back(tharray);
         }
         std::cout << std::endl;
@@ -175,10 +180,10 @@ void mytrain(std::shared_ptr<VGG8_Net> &net,
         }
         if (batch_index%500==0)
         {
-            if (!going_on) 
-                torch::save(net, "net.pt");
-            else
-                torch::save(net, "net_go.pt"); 
+            // if (!going_on) 
+            //     torch::save(net, "net.pt");
+            // else
+            //     torch::save(net, "net_go.pt"); 
             time_t now = time(0);
             std::cout << "Already cost " << difftime(now, start) << " seconds" << std::endl;
         }
@@ -210,9 +215,10 @@ int main(int argc, char *argv[])
         device = at::kCUDA;
     }
 
-    int batch_size = 128;
-    auto tr_data_loader = torch::data::make_data_loader(train_data.map(torch::data::transforms::Stack<>()), batch_size);
-    auto te_data_loader = torch::data::make_data_loader(test_data.map(torch::data::transforms::Stack<>()), batch_size);
+    int batch_size = 64;
+    
+    auto tr_data_loader = torch::data::make_data_loader(train_data.map(torch::data::transforms::Normalize<>({0.485, 0.456, 0.406}, {0.229, 0.224, 0.225})).map(torch::data::transforms::Stack<>()), batch_size);
+    auto te_data_loader = torch::data::make_data_loader(test_data.map(torch::data::transforms::Normalize<>({0.485, 0.456, 0.406}, {0.229, 0.224, 0.225})).map(torch::data::transforms::Stack<>()), batch_size);
 
     torch::optim::SGD optimizer(net->parameters(), /*lr=*/0.01);
 
@@ -224,7 +230,7 @@ int main(int argc, char *argv[])
         torch::load(net, "net.pt");
     }
     start = time(0);
-    for (int epoch=1; epoch<=20; ++epoch)
+    for (int epoch=1; epoch<=50; ++epoch)
     {
         mytrain(net, *tr_data_loader, device, train_data.size().value(), batch_size, optimizer, epoch, going_on);
         mytest(net, *te_data_loader, device, test_data.size().value());

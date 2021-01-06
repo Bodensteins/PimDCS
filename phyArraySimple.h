@@ -68,7 +68,7 @@ struct phyArraySimple
         at::Tensor add = dataDigit.index({Slice(0, m), Slice(0, n)}).bitwise_xor(in);
 
         totalWrCnt += (m*n);
-//        totalCmpWrCnt += add.sum().item<int64_t>();
+        totalCmpWrCnt += add.sum().item<int64_t>();
 //        cellWrCnt.index_put_({Slice(0, m), Slice(0, n)}, cellWrCnt.index({Slice(0, m), Slice(0, n)}).add(add));
         cellWrCnt.index({Slice(0, m), Slice(0, n)}).add_(add);
 

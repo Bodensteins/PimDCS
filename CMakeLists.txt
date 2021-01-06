@@ -5,6 +5,9 @@ set(CMAKE_PREFIX_PATH /etc/libtorch/)
 find_package(Torch REQUIRED)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 
+include_directories(include)
+link_directories(lib)
+
 FIND_PACKAGE( OpenMP REQUIRED)
 if(OPENMP_FOUND)
 message("OPENMP FOUND")
@@ -28,8 +31,8 @@ add_executable(original_fc_mnist original_fc_mnist.cpp)
 target_link_libraries(original_fc_mnist "${TORCH_LIBRARIES}")
 set_property(TARGET original_fc_mnist PROPERTY CXX_STANDARD 14)
 
-add_executable(unittest unitTestFor_pimArray.cc)
-target_link_libraries(unittest "${TORCH_LIBRARIES}")
+add_executable(unittest unitTestFor_pimArray.cc pim_array_example.cpp pim_array_config.cpp)
+target_link_libraries(unittest "${TORCH_LIBRARIES}" yaml-cpp)
 set_property(TARGET unittest PROPERTY CXX_STANDARD 14)
 
 add_executable(unittest_only_counters unitTestFor_onlyCounters.cc pure_array.h pim_array_example.h pim_only_counters.h pim_linear.h pim_conv.h)

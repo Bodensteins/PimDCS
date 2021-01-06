@@ -17,15 +17,15 @@ namespace PIM {
     simple_logic_array, pim_array, only_counters_pim_array
   };
 
-  std::ostream &operator << ( std::ostream& stream, const PimArrayType &type)
-  {
-    const std::string name[] = {
-        "PIM::simple_logic_array",
-        "PIM::pim_array",
-        "PIM::only_counters_pim_array"
-    };
-    return stream << name[(int)type];
-  }
+//  std::ostream &operator << ( std::ostream& stream, const PimArrayType &type)
+//  {
+//    const std::string name[] = {
+//        "PIM::simple_logic_array",
+//        "PIM::pim_array",
+//        "PIM::only_counters_pim_array"
+//    };
+//    return stream << name[(int)type];
+//  }
 
 /**
  * LogicArrayInterface is a API for libtorch to map operations to PIM simulator.
@@ -149,9 +149,9 @@ namespace PIM {
     int64_t rowSize, colSize;  // matrix of size: m rows and n columns.
   };
 
-  std::ostream &operator<<(std::ostream &os, const LogicArrayInterface &arr) {
-    return arr.print(os);
-  }
+//  std::ostream &operator<<(std::ostream &os, const LogicArrayInterface &arr) {
+//    return arr.print(os);
+//  }
 
 
   class SimpleLogicArray : public LogicArrayInterface {
@@ -265,50 +265,50 @@ namespace PIM {
     torch::Tensor arr;
   };
 
-  TORCH_LIBRARY(SimpleLogicArray, m) {
-    m.class_<SimpleLogicArray>("SimpleLogicArray")
-        .def(torch::init<int64_t, int64_t, torch::ScalarType>())
-        .def("write_cell", &SimpleLogicArray::write_cell)
-        .def("read_cell", &SimpleLogicArray::read_cell)
-        .def("mm", &SimpleLogicArray::mm)
-        .def("mv", &SimpleLogicArray::mv)
-        .def("write_row", &SimpleLogicArray::write_row)
-        .def("read_row", &SimpleLogicArray::read_row)
-        .def("write_mat", &SimpleLogicArray::write_mat)
-        .def("read_mat", &SimpleLogicArray::read_mat)
-        .def("dot_column", &SimpleLogicArray::dot_column)
-        .def("nmv", &SimpleLogicArray::nmv)
-        .def("resize", &SimpleLogicArray::resize)
-        .def("sizes", &SimpleLogicArray::sizes);
-  }
+//  TORCH_LIBRARY(SimpleLogicArray, m) {
+//    m.class_<SimpleLogicArray>("SimpleLogicArray")
+//        .def(torch::init<int64_t, int64_t, torch::ScalarType>())
+//        .def("write_cell", &SimpleLogicArray::write_cell)
+//        .def("read_cell", &SimpleLogicArray::read_cell)
+//        .def("mm", &SimpleLogicArray::mm)
+//        .def("mv", &SimpleLogicArray::mv)
+//        .def("write_row", &SimpleLogicArray::write_row)
+//        .def("read_row", &SimpleLogicArray::read_row)
+//        .def("write_mat", &SimpleLogicArray::write_mat)
+//        .def("read_mat", &SimpleLogicArray::read_mat)
+//        .def("dot_column", &SimpleLogicArray::dot_column)
+//        .def("nmv", &SimpleLogicArray::nmv)
+//        .def("resize", &SimpleLogicArray::resize)
+//        .def("sizes", &SimpleLogicArray::sizes);
+//  }
 
-  std::ostream &operator<<(std::ostream &os, const SimpleLogicArray &arr) {
-    return arr.print(os);
-  }
+//  std::ostream &operator<<(std::ostream &os, const SimpleLogicArray &arr) {
+//    return arr.print(os);
+//  }
 
 
-  typedef std::shared_ptr<LogicArrayInterface> PimPtr;
-
-  class PimArrayPtr : public torch::CustomClassHolder {
-    public:
-      PimArrayPtr() = default;
-      PimPtr ptr = nullptr;
-  };
-  TORCH_LIBRARY(PimArrayPtr, m) {
-    m.class_<PimArrayPtr>("PimArrayPtr")
-        .def(torch::init());
-  }
-
-  class PimArrayPtrList : public torch::CustomClassHolder {
-    public:
-      PimArrayPtrList() = default;
-//      explicit PimArrayPtrList(int64_t size) : ptrs(std::vector<PimPtr>(size)) {}
-      std::vector<PimPtr> ptrs;
-  };
-
-  TORCH_LIBRARY(PimArrayPtrList, m) {
-    m.class_<PimArrayPtrList>("PimArrayPtrList")
-        .def(torch::init());
-  }
+//  typedef std::shared_ptr<LogicArrayInterface> PimPtr;
+//
+//  class PimArrayPtr : public torch::CustomClassHolder {
+//    public:
+//      PimArrayPtr() = default;
+//      PimPtr ptr = nullptr;
+//  };
+//  TORCH_LIBRARY(PimArrayPtr, m) {
+//    m.class_<PimArrayPtr>("PimArrayPtr")
+//        .def(torch::init());
+//  }
+//
+//  class PimArrayPtrList : public torch::CustomClassHolder {
+//    public:
+//      PimArrayPtrList() = default;
+////      explicit PimArrayPtrList(int64_t size) : ptrs(std::vector<PimPtr>(size)) {}
+//      std::vector<PimPtr> ptrs;
+//  };
+//
+//  TORCH_LIBRARY(PimArrayPtrList, m) {
+//    m.class_<PimArrayPtrList>("PimArrayPtrList")
+//        .def(torch::init());
+//  }
 }
 #endif //PIMTORCH_LOGIC_ARRAY_INTERFACE_H

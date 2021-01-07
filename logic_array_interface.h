@@ -8,6 +8,7 @@
 #pragma once
 
 #include <torch/torch.h>
+#include <torch/script.h>
 #include <torch/custom_class.h>
 #include <iostream>
 
@@ -41,7 +42,7 @@ namespace PIM {
      * @param options tensor options
      */
     LogicArrayInterface(int64_t rowSize, int64_t colSize, std::string name, torch::nn::Module &module,
-                        const torch::TensorOptions& options = {})
+                        const torch::TensorOptions& options = {}, bool requires_grad = true)
         : rowSize(rowSize), colSize(colSize) {}
 
     /**
@@ -170,15 +171,20 @@ namespace PIM {
   class SimpleLogicArray : public LogicArrayInterface {
   public:
     SimpleLogicArray(int64_t rowSize, int64_t colSize, std::string name, torch::nn::Module &module,
-                     const torch::TensorOptions& options = {})
-       : LogicArrayInterface(rowSize, colSize, name, module, options) {
-      arr = module.register_parameter(name, torch::empty({rowSize, colSize}, options));
+                     const torch::TensorOptions& options = {}, bool requires_grad = true)
+       : LogicArrayInterface(rowSize, colSize, name, module, options, requires_grad) {
+      arr = module.register_parameter(name, torch::empty({rowSize, colSize}, options), requires_grad);
     }
 
-    SimpleLogicArray(int64_t rowSize, int64_t colSize, const torch::TensorOptions& options = {})
+    SimpleLogicArray(int64_t rowSize, int64_t colSize, const torch::TensorOptions& options)
         : LogicArrayInterface(rowSize, colSize, options) {
-      arr = torch::zeros({rowSize, colSize}, options);
+      arr = torch::empty({rowSize, colSize}, options);
 //      std::cout << "call normal constructor. (" << this << ")" << std::endl;
+    }
+
+    SimpleLogicArray(int64_t rowSize, int64_t colSize)
+        : LogicArrayInterface(rowSize, colSize) {
+      arr = torch::zeros({rowSize, colSize});
     }
 
     SimpleLogicArray(const SimpleLogicArray &other) : LogicArrayInterface(other) {
@@ -284,23 +290,6 @@ namespace PIM {
     torch::Tensor arr;
   };
 
-  TORCH_LIBRARY(SimpleLogicArray, m) {
-    m.class_<SimpleLogicArray>("SimpleLogicArray")
-        .def(torch::init<int64_t, int64_t, torch::ScalarType>())
-        .def("write_cell", &SimpleLogicArray::write_cell)
-        .def("read_cell", &SimpleLogicArray::read_cell)
-        .def("mm", &SimpleLogicArray::mm)
-        .def("mv", &SimpleLogicArray::mv)
-        .def("write_row", &SimpleLogicArray::write_row)
-        .def("read_row", &SimpleLogicArray::read_row)
-        .def("write_mat", &SimpleLogicArray::write_mat)
-        .def("read_mat", &SimpleLogicArray::read_mat)
-        .def("dot_column", &SimpleLogicArray::dot_column)
-        .def("nmv", &SimpleLogicArray::nmv)
-        .def("resize", &SimpleLogicArray::resize)
-        .def("sizes", &SimpleLogicArray::sizes);
-  }
-
   std::ostream &operator<<(std::ostream &os, const SimpleLogicArray &arr) {
     return arr.print(os);
   }
@@ -313,10 +302,7 @@ namespace PIM {
       PimArrayPtr() = default;
       PimPtr ptr = nullptr;
   };
-  TORCH_LIBRARY(PimArrayPtr, m) {
-    m.class_<PimArrayPtr>("PimArrayPtr")
-        .def(torch::init());
-  }
+
 
   class PimArrayPtrList : public torch::CustomClassHolder {
     public:
@@ -325,10 +311,6 @@ namespace PIM {
       std::vector<PimPtr> ptrs;
   };
 
-  TORCH_LIBRARY(PimArrayPtrList, m) {
-    m.class_<PimArrayPtrList>("PimArrayPtrList")
-        .def(torch::init());
-  }
 
   /**
    * Creates a PIM array which contains a 2D Tensor.
@@ -338,10 +320,10 @@ namespace PIM {
    * @param options Tensor options
    */
   void create_pim_array(PimArrayPtr &arr_ptr, torch::ExpandingArray<2> arr_size, PimArrayType pim_type,
-      std::string name, torch::nn::Module &module, const torch::TensorOptions& options = {}) {
+      std::string name, torch::nn::Module &module, const torch::TensorOptions& options = {}, bool requires_grad = true) {
     switch (pim_type) {
       case PimArrayType::simple_logic_array: {
-        arr_ptr.ptr = std::make_shared<SimpleLogicArray>((*arr_size)[0], (*arr_size)[1], name, module, options);
+        arr_ptr.ptr = std::make_shared<SimpleLogicArray>((*arr_size)[0], (*arr_size)[1], name, module, options, requires_grad);
         break;
       }
       case PimArrayType::wb_logic_array:
@@ -357,14 +339,14 @@ namespace PIM {
    * @param options Tensor options
    */
   void create_pim_array_list(PimArrayPtrList &array_ptrs, torch::ExpandingArray<3> arr_shape, PimArrayType pim_type,
-      std::string name, torch::nn::Module &module, const torch::TensorOptions& options = {}) {
+      std::string name, torch::nn::Module &module, const torch::TensorOptions& options = {}, bool requires_grad = true) {
     switch (pim_type) {
       case PimArrayType::simple_logic_array: {
         array_ptrs.ptrs.resize((*arr_shape)[0]);
         at::parallel_for(0, (*arr_shape)[0], 0, [&](int64_t start, int64_t end) {
           for (int64_t i = start; i < end; i++) {
             array_ptrs.ptrs[i] = std::make_shared<SimpleLogicArray>((*arr_shape)[1], (*arr_shape)[2],
-                name + std::to_string(i), module, options);
+                name + std::to_string(i), module, options, requires_grad);
           }
         });
         break;
@@ -373,7 +355,6 @@ namespace PIM {
         C10_THROW_ERROR(Error, "This PIM type is not implemented!");
     }
   }
-
-
 }
+
 #endif //PIMTORCH_LOGIC_ARRAY_INTERFACE_H

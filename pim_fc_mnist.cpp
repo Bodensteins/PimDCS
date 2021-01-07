@@ -24,6 +24,13 @@ const int64_t kNumberOfEpochs = 1;
 // After how many batches to log a new update with the loss value.
 const int64_t kLogInterval = 10;
 
+void print_range(torch::Tensor tensor, const std::string &name) {
+  std::cout << name + ", max: " << tensor.max().item() << ", "
+            << "min:" << tensor.min().item() << ", "
+            << "mean:" << tensor.mean().item() << ", "
+            << "range:" << (tensor.max() - tensor.min()).item() << std::endl;
+}
+
 // Define a new Module.
 struct Net : torch::nn::Module {
   Net() {
@@ -45,9 +52,16 @@ struct Net : torch::nn::Module {
   // Implement the Net's algorithm.
   torch::Tensor forward(torch::Tensor x) {
     // Use one of many tensor manipulation functions.
-    x = torch::relu(fc1->forward(x.reshape({x.size(0), 784})));
-    x = torch::dropout(x, /*p=*/0.5, /*train=*/is_training());
-    x = torch::relu(fc2->forward(x));
+    print_range(x, "input");
+    x = fc1->forward(x.reshape({x.size(0), 784}));
+//    x = torch::relu(x);
+    x = torch::sigmoid(x);
+    print_range(x, "fc1");
+//    x = torch::dropout(x, /*p=*/0.5, /*train=*/is_training());
+    x = fc2->forward(x);
+//    x = torch::relu(x);
+    x = torch::sigmoid(x);
+    print_range(x, "fc2");
     x = torch::log_softmax(fc3->forward(x), /*dim=*/1);
     return x;
   }

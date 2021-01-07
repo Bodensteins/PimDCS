@@ -2,8 +2,8 @@
 // Created by 周恒 on 2020/11/22.
 //
 
-#ifndef PIMTORCH_PIM_LINEAR_H
-#define PIMTORCH_PIM_LINEAR_H
+#ifndef PIMTORCH_PIM_LINEAR_CPP
+#define PIMTORCH_PIM_LINEAR_CPP
 
 #pragma once
 #include <torch/torch.h>
@@ -118,6 +118,8 @@ namespace PIM {
         TORCH_INTERNAL_ASSERT(false, "calculation error");
       }
 
+//      std::cout << pim_grad_weight.max() - pim_grad_weight.mean() << std::endl;
+
       // number of returns should be equal to forward's args.
       return {Tensor(), Tensor(), Tensor(), pim_grad_input, pim_grad_weight, pim_grad_bias, Tensor()};
     }
@@ -144,11 +146,11 @@ namespace PIM {
 
       create_pim_array(wb_ptr, {
           options.bias() ? options.in_features() + 1 : options.in_features(), options.out_features()}, pim_type,
-              "wb", *this, weight.options());
+              "wb", *this);
       create_pim_array(wb_t_ptr, {options.out_features(), options.in_features()}, pim_type,
-          "wb_t", *this, weight.options());
+          "wb_t", *this);
       create_pim_array(prev_ptr, {batch_size, options.in_features()}, pim_type,
-          "prev", *this, weight.options());
+          "prev", *this);
 
       reset_parameters();
     }
@@ -199,6 +201,10 @@ namespace PIM {
       is_training_ = on;
     }
 
+    void print_pim_weight() {
+      std::cout << *(wb_ptr.ptr) << std::endl;
+    }
+
     /// The options used to configure this module.
     LinearOptions options;
 
@@ -226,17 +232,33 @@ namespace PIM {
 /// module storage semantics.
   TORCH_MODULE(PimLinear);
 
-//  template<typename PimType>
-//  void declare_pim_linear(pybind11::module &m, const std::string &typestr) {
-//    using Class = PimLinearFunction<PimType>;
-//    std::string pyclass_name = typestr + std::string("PimLinearFunction");
-//    pybind11::class_<Class>(m, pyclass_name.c_str())
-//        .def("forward", &Class::forward)
-//        .def("backward", &Class::backward);
-//  }
-//
-//  PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-//    declare_pim_linear<SimpleLogicArray>(m, "Simple");
-//  }
+
 }
-#endif //PIMTORCH_PIM_LINEAR_H
+//template<typename PimType>
+//void declare_pim_linear_func(pybind11::module &m, const std::string &typestr) {
+//  using Class = PIM::PimLinearFunction<PimType>;
+//  std::string pyclass_name = typestr + std::string("PimLinearFunction");
+//  pybind11::class_<Class>(m, pyclass_name.c_str())
+//      .def("forward", &Class::forward)
+//      .def("backward", &Class::backward);
+//}
+//
+//void declare_pim_linear(pybind11::module &m) {
+//  auto pim_linear = pybind11::class_<PIM::PimLinearImpl, std::shared_ptr<PIM::PimLinearImpl>>(m, "PimLinear");
+//  pybind11::enum_<PIM::PimArrayType>(m, "PimArrayType")
+//      .value("SimpleLogicArray", PIM::PimArrayType::simple_logic_array)
+//      .value("WbLogicArray", PIM::PimArrayType::wb_logic_array);
+//  pim_linear.def(pybind11::init<int64_t, int64_t, int64_t, PIM::PimArrayType>())
+//            .def("reset", &PIM::PimLinearImpl::reset)
+//            .def("reset_parameters", &PIM::PimLinearImpl::reset_parameters)
+//            .def("pretty_print", &PIM::PimLinearImpl::pretty_print)
+//            .def("forward", &PIM::PimLinearImpl::forward)
+//            .def("sync_weight", &PIM::PimLinearImpl::sync_weight)
+//            .def("train", &PIM::PimLinearImpl::train);
+//}
+//
+//PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
+//  declare_pim_linear_func<PIM::SimpleLogicArray>(m, "Simple");
+//  declare_pim_linear(m);
+//}
+#endif //PIMTORCH_PIM_LINEAR_CPP

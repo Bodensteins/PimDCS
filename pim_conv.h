@@ -2,8 +2,8 @@
 // Created by 周恒 on 2020/11/26.
 //
 
-#ifndef PIMTORCH_PIM_CONV_H
-#define PIMTORCH_PIM_CONV_H
+#ifndef PIMTORCH_PIM_CONV_CPP
+#define PIMTORCH_PIM_CONV_CPP
 
 #pragma once
 #include <torch/torch.h>
@@ -307,6 +307,13 @@ namespace PIM {
                   PimArrayType pim_type)
         : PimConv2dImpl(input_shape, pim_type, Conv2dOptions((*input_shape)[1], output_channels, kernel_size)) {}
 
+    PimConv2dImpl(std::vector<int64_t> &input_shape,
+                  std::vector<int64_t> &kernel_size,
+                  int64_t output_channels,
+                  PimArrayType pim_type)
+        : PimConv2dImpl(ExpandingArray<4>(input_shape), pim_type,
+            Conv2dOptions(input_shape[1], output_channels, ExpandingArray<2>(kernel_size))) {}
+
     explicit PimConv2dImpl(ExpandingArray<4> input_shape, PimArrayType pim_type, const Conv2dOptions &options_)
         : input_shape(input_shape), pim_type(pim_type), options(options_) {
       reset();
@@ -328,13 +335,13 @@ namespace PIM {
       create_pim_array(wb_ptr, {
           options.bias() ? (*options.kernel_size())[0] * (*options.kernel_size())[1] * options.in_channels() + 1 :
           (*options.kernel_size())[0] * (*options.kernel_size())[1] * options.in_channels(), options.out_channels()
-      }, pim_type, "wb", *this, weight.options());
+      }, pim_type, "wb", *this);
       create_pim_array(wb_t_ptr, {
           (*options.kernel_size())[0] * (*options.kernel_size())[1] * options.out_channels(), options.in_channels()
-      }, pim_type, "wb_t", *this,weight.options());
+      }, pim_type, "wb_t", *this);
       create_pim_array_list(prev_ptrs, {
           (*input_shape)[0], (*input_shape)[2] * (*input_shape)[3], (*input_shape)[1]
-      }, pim_type, "prevs", *this, weight.options());
+      }, pim_type, "prevs", *this);
 
       reset_parameters();
     }
@@ -429,4 +436,4 @@ namespace PIM {
 
   TORCH_MODULE(PimConv2d);
 }
-#endif //PIMTORCH_PIM_CONV_H
+#endif //PIMTORCH_PIM_CONV_CPP

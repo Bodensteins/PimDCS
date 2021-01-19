@@ -94,22 +94,23 @@ struct phyArraySimple
         at::Tensor writeIn = at::full({len}, deltaI, TensorOptions(device).dtype(torch::kFloat64));
         at::Tensor rowAdd = dataDigit[row];
 
-        totalWrCnt += len;
+        totalWrCnt += len;              // write count 
 
         rowAdd = rowAdd.index({torch::indexing::Slice(col, col + len)}).bitwise_xor(in);
-        totalCmpWrCnt += rowAdd.sum().item<int64_t>();
+        totalCmpWrCnt += rowAdd.sum().item<int64_t>();  //cmp write count, only write different data to origin data will be counted
 
         cellWrCnt[row].index_put_({torch::indexing::Slice(col, col + len)},
-                                  cellWrCnt[row].index({torch::indexing::Slice(col, col + len)}).add(rowAdd));
+                                  cellWrCnt[row].index({torch::indexing::Slice(col, col + len)}).add(rowAdd)); //cmp write count of each cell 
 
         writeIn.mul_(in).add_(IminPCell);
-        data[row].index_put_({torch::indexing::Slice(col, col + len)}, writeIn);
-        dataDigit[row].index_put_({torch::indexing::Slice(col, col + len)}, in);
+        data[row].index_put_({torch::indexing::Slice(col, col + len)}, writeIn);    //data in type of current
+        dataDigit[row].index_put_({torch::indexing::Slice(col, col + len)}, in);    //data in type of digit
     }
 
     /*
     *   m -> in.size(0), n -> in.size(1)
-    *   write mat in to our array.
+    *   write mat into our array.
+    *   similar to writeCell
     * */
     void writeMat(const at::Tensor &in, int m, int n)
     {
@@ -125,16 +126,33 @@ struct phyArraySimple
         dataDigit.index_put_({Slice(0, m), Slice(0, n)}, in);
     }
 
+    /*
+     *
+     * readCell from [row, col] to [row, col+len-1]
+     * As we have stored data in type of digit in dataDigit, so just return it.
+     *
+     *
+     * */
     void readCell(int row, int col, int len, at::Tensor &out)
     {
         out = dataDigit[row].index({torch::indexing::Slice(col, col + len)});
     }
 
+    /*
+     * VMM 
+     * implement   out = data^t * in.    ^t means transpose
+     *
+     * */
     void vmm(const at::Tensor &in, at::Tensor &out)
     {
         out = torch::matmul(data.t(), in);
     }
 
+    /*
+     *  number mul vector
+     *  out = in * data[row][col <---> col+len-1]
+     *
+     * */
     void numMulVector(at::Scalar in, int row, int col, int len, at::Tensor &out)
     {
         out = dataDigit[row].index({torch::indexing::Slice(col, col + len)}).mul(in);
@@ -210,16 +228,22 @@ private:
 
 std::mutex phyArrayManager::mu;
 
+/*
+ *  config of pim array.
+ *  
+ * */
 struct pim_array_config
 {
-    int32_t rowSize, colSize;
-    int32_t phyArrRowSize, phyArrColSize;
-    int32_t inBits, outBits, unitBits, cellBits;
+    int32_t rowSize, colSize;                       //  logic array size
+    int32_t phyArrRowSize, phyArrColSize;           //  phy array size, a logic array is formed by one or multiple phy arrays.
+    int32_t inBits, outBits, unitBits, cellBits;    /*  input/output data bits.  unit bits means precision of data in array. cell bits means one memory cell's precision
+                                                        e.g. unitBits = 8, cellBits = 2.  we need 4 memory cell to represent 1 unit.
+                                                   */
 
-    bool has_negative_input;
-    double max_phy_input_value;
-    bool trunc_input;
-    bool dynamic_max_input;
+    bool has_negative_input;                        // input value has negative number
+    double max_phy_input_value;                     // input value has its maximum, we will use this maximum to regionalizatoin input value by inBits.
+    bool trunc_input;                               // if true, the value > max_phy_input_value, will trunc to the max_phy_input_value. if false, if will reprot error if value>max_phy_input
+    bool dynamic_max_input;                         // if true, we will dynamic get max_input rather than use max_phy_input_value
 };
 
 void printf_array_cf(const pim_array_config &x)
@@ -265,6 +289,7 @@ public:
         phyArrColSize = cf.phyArrColSize;
         assert(cf.cellBits == 1);
 
+        // one phy array row can store how many units
         unitNumPerRow = phyArrColSize / cf.unitBits;
         assert(unitNumPerRow>0);
         usedcellsPerRow = unitNumPerRow * cf.unitBits;
@@ -409,6 +434,10 @@ private:
 
 phyArrayManager pimArrayExample::phyArrMan;
 
+/*
+ * write_cell to [row, col] 
+ *
+ * */
 void pimArrayExample::write_cell(int64_t row, int64_t col, const torch::Scalar &value)
 {
     int arrX, arrY, arrRowId, arrColId;
@@ -421,6 +450,9 @@ void pimArrayExample::write_cell(int64_t row, int64_t col, const torch::Scalar &
     phyArrMan[arr[arrX][arrY]].writeCell(arrRowId, arrColId, unitBits, data);
 }
 
+/*
+ *  read_cell from [row, col]
+ * */
 torch::Scalar pimArrayExample::read_cell(int64_t row, int64_t col)
 {
     int arrX, arrY, arrRowId, arrColId;
@@ -528,6 +560,17 @@ torch::Tensor pimArrayExample::read_row(int64_t row, int64_t col, int64_t size) 
     return out;
 }
 
+/*
+ *  input to digit
+ *  when perform VMM operation, we need to revert input value to digit pulse.
+ *
+ *  if input vec is 1 dim, e.g. input vector [a1 a2] with inbits = 2, output a matrix of  | d1#0 d1#1 |,     di means the digit value of ai
+ *                                                                                        | d2#0 d2#2 |      di#j, means jth bits of di.
+ *  if input vec if 2 dim, e.g. |a1 b1|, this is a batch with size 2. batch 1 is [a1, a2], batch 2 is [b1, b2]
+ *                              |a2 b2|
+ *  output a tensor with 3 dim, its first dim is batch size. and other two dim is similar to input vec with 1 dim.   
+ *
+ * */
 at::Tensor pimArrayExample::input2digit(const at::Tensor &vec, double &max_one)
 {
     if (dynamic_max_input)
@@ -593,6 +636,11 @@ at::Tensor pimArrayExample::input2digit(const at::Tensor &vec, double &max_one)
     return vecOut;
 }
 
+/*
+ *  matric * vector
+ *
+ *
+ * */
 torch::Tensor pimArrayExample::mv(const torch::Tensor &vec)
 {
     double max_one;
@@ -608,6 +656,12 @@ torch::Tensor pimArrayExample::mv(const torch::Tensor &vec)
     }
     vecDigit = input2digit(v, max_one).to(torch::kFloat64);
 
+    /*
+     *  A logic arrays is formed by multiple phy arrays, its row has arrX_size phyArrays and its col has arrY_size phyArrays.
+     *  there migit be unsed col in each phyArrays, so Iref's 3th value is used cells per row. 
+     *  As this class implement input value to digit pulse, so inBits will revert to #inBits pulses. Every pulse need to do one mv operation in phy arrays.
+     *  So its 4th value in Iout is inBits. 
+     * */
     at::Tensor Iout = torch::zeros({arrX_size, arrY_size, usedcellsPerRow, inBits}, TensorOptions(device).dtype(torch::kFloat64));
     at::Tensor out_digit = torch::zeros({arrX_size, arrY_size, unitNumPerRow, inBits}, TensorOptions(device).dtype(torch::kInt64));
     at::Tensor Iref0 = torch::zeros({arrX_size, arrY_size, 1, inBits}, TensorOptions(device).dtype(torch::kFloat64));
@@ -616,7 +670,12 @@ torch::Tensor pimArrayExample::mv(const torch::Tensor &vec)
     {   
         return x.mul((outLevels-1)/maxIsumPerPhyCol).add(0.5).to(torch::kInt64);
     };
-
+    
+    /*
+     *  record current out of each phy array by Iout
+     *  Ire0 and Iref1 means ref column, please read our manual for more information about ref column.
+     *
+     * */
     for (int i=0; i<arrX_size; ++i)
     {
         for (int j=0; j<arrY_size; ++j)
@@ -629,12 +688,19 @@ torch::Tensor pimArrayExample::mv(const torch::Tensor &vec)
         }
     }
 
+    /*
+     *  use ref column to Numerate final output
+     * */
     at::Tensor Iref0_digit = outADC(Iref0);
     at::Tensor refValue = outADC(Iref1)-Iref0_digit;
     refValue = refValue.__lshift__(unitBits).subtract(refValue);
 
     Iout = outADC(Iout) - Iref0_digit;
 
+    /*
+     *  use unit scalar to revert digit output to double type
+     *  here, we set up scalar for one unit's different bits.
+     * */
     at::Tensor unitScalar = torch::empty({usedcellsPerRow, inBits}, TensorOptions(device).dtype(torch::kInt64));
     for (int i=0; i<unitBits; ++i)
     {
@@ -677,6 +743,10 @@ torch::Tensor pimArrayExample::nmv(int64_t row, int64_t col, const torch::Scalar
     assert(false);
 }
 
+/*
+ *  similar to MV function. but input param is a mat with dim 1 of batch_size.
+ *
+ * */
 torch::Tensor pimArrayExample::mm(const torch::Tensor &mat) 
 {
     double max_one;

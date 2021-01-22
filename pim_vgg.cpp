@@ -119,15 +119,15 @@ struct VGG : torch::nn::Module {
       register_module("BatchNorm2d"+to_string(i+1), bn_list[i]);
     }
 
-    std::vector<int> p = {0.3, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.5, 0.5, 0.5, 0.5};
+    std::vector<double> p = {0.3, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.5, 0.5, 0.5, 0.5};
     for (int i = 0; i < 12; i++) {
       dropout_list.push_back(torch::nn::Dropout2d(torch::nn::Dropout2dOptions().p(p[i])));
       register_module("Dropout2d"+to_string(i+1), dropout_list[i]);
     }
 
-    register_module("fc1", torch::nn::Linear(512, 4096));
-    register_module("fc2", torch::nn::Linear(4096, 4096));
-    register_module("fc3", torch::nn::Linear(4096, 10));
+    fc1 = register_module("fc1", torch::nn::Linear(512, 4096));
+    fc2 = register_module("fc2", torch::nn::Linear(4096, 4096));
+    fc3 = register_module("fc3", torch::nn::Linear(4096, 10));
   }
 
   torch::Tensor forward(torch::Tensor x) {
@@ -224,14 +224,14 @@ struct VGG : torch::nn::Module {
   std::vector<torch::nn::BatchNorm2d> bn_list;
   std::vector<torch::nn::Dropout2d> dropout_list;
   std::vector<torch::nn::MaxPool2d> max_pooling_list;
-  torch::nn::Linear fc1, fc2, fc3;
+  torch::nn::Linear fc1 = nullptr, fc2 = nullptr, fc3 = nullptr;
 };
 
 
 template <typename DataLoader>
 void train(
     size_t epoch,
-    Net& model,
+    VGG& model,
     torch::Device device,
     DataLoader& data_loader,
     torch::optim::Optimizer& optimizer,
@@ -260,7 +260,7 @@ void train(
 
 template <typename DataLoader>
 void test(
-    Net& model,
+    VGG& model,
     torch::Device device,
     DataLoader& data_loader,
     size_t dataset_size) {
@@ -301,7 +301,7 @@ auto main() -> int {
   }
   torch::Device device(device_type);
 
-  Net model;
+  VGG model;
   model.to(device, torch::kFloat64);
 
   auto start = high_resolution_clock::now();

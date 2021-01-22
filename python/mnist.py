@@ -204,7 +204,7 @@ def main():
     #     torch.save(model.state_dict(), "mnist_cnn.pt")
 
 
-    # Online Learning
+    # online learning
     onn_network = ONN(features_size=784, max_num_hidden_layers=3, qtd_neuron_per_hidden_layer=100, n_classes=10,
                       batch_size=args.batch_size, b=0.95, n=0.01, s=0.3, visdom=vis)
     train_onn(onn_network, device, train_loader)

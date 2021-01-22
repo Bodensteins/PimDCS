@@ -106,20 +106,19 @@ struct VGG : torch::nn::Module {
     }
 
     for (int i = 0; i < 14; i++) {
-      max_pooling_list[i] = register_module("MaxPool2d"+std::to_string(i+1),
-          MaxPool2d(MaxPool2dOptions({2, 2})));
+      max_pooling_list.emplace_back(register_module("MaxPool2d"+std::to_string(i+1),
+          MaxPool2d(MaxPool2dOptions({2, 2}))));
     }
 
     for (int i = 1; i < 15; i++) {
-      bn_list[i-1] = register_module("BatchNorm2d"+std::to_string(i),
-          BatchNorm2d(BatchNorm2dOptions(in_channels[i])));
+      bn_list.emplace_back(register_module("BatchNorm2d"+std::to_string(i),
+          BatchNorm2d(BatchNorm2dOptions(in_channels[i]))));
     }
 
     std::vector<double> p = {0.3, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.5, 0.5, 0.5, 0.5};
     for (int i = 0; i < 12; i++) {
-      dropout_list.emplace_back();
-      dropout_list[i] = register_module("Dropout2d"+std::to_string(i+1),
-          Dropout2d(Dropout2dOptions().p(p[i])));
+      dropout_list.emplace_back(register_module("Dropout2d"+std::to_string(i+1),
+          Dropout2d(Dropout2dOptions().p(p[i]))));
     }
 
     fc1 = register_module("fc1", Linear(512, 4096));

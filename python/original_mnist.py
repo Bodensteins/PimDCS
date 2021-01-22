@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+import numpy as np
 from torchvision import datasets, transforms
 from torch.optim.lr_scheduler import StepLR
 
@@ -19,6 +20,9 @@ class BPNet(nn.Module):
     self.n_classes = n_classes
     self.n_hidden_layer = n_hidden_layer
     self.hidden_size = hidden_size
+    self.wear_mask = None
+    self.wear_unmask = None
+    self.wear_weight = None
 
     layers = []
     layers.append(nn.Linear(in_features, self.hidden_size))
@@ -34,7 +38,7 @@ class BPNet(nn.Module):
     return output
 
 
-def train(args, model, device, train_loader, optimizer, epoch):
+def train(args, model, device, train_loader, test_loader, optimizer, epoch, test_interval, wear_begin_batch, wear_layer):
   model.train()
   for batch_idx, (data, target) in enumerate(train_loader):
     data, target = data.to(device), target.to(device)
@@ -42,7 +46,19 @@ def train(args, model, device, train_loader, optimizer, epoch):
     output = model(data)
     loss = F.nll_loss(output, target)
     loss.backward()
+
+    if batch_idx == wear_begin_batch:
+      model.wear_mask = torch.from_numpy(np.random.binomial(1, 0.6, model.features[wear_layer].weight.size())).to(
+        torch.bool)
+      model.wear_unmask = ~model.wear_mask
+      model.wear_weight = model.wear_mask * torch.rand_like(model.features[wear_layer].weight)
+
     optimizer.step()
+
+    if batch_idx >= wear_begin_batch:
+      model.features[wear_layer].weight.data = model.features[wear_layer].weight.data * model.wear_unmask + model.wear_weight
+
+
     if batch_idx % args.log_interval == 0:
       print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
         epoch, batch_idx * len(data), len(train_loader.dataset),
@@ -52,8 +68,11 @@ def train(args, model, device, train_loader, optimizer, epoch):
       if args.dry_run:
         break
 
+    if batch_idx % test_interval == 0:
+      test(model, device, test_loader, batch_idx)
 
-def test(model, device, test_loader):
+
+def test(model, device, test_loader, current_step):
   model.eval()
   test_loss = 0
   correct = 0
@@ -66,11 +85,11 @@ def test(model, device, test_loader):
       correct += pred.eq(target.view_as(pred)).sum().item()
 
   test_loss /= len(test_loader.dataset)
-
+  accuracy = 100. * correct / len(test_loader.dataset)
   print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
-    test_loss, correct, len(test_loader.dataset),
-    100. * correct / len(test_loader.dataset)))
-
+    test_loss, correct, len(test_loader.dataset), accuracy))
+  vis.line(X=torch.Tensor([current_step]), Y=torch.Tensor([accuracy]), win='Test Accuracy',
+           update='append', opts={'title': 'Test Accuracy', 'xlabel': 'step', 'ylabel': 'accuracy'})
 
 def main():
   # Training settings
@@ -127,8 +146,8 @@ def main():
 
   # scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
   for epoch in range(1, args.epochs + 1):
-    train(args, model, device, train_loader, optimizer, epoch)
-    test(model, device, test_loader)
+    train(args, model, device, train_loader, test_loader, optimizer, epoch, 10000, 30000, 0)
+    test(model, device, test_loader, 60000)
     # scheduler.step()
 
   if args.save_model:

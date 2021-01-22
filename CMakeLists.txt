@@ -21,8 +21,8 @@ target_link_libraries(original_fc_mnist "${TORCH_LIBRARIES}")
 add_executable(original_vgg original_vgg.cpp)
 target_link_libraries(original_vgg "${TORCH_LIBRARIES}")
 
-add_executable(pim_vgg pim_vgg.cpp)
-target_link_libraries(pim_vgg "${TORCH_LIBRARIES}")
+#add_executable(pim_vgg pim_vgg.cpp)
+#target_link_libraries(pim_vgg "${TORCH_LIBRARIES}")
 
 # Test
 add_executable(logic_array_interface_test logic_array_interface_test.cpp logic_array_interface.h)

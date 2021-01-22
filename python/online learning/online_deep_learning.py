@@ -2,6 +2,8 @@
 import numpy as np
 import torch
 import visdom
+from torchvision.datasets import CIFAR10
+from progressbar import *
 from onn.OnlineNeuralNetwork import ONN
 from torch.utils.data.dataset import Dataset
 
@@ -26,7 +28,7 @@ def train_onn(onn_network, device, train_loader, test_loader, test_interval):
   onn_network.train()
   for batch_idx, (data, target) in enumerate(train_loader):
     data, target = data.to(device).flatten(start_dim=1), target.to(device)
-    onn_network.partial_fit(batch_idx, data, target)
+    onn_network.partial_fit(batch_idx, data, target, 30000, 0)
     if batch_idx % test_interval == 0:
       test_onn(onn_network, device, test_loader, batch_idx)
 
@@ -34,11 +36,16 @@ def train_onn(onn_network, device, train_loader, test_loader, test_interval):
 def test_onn(onn_network, device, test_loader, current_step):
   onn_network.eval()
   correct = 0
+  widgets = ['Testing: ', Percentage(), ' ', Bar('#'), ' ', Timer(), ' ', ETA()]
+  bar = ProgressBar(widgets=widgets, maxval=len(test_loader))
+  bar.start()
   with torch.no_grad():
-    for data, target in test_loader:
+    for batch_idx, (data, target) in enumerate(test_loader):
       data, target = data.to(device).flatten(start_dim=1), target.to(device)
       predictions = onn_network.predict(data)
       correct += predictions.eq(target.view_as(predictions)).sum().item()
+      bar.update(batch_idx+1)
+  bar.finish()
   accuracy = 100. * correct / len(test_loader.dataset)
   print('\nTest set: Accuracy: {}/{} ({:.6f}%)\n'.format(
     correct, len(test_loader.dataset), accuracy))
@@ -50,7 +57,7 @@ if __name__ == '__main__':
   features_size = 18
   batch_size = 10
   n_classes = 2
-  test_interval = 50000
+  test_interval = 10000
 
   device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
   susy_dataset = SusyDataset("/Users/zhouheng/Downloads/susy.npz")
@@ -61,7 +68,7 @@ if __name__ == '__main__':
   train_loader = torch.utils.data.DataLoader(train, batch_size=batch_size)
   test_loader = torch.utils.data.DataLoader(val, batch_size=1000)
 
-  # Online Learning
+  # online learning
   onn_network = ONN(features_size=features_size, max_num_hidden_layers=3, qtd_neuron_per_hidden_layer=100,
                     n_classes=n_classes, batch_size=batch_size, b=0.99, n=0.01, s=0.2, visdom=vis)
   onn_network.to(device, torch.double)

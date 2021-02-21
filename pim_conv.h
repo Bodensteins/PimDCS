@@ -257,6 +257,7 @@ namespace PIM {
       Tensor grad_output = grad_outputs[0];
       Tensor pim_grad_bias = Tensor();
 
+
       Tensor insert_dLdZ = insert_zeros(grad_output, stride);
 
       // grad of input

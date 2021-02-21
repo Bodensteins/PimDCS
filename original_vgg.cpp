@@ -1,16 +1,17 @@
 #include <torch/torch.h>
-
 #include <cstddef>
 #include <cstdio>
 #include <iostream>
 #include <string>
 #include <chrono>
+#include "vgg.h"
 
 using namespace std::chrono;
 using namespace torch::nn;
 
 // Where to find the CIFAR10 dataset.
-std::string kDataRoot = "/Users/zhouheng/Downloads/cifar10-dataset/";
+//std::string kDataRoot = "../data/cifar10-dataset/";
+std::string kDataRoot = "../data";
 
 // The batch size for training.
 const int64_t kTrainBatchSize = 64;
@@ -96,134 +97,6 @@ public:
   };
 };
 
-struct VGG : torch::nn::Module {
-  VGG() : conv_list(13, nullptr), max_pooling_list(14, nullptr), bn_list(14, nullptr), dropout_list(12, nullptr){
-    std::vector<int> in_channels = {3, 64, 64, 128, 128, 256, 256, 256, 512, 512, 512, 512, 512, 512, 512};
-    std::vector<int> in_shape = {32, 32, 16, 16, 8, 8, 8, 4, 4, 4, 2, 2, 2};
-    for (int i = 0; i < 13; i++) {
-      conv_list[i] = register_module("Conv2d"+std::to_string(i+1),
-          Conv2d(Conv2dOptions(in_channels[i], in_channels[i+1], 3).padding(1)));
-    }
-
-    for (int i = 0; i < 14; i++) {
-      max_pooling_list.emplace_back(register_module("MaxPool2d"+std::to_string(i+1),
-          MaxPool2d(MaxPool2dOptions({2, 2}))));
-    }
-
-    for (int i = 1; i < 15; i++) {
-      bn_list.emplace_back(register_module("BatchNorm2d"+std::to_string(i),
-          BatchNorm2d(BatchNorm2dOptions(in_channels[i]))));
-    }
-
-    std::vector<double> p = {0.3, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.5, 0.5, 0.5, 0.5};
-    for (int i = 0; i < 12; i++) {
-      dropout_list.emplace_back(register_module("Dropout2d"+std::to_string(i+1),
-          Dropout2d(Dropout2dOptions().p(p[i]))));
-    }
-
-    fc1 = register_module("fc1", Linear(512, 4096));
-    fc2 = register_module("fc2", Linear(4096, 4096));
-    fc3 = register_module("fc3", Linear(4096, 10));
-  }
-
-  torch::Tensor forward(torch::Tensor x) {
-    // layer 1, 64
-    x = torch::relu(conv_list[0]->forward(x));
-    x = bn_list[0]->forward(x);
-    x = dropout_list[0]->forward(x);
-
-    // layer 2, 64
-    x = torch::relu(conv_list[1]->forward(x));
-    x = bn_list[1]->forward(x);
-    x = dropout_list[1]->forward(x);
-
-    // Maxpool
-    x = max_pooling_list[0]->forward(x);
-
-    // layer 3, 128
-    x = torch::relu(conv_list[2]->forward(x));
-    x = bn_list[2]->forward(x);
-    x = dropout_list[2]->forward(x);
-
-    // layer 4, 128
-    x = torch::relu(conv_list[3]->forward(x));
-    x = bn_list[3]->forward(x);
-    x = dropout_list[3]->forward(x);
-
-    // Maxpool
-    x = max_pooling_list[1]->forward(x);
-
-    // layer 5, 256
-    x = torch::relu(conv_list[4]->forward(x));
-    x = bn_list[4]->forward(x);
-    x = dropout_list[4]->forward(x);
-
-    // layer 6, 256
-    x = torch::relu(conv_list[5]->forward(x));
-    x = bn_list[5]->forward(x);
-    x = dropout_list[5]->forward(x);
-
-    // layer 7, 256
-    x = torch::relu(conv_list[6]->forward(x));
-    x = bn_list[6]->forward(x);
-    x = dropout_list[6]->forward(x);
-
-    // Maxpool
-    x = max_pooling_list[2]->forward(x);
-
-    // layer 8, 512
-    x = torch::relu(conv_list[7]->forward(x));
-    x = bn_list[7]->forward(x);
-    x = dropout_list[7]->forward(x);
-
-    // layer 9, 512
-    x = torch::relu(conv_list[8]->forward(x));
-    x = bn_list[8]->forward(x);
-    x = dropout_list[8]->forward(x);
-
-    // layer 10, 512
-    x = torch::relu(conv_list[9]->forward(x));
-    x = bn_list[9]->forward(x);
-    x = dropout_list[9]->forward(x);
-
-    // Maxpool
-    x = max_pooling_list[3]->forward(x);
-
-    // layer 11, 512
-    x = torch::relu(conv_list[10]->forward(x));
-    x = bn_list[10]->forward(x);
-    x = dropout_list[10]->forward(x);
-
-    // layer 12, 512
-    x = torch::relu(conv_list[11]->forward(x));
-    x = bn_list[11]->forward(x);
-    x = dropout_list[11]->forward(x);
-
-    // layer 13, 512
-    x = torch::relu(conv_list[12]->forward(x));
-    x = bn_list[12]->forward(x);
-
-    // Maxpool
-    x = max_pooling_list[4]->forward(x);
-    x = dropout_list[12]->forward(x);
-
-    // fc1
-    x = x.view({-1, 512});
-    x = torch::relu(fc1->forward(x));
-    x = dropout_list[13]->forward(x);
-    x = torch::relu(fc2->forward(x));
-    x = dropout_list[14]->forward(x);
-    x = torch::relu(fc3->forward(x));
-    return torch::log_softmax(x, 1);
-  }
-
-  std::vector<torch::nn::Conv2d> conv_list;
-  std::vector<torch::nn::BatchNorm2d> bn_list;
-  std::vector<torch::nn::Dropout2d> dropout_list;
-  std::vector<torch::nn::MaxPool2d> max_pooling_list;
-  torch::nn::Linear fc1 = nullptr, fc2 = nullptr, fc3 = nullptr;
-};
-
 
 template <typename DataLoader>
 void train(
@@ -239,7 +112,8 @@ void train(
     auto data = batch.data.to(device, torch::kFloat64), targets = batch.target.to(device);
     optimizer.zero_grad();
     auto output = model.forward(data);
-    auto loss = torch::nll_loss(output, targets.to(torch::kLong).view({-1}));
+    auto loss = torch::nn::functional::cross_entropy(output, targets);
+
     AT_ASSERT(!std::isnan(loss.template item<float>()));
     loss.backward();
     optimizer.step();
@@ -298,35 +172,60 @@ auto main() -> int {
   }
   torch::Device device(device_type);
 
-  VGG model;
+
+  std::vector<std::array<int, 2>> conv_arch_shape = {
+      {1, 64},
+      {1, 128},
+      {2, 256},
+//      {2, 512},
+//      {2, 512},
+  };
+  VGG model(conv_arch_shape);
   model.to(device, torch::kFloat64);
 
   auto start = high_resolution_clock::now();
 
-  std::cout << "Reading data..." << std::endl;
-  CIFAR10Dataset train_data(kDataRoot + "data_batch_1.bin");
-  train_data.add(kDataRoot + "data_batch_2.bin");
-  train_data.add(kDataRoot + "data_batch_3.bin");
-  train_data.add(kDataRoot + "data_batch_4.bin");
-  train_data.add(kDataRoot + "data_batch_5.bin");
-  CIFAR10Dataset test_data(kDataRoot + "test_batch.bin");
+//  std::cout << "Reading data..." << std::endl;
+//  CIFAR10Dataset train_data(kDataRoot + "data_batch_1.bin");
+//  train_data.add(kDataRoot + "data_batch_2.bin");
+//  train_data.add(kDataRoot + "data_batch_3.bin");
+//  train_data.add(kDataRoot + "data_batch_4.bin");
+//  train_data.add(kDataRoot + "data_batch_5.bin");
+//  CIFAR10Dataset test_data(kDataRoot + "test_batch.bin");
+//
+//  auto train_dataset = train_data.map(
+//          torch::data::transforms::Normalize<>({0.485, 0.456, 0.406}, {0.229, 0.224, 0.225}))
+//      .map(torch::data::transforms::Stack<>());
+//  const size_t train_dataset_size = train_dataset.size().value();
+//  auto train_loader =
+//      torch::data::make_data_loader<torch::data::samplers::SequentialSampler>(
+//          std::move(train_dataset), kTrainBatchSize);
+//
+//  auto test_dataset = test_data.map(
+//          torch::data::transforms::Normalize<>({0.485, 0.456, 0.406}, {0.229, 0.224, 0.225}))
+//      .map(torch::data::transforms::Stack<>());
+//  const size_t test_dataset_size = test_dataset.size().value();
+//  auto test_loader = torch::data::make_data_loader(std::move(test_dataset), kTestBatchSize);
 
-  auto train_dataset = train_data.map(
-          torch::data::transforms::Normalize<>({0.485, 0.456, 0.406}, {0.229, 0.224, 0.225}))
+  auto train_dataset = torch::data::datasets::MNIST(kDataRoot)
+      .map(torch::data::transforms::Normalize<>(0.1307, 0.3081))
       .map(torch::data::transforms::Stack<>());
   const size_t train_dataset_size = train_dataset.size().value();
   auto train_loader =
       torch::data::make_data_loader<torch::data::samplers::SequentialSampler>(
           std::move(train_dataset), kTrainBatchSize);
 
-  auto test_dataset = test_data.map(
-          torch::data::transforms::Normalize<>({0.485, 0.456, 0.406}, {0.229, 0.224, 0.225}))
+  auto test_dataset = torch::data::datasets::MNIST(
+      kDataRoot, torch::data::datasets::MNIST::Mode::kTest)
+      .map(torch::data::transforms::Normalize<>(0.1307, 0.3081))
       .map(torch::data::transforms::Stack<>());
   const size_t test_dataset_size = test_dataset.size().value();
-  auto test_loader = torch::data::make_data_loader(std::move(test_dataset), kTestBatchSize);
+  auto test_loader =
+      torch::data::make_data_loader(std::move(test_dataset), kTestBatchSize);
+
 
   torch::optim::SGD optimizer(
-      model.parameters(), torch::optim::SGDOptions(0.0035).momentum(0.3));
+      model.parameters(), torch::optim::SGDOptions(0.01).momentum(0.3));
 //  torch::optim::Adam optimizer(model.parameters(), torch::optim::AdamOptions(1e-3));
 
   for (size_t epoch = 1; epoch <= kNumberOfEpochs; ++epoch) {

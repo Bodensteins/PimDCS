@@ -41,7 +41,7 @@ namespace PIM {
      * @param module binding module
      * @param options tensor options
      */
-    LogicArrayInterface(int64_t rowSize, int64_t colSize, std::string name, torch::nn::Module &module,
+    LogicArrayInterface(int64_t rowSize, int64_t colSize, const std::string& name, torch::nn::Module &module,
                         const torch::TensorOptions& options = {}, bool requires_grad = true)
         : rowSize(rowSize), colSize(colSize) {}
 
@@ -170,7 +170,7 @@ namespace PIM {
 
   class SimpleLogicArray : public LogicArrayInterface {
   public:
-    SimpleLogicArray(int64_t rowSize, int64_t colSize, std::string name, torch::nn::Module &module,
+    SimpleLogicArray(int64_t rowSize, int64_t colSize, const std::string& name, torch::nn::Module &module,
                      const torch::TensorOptions& options = {}, bool requires_grad = true)
        : LogicArrayInterface(rowSize, colSize, name, module, options, requires_grad) {
       arr = module.register_parameter(name, torch::empty({rowSize, colSize}, options), requires_grad);
@@ -290,6 +290,23 @@ namespace PIM {
     torch::Tensor arr;
   };
 
+  TORCH_LIBRARY(SimpleLogicArray, m) {
+    m.class_<SimpleLogicArray>("SimpleLogicArray")
+        .def(torch::init<int64_t, int64_t, torch::ScalarType>())
+        .def("write_cell", &SimpleLogicArray::write_cell)
+        .def("read_cell", &SimpleLogicArray::read_cell)
+        .def("mm", &SimpleLogicArray::mm)
+        .def("mv", &SimpleLogicArray::mv)
+        .def("write_row", &SimpleLogicArray::write_row)
+        .def("read_row", &SimpleLogicArray::read_row)
+        .def("write_mat", &SimpleLogicArray::write_mat)
+        .def("read_mat", &SimpleLogicArray::read_mat)
+        .def("dot_column", &SimpleLogicArray::dot_column)
+        .def("nmv", &SimpleLogicArray::nmv)
+        .def("resize", &SimpleLogicArray::resize)
+        .def("sizes", &SimpleLogicArray::sizes);
+  }
+
   std::ostream &operator<<(std::ostream &os, const SimpleLogicArray &arr) {
     return arr.print(os);
   }
@@ -302,7 +319,10 @@ namespace PIM {
       PimArrayPtr() = default;
       PimPtr ptr = nullptr;
   };
-
+  TORCH_LIBRARY(PimArrayPtr, m) {
+    m.class_<PimArrayPtr>("PimArrayPtr")
+        .def(torch::init());
+  }
 
   class PimArrayPtrList : public torch::CustomClassHolder {
     public:
@@ -311,6 +331,10 @@ namespace PIM {
       std::vector<PimPtr> ptrs;
   };
 
+  TORCH_LIBRARY(PimArrayPtrList, m) {
+    m.class_<PimArrayPtrList>("PimArrayPtrList")
+        .def(torch::init());
+  }
 
   /**
    * Creates a PIM array which contains a 2D Tensor.

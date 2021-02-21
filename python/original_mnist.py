@@ -7,6 +7,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
 from torchvision import datasets, transforms
+from torchvision.models import vgg
 from torch.optim.lr_scheduler import StepLR
 
 vis_env = "Original MNIST"

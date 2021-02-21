@@ -12,6 +12,7 @@ from pimtorch import PimLinear, PimArrayType, PimConv2d
 from ftrl import FTRL
 from onn.OnlineNeuralNetwork import ONN
 
+
 class Net(nn.Module):
     def __init__(self, batch_size):
         super(Net, self).__init__()

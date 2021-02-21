@@ -19,7 +19,7 @@ const int64_t kTrainBatchSize = 64;
 const int64_t kTestBatchSize = 1000;
 
 // The number of epochs to train.
-const int64_t kNumberOfEpochs = 1;
+const int64_t kNumberOfEpochs = 10;
 
 // After how many batches to log a new update with the loss value.
 const int64_t kLogInterval = 10;
@@ -52,16 +52,16 @@ struct Net : torch::nn::Module {
   // Implement the Net's algorithm.
   torch::Tensor forward(torch::Tensor x) {
     // Use one of many tensor manipulation functions.
-    print_range(x, "input");
+//    print_range(x, "input");
     x = fc1->forward(x.reshape({x.size(0), 784}));
-//    x = torch::relu(x);
-    x = torch::sigmoid(x);
-    print_range(x, "fc1");
+    x = torch::relu(x);
+//    x = torch::sigmoid(x);
+    print_range(fc1->weight, "fc1.weight");
 //    x = torch::dropout(x, /*p=*/0.5, /*train=*/is_training());
     x = fc2->forward(x);
-//    x = torch::relu(x);
-    x = torch::sigmoid(x);
-    print_range(x, "fc2");
+    x = torch::relu(x);
+//    x = torch::sigmoid(x);
+    print_range(fc2->weight, "fc2.weight");
     x = torch::log_softmax(fc3->forward(x), /*dim=*/1);
     return x;
   }

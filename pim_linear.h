@@ -13,6 +13,13 @@ using namespace torch;
 using namespace torch::autograd;
 using namespace torch::nn;
 
+//void print_range(torch::Tensor tensor, const std::string &name) {
+//  std::cout << name + ", max: " << tensor.max().item() << ", "
+//            << "min:" << tensor.min().item() << ", "
+//            << "mean:" << tensor.mean().item() << ", "
+//            << "range:" << (tensor.max() - tensor.min()).item() << std::endl;
+//}
+
 namespace PIM {
   template<typename PimType>
   class PimLinearFunction : public Function<PimLinearFunction<PimType>> {
@@ -97,6 +104,9 @@ namespace PIM {
       auto bias = saved[2];
 
       Tensor grad_output = grad_outputs[0];
+//      print_range(grad_output, "grad_output");
+//      print_range(weight, "weight");
+//      print_range(bias, "bias");
 
       Tensor grad_input = grad_output.mm(weight);
       Tensor grad_weight = grad_output.t().mm(input);

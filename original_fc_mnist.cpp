@@ -12,7 +12,7 @@ using namespace std::chrono;
 const char* kDataRoot = "../data";
 
 // The batch size for training.
-const int64_t kTrainBatchSize = 1;
+const int64_t kTrainBatchSize = 64;
 
 // The batch size for testing.
 const int64_t kTestBatchSize = 1000;
@@ -62,6 +62,7 @@ void train(
     optimizer.zero_grad();
     auto output = model.forward(data);
     auto loss = torch::nll_loss(output, targets);
+    std::cout << output.sizes() << std::endl;
     AT_ASSERT(!std::isnan(loss.template item<float>()));
     loss.backward();
     optimizer.step();

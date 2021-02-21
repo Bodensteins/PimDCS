@@ -18,7 +18,7 @@ add_executable(original_fc_mnist original_fc_mnist.cpp)
 target_link_libraries(original_fc_mnist "${TORCH_LIBRARIES}")
 
 # cifar-10
-add_executable(original_vgg original_vgg.cpp)
+add_executable(original_vgg original_vgg.cpp vgg.h)
 target_link_libraries(original_vgg "${TORCH_LIBRARIES}")
 
 #add_executable(pim_vgg pim_vgg.cpp)

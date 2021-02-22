@@ -180,7 +180,12 @@ auto main() -> int {
 //      {2, 512},
 //      {2, 512},
   };
-  VGG model(conv_arch_shape);
+  std::vector<std::vector<ExpandingArray<4>>> in_shapes = {
+      {{kTrainBatchSize, 1, 28, 28}},
+      {{kTrainBatchSize, 64, 14, 14}},
+      {{kTrainBatchSize, 128, 7, 7}, {kTrainBatchSize, 256, 7, 7}},
+  };
+  VGG model(conv_arch_shape, false, kTrainBatchSize, in_shapes);
   model.to(device, torch::kFloat64);
 
   auto start = high_resolution_clock::now();

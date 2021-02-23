@@ -97,6 +97,11 @@ public:
   };
 };
 
+float accuracy (const torch::Tensor& y_hat, const torch::Tensor& y) {
+  auto compare = (y_hat.argmax(/*dim=*/ 1) == y);
+  compare = compare.to(torch::kFloat32);
+  return compare.sum().item<float>();
+}
 
 template <typename DataLoader>
 void train(
@@ -108,23 +113,28 @@ void train(
     size_t dataset_size) {
   model.train();
   size_t batch_idx = 0;
+  float train_l = 0, train_acc_sum = 0;
+
   for (auto& batch : data_loader) {
     auto data = batch.data.to(device, torch::kFloat64), targets = batch.target.to(device);
     optimizer.zero_grad();
     auto output = model.forward(data);
     auto loss = torch::nn::functional::cross_entropy(output, targets);
 
-    AT_ASSERT(!std::isnan(loss.template item<float>()));
+//    AT_ASSERT(!std::isnan(loss.template item<float>()));
     loss.backward();
     optimizer.step();
+    train_l = loss.template item<float>();
+    train_acc_sum += accuracy(output, targets);
 
     if (batch_idx++ % kLogInterval == 0) {
       std::printf(
-          "\rTrain Epoch: %ld [%5ld/%5ld] Loss: %.4f",
+          "\rTrain Epoch: %ld [%5ld/%5ld] Loss: %.4f, train accuracy: %.4f",
           epoch,
           batch_idx * batch.data.size(0),
           dataset_size,
-          loss.template item<float>());
+          loss.template item<float>(),
+          train_acc_sum / (batch_idx * batch.data.size(0)) * 100);
     }
   }
 }
@@ -142,12 +152,17 @@ void test(
   for (const auto& batch : data_loader) {
     auto data = batch.data.to(device, torch::kFloat64), targets = batch.target.to(device);
     auto output = model.forward(data);
-    test_loss += torch::nll_loss(
+    test_loss += torch::nn::functional::cross_entropy(
         output,
         targets,
-        /*weight=*/{},
-        torch::Reduction::Sum)
+        torch::nn::functional::CrossEntropyFuncOptions().reduction(torch::kSum))
         .template item<float>();
+//    test_loss += torch::nll_loss(
+//        output,
+//        targets,
+//        /*weight=*/{},
+//        torch::Reduction::Sum)
+//        .template item<float>();
     auto pred = output.argmax(1);
     correct += pred.eq(targets).sum().template item<int64_t>();
   }

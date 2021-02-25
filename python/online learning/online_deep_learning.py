@@ -86,7 +86,8 @@ if __name__ == '__main__':
 
   # online learning
   onn_network = ONN(features_size=features_size, max_num_hidden_layers=8, qtd_neuron_per_hidden_layer=100,
-                    n_classes=n_classes, batch_size=batch_size, b=0.99, n=0.01, s=0.2, use_cuda=use_cuda, vis=vis)
+                    n_classes=n_classes, batch_size=batch_size, b=0.99, n=0.01, s=0.2, freeze_threshold=0.005,
+                    use_cuda=use_cuda, vis=vis)
   onn_network.to(device, torch.double)
   train_onn(onn_network, device, train_loader, test_loader, test_interval, vis)
 

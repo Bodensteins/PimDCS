@@ -11,7 +11,7 @@ from mab import algs
 
 class ONN(nn.Module):
   def __init__(self, features_size, max_num_hidden_layers, qtd_neuron_per_hidden_layer, n_classes, batch_size=1,
-               b=0.99, n=0.01, s=0.2, use_cuda=False, vis=None):
+               b=0.99, n=0.01, s=0.2, freeze_threshold=0.005, use_cuda=False, vis=None):
     super(ONN, self).__init__()
 
     self.device = torch.device(
@@ -50,6 +50,8 @@ class ONN(nn.Module):
                            requires_grad=False).to(self.device)
 
     self.criterion = nn.CrossEntropyLoss().to(self.device)
+    self.freeze_threshold = self.s / self.max_num_hidden_layers + freeze_threshold
+    self.freeze_status = [False] * self.max_num_hidden_layers
     self.correct = 0
     # self.tb_writer = tb_writer
     self.vis = vis
@@ -58,10 +60,12 @@ class ONN(nn.Module):
 
   def zero_grad(self):
     for i in range(self.max_num_hidden_layers):
-      self.output_layers[i].weight.grad.data.fill_(0)
-      self.output_layers[i].bias.grad.data.fill_(0)
-      self.hidden_layers[i].weight.grad.data.fill_(0)
-      self.hidden_layers[i].bias.grad.data.fill_(0)
+      self.output_layers[i].zero_grad()
+      self.hidden_layers[i].zero_grad()
+      # self.output_layers[i].weight.grad.data.fill_(0)
+      # self.output_layers[i].bias.grad.data.fill_(0)
+      # self.hidden_layers[i].weight.grad.data.fill_(0)
+      # self.hidden_layers[i].bias.grad.data.fill_(0)
 
   def update_weights(self, X, Y, batch_idx, show_loss):
 
@@ -101,8 +105,6 @@ class ONN(nn.Module):
         self.alpha[i] = torch.max(self.alpha[i], self.s / self.max_num_hidden_layers)
 
     z_t = torch.sum(self.alpha)
-
-    # self.alpha = Parameter(self.alpha.data / z_t, requires_grad=False).to(self.device)
     self.alpha.data = self.alpha.data / z_t
 
     real_output = torch.sum(torch.mul(
@@ -118,6 +120,13 @@ class ONN(nn.Module):
                     win='Cumulative Accuracy', update='append',
                     opts={'title': 'Cumulative Accuracy', 'xlabel': 'step', 'ylabel': 'accuracy'})
       for i in range(len(losses_per_layer)):
+        if self.alpha[i].item() < self.freeze_threshold and self.freeze_status[i] == False:
+          self.output_layers[i].requires_grad_(False)
+          self.freeze_status[i] = True
+        elif self.alpha[i].item() >= self.freeze_threshold and self.freeze_status[i] == True:
+          self.output_layers[i].requires_grad_(True)
+          self.freeze_status[i] = False
+
         self.vis.line(X=torch.Tensor([batch_idx]), Y=torch.Tensor([losses_per_layer[i]]), win='Train Loss',
                       name='layer %d' % i, update='append',
                       opts={'title': 'Train Loss',
@@ -164,7 +173,7 @@ class ONN(nn.Module):
       #                                          'xlabel': 'step',
       #                                          'ylabel': 'alpha',
       #                                          'showlegend': True})
-        # self.loss_array.clear()
+      # self.loss_array.clear()
 
   def forward(self, X):
     hidden_connections = []

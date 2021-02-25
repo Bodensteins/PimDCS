@@ -157,12 +157,7 @@ void test(
         targets,
         torch::nn::functional::CrossEntropyFuncOptions().reduction(torch::kSum))
         .template item<float>();
-//    test_loss += torch::nll_loss(
-//        output,
-//        targets,
-//        /*weight=*/{},
-//        torch::Reduction::Sum)
-//        .template item<float>();
+
     auto pred = output.argmax(1);
     correct += pred.eq(targets).sum().template item<int64_t>();
   }

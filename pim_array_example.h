@@ -565,7 +565,7 @@ torch::Tensor pimArrayExample::read_row(int64_t row, int64_t col, int64_t size) 
  *  when perform VMM operation, we need to revert input value to digit pulse.
  *
  *  if input vec is 1 dim, e.g. input vector [a1 a2] with inbits = 2, output a matrix of  | d1#0 d1#1 |,     di means the digit value of ai
- *                                                                                        | d2#0 d2#2 |      di#j, means jth bits of di.
+ *                                                                                        | d2#0 d2#1 |      di#j, means jth bits of di.
  *  if input vec if 2 dim, e.g. |a1 b1|, this is a batch with size 2. batch 1 is [a1, a2], batch 2 is [b1, b2]
  *                              |a2 b2|
  *  output a tensor with 3 dim, its first dim is batch size. and other two dim is similar to input vec with 1 dim.   

@@ -260,7 +260,7 @@ public:
         auto less = x<-1;
         auto y = x;
         y.index_put_({larger}, 1.0);
-        y.index_put_({less}, -1.0};
+        y.index_put_({less}, -1.0);
         return y.add(1).div(2.0).mul(unitLevels - 1).add(0.5).to(torch::kInt32);
     }
 

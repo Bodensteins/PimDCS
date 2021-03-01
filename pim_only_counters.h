@@ -250,12 +250,18 @@ public:
 
     int unit2digit(double x)
     {
+        x = x>1? 1 : x<-1? -1 : x;
         return trunc_45((x + 1) / 2 * (unitLevels - 1));
     }
 
     torch::Tensor unit2digit(const torch::Tensor &x)
     {
-        return x.add(1).div(2.0).mul(unitLevels - 1).add(0.5).to(torch::kInt32);
+        auto larger = x>1;
+        auto less = x<-1;
+        auto y = x;
+        y.index_put_({larger}, 1.0);
+        y.index_put_({less}, -1.0};
+        return y.add(1).div(2.0).mul(unitLevels - 1).add(0.5).to(torch::kInt32);
     }
 
     double digit2unit(int x)

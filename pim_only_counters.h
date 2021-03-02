@@ -499,7 +499,7 @@ void pimArrayExampleCounters::write_mat(const torch::Tensor &mat)
             int i=k/ed_arrY;
             int j=k%ed_arrY;
             phyArrMan[arr[i][j]].writeMat(dataDigit.index({Slice(i*phyArrRowSize, (i+1)*phyArrRowSize), Slice(j*usedcellsPerRow, (j+1)*usedcellsPerRow)}),\
-                            phyArrRowSize, phyArrColSize);
+                            phyArrRowSize, usedcellsPerRow);
         }
     });
     // for (int i=0; i<ed_arrX; ++i)
@@ -517,7 +517,7 @@ void pimArrayExampleCounters::write_mat(const torch::Tensor &mat)
             for (int j=st; j<ed; ++j)
             {
                 phyArrMan[arr[ed_arrX][j]].writeMat(dataDigit.index({Slice(ed_arrX*phyArrRowSize, M), Slice(j*usedcellsPerRow, (j+1)*usedcellsPerRow)}),\
-                            ed_arrRowId, phyArrColSize);
+                            ed_arrRowId, usedcellsPerRow);
             }
         });
         // for (int j=0; j<ed_arrY; ++j)
@@ -544,7 +544,7 @@ void pimArrayExampleCounters::write_mat(const torch::Tensor &mat)
         // }
     }
 
-    if (ed_arrColId!=0 && ed_arrColId!=0)
+    if (ed_arrRowId!=0 && ed_arrColId!=0)
     {
         phyArrMan[arr[ed_arrX][ed_arrY]].writeMat(dataDigit.index({Slice(ed_arrX*phyArrRowSize, M), Slice(ed_arrY*usedcellsPerRow, N*unitBits)}),\
                          ed_arrRowId, ed_arrColId);

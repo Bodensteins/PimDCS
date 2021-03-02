@@ -258,12 +258,12 @@ pim_array_config decf = {
     .colSize = 256,
     .phyArrRowSize = 64,
     .phyArrColSize = 64,
-    .inBits = 16,
+    .inBits = 12,
     .outBits = 8,
-    .unitBits = 8,
+    .unitBits = 10,
     .cellBits = 1,
     .has_negative_input = true,
-    .max_phy_input_value = 128,
+    .max_phy_input_value = 4,
     .trunc_input = true,
     .dynamic_max_input = true
 };
@@ -872,7 +872,6 @@ void pimArrayExample::write_mat(const torch::Tensor &mat)
     int ed_arrX, ed_arrRowId;
     getColPos(N, ed_arrY, ed_arrColId);
     getRowPos(M, ed_arrX, ed_arrRowId);
-    
     at::parallel_for(0, ed_arrX*ed_arrY, 0, [&](int st, int ed)->void
     {
         for (int k=st; k<ed; ++k)
@@ -880,7 +879,7 @@ void pimArrayExample::write_mat(const torch::Tensor &mat)
             int i=k/ed_arrY;
             int j=k%ed_arrY;
             phyArrMan[arr[i][j]].writeMat(dataDigit.index({Slice(i*phyArrRowSize, (i+1)*phyArrRowSize), Slice(j*usedcellsPerRow, (j+1)*usedcellsPerRow)}),\
-                            phyArrRowSize, phyArrColSize);
+                            phyArrRowSize, usedcellsPerRow);
         }
     });
     // for (int i=0; i<ed_arrX; ++i)
@@ -898,7 +897,7 @@ void pimArrayExample::write_mat(const torch::Tensor &mat)
             for (int j=st; j<ed; ++j)
             {
                 phyArrMan[arr[ed_arrX][j]].writeMat(dataDigit.index({Slice(ed_arrX*phyArrRowSize, M), Slice(j*usedcellsPerRow, (j+1)*usedcellsPerRow)}),\
-                            ed_arrRowId, phyArrColSize);
+                            ed_arrRowId, usedcellsPerRow);
             }
         });
         // for (int j=0; j<ed_arrY; ++j)
@@ -925,7 +924,7 @@ void pimArrayExample::write_mat(const torch::Tensor &mat)
         // }
     }
 
-    if (ed_arrColId!=0 && ed_arrColId!=0)
+    if (ed_arrRowId!=0 && ed_arrColId!=0)
     {
         phyArrMan[arr[ed_arrX][ed_arrY]].writeMat(dataDigit.index({Slice(ed_arrX*phyArrRowSize, M), Slice(ed_arrY*usedcellsPerRow, N*unitBits)}),\
                          ed_arrRowId, ed_arrColId);

@@ -45,7 +45,12 @@
 #include <mutex>
 #include <algorithm>
 #include <vector>
+#include <map>
 
+using std::swap;
+using std::pair;
+using std::make_pair;
+using std::vector;
 using torch::indexing::Slice;
 using torch::indexing::Ellipsis;
 using torch::indexing::None;
@@ -53,6 +58,218 @@ using PIM::LogicArrayInterface;
 using PIM::SimpleLogicArray;
 using torch::TensorOptions;
 using namespace PIM;
+
+struct phyArraySimpleEx
+{
+    phyArraySimpleEx(int rowSize = 128, int colSize = 128, bool toGPU = false) : rowSize(rowSize), colSize(colSize)
+    {
+        double minConduct = 1e-6;   //define minimum & maximum conduct of a cell
+        double maxConduct = 1e-4;
+        double readVoltage = 0.5;   //define read voltage
+
+        ImaxPCell = readVoltage * maxConduct;   //get current under read voltage
+        IminPCell = readVoltage * minConduct;
+        deltaI = ImaxPCell - IminPCell;
+        totalIntervalWrCnt = totalCmpWrCnt = totalWrCnt = 0;
+
+        device = toGPU? torch::kCUDA : torch::kCPU;
+        torch::TensorOptions op(device);
+        data = at::full({rowSize, colSize}, IminPCell, op.dtype(torch::kFloat64));   //data in type of current, Imin or Imax
+        dataDigit = at::full({rowSize, colSize}, 0, op.dtype(torch::kInt8));         //data in type of digit value 0(Imin)/1(Imax)
+        cellWrCnt = at::zeros({rowSize, colSize}, op.dtype(torch::kInt64));                 
+
+        rightRotate = downRotate = 0;
+        colSize_ = colSize-2;
+    }
+
+    void writeCell(int row, int col, int len, const at::Tensor &in)
+    {
+        auto write_it = [&](int row, int col, int len, const at::Tensor &in) -> void
+        {
+            at::Tensor writeIn = at::full({len}, deltaI, TensorOptions(device).dtype(torch::kFloat64));
+            at::Tensor rowAdd = dataDigit[row];
+
+            totalWrCnt += len;              // write count 
+            int64_t tmp;
+            rowAdd = rowAdd.index({torch::indexing::Slice(col, col + len)}).bitwise_xor(in);
+            totalCmpWrCnt += (tmp = rowAdd.sum().item<int64_t>());  //cmp write count, only write different data to origin data will be counted
+            totalIntervalWrCnt += tmp;
+            cellWrCnt[row].index_put_({torch::indexing::Slice(col, col + len)},
+                    cellWrCnt[row].index({torch::indexing::Slice(col, col + len)}).add(rowAdd)); //cmp write count of each cell 
+
+            writeIn.mul_(in).add_(IminPCell);
+            data[row].index_put_({torch::indexing::Slice(col, col + len)}, writeIn);    //data in type of current
+            dataDigit[row].index_put_({torch::indexing::Slice(col, col + len)}, in);    //data in type of digit
+        };
+        
+        /* ref colum don't rotate, rotate only happen to data region */
+        if (col == colSize-1 && len == 1) // write ref column 1, never rotate
+        {
+            write_it(row, col, len, in);
+            return;
+        }
+
+        row = (row+downRotate)%rowSize;
+        col = (col+rightRotate)%colSize_;
+
+        if (col+len<=colSize_)
+        {
+            write_it(row, col, len, in);
+        }
+        else
+        {
+            int len1, len2;
+            len1 = colSize_ - col;
+            len2 = len-len1; 
+            write_it(row, col, len1, in.index({Slice(0, len1)}));
+            write_it(row, 0, len2, in.index({Slice(len1, len1+len2)}));
+        }
+
+
+    }
+
+    void rotate()
+    {
+        ++rightRotate;
+        if (rightRotate == colSize_)
+        {
+            ++downRotate;
+            rightRotate = 0;
+            if (downRotate == rowSize)
+                downRotate = 0;
+        }
+    }
+    
+    void clearIntervalCount()
+    {
+        totalIntervalWrCnt = 0;
+    }
+    /*
+    *   m -> in.size(0), n -> in.size(1)
+    *   write mat into our array.
+    *   similar to writeCell
+    * */
+    void writeMat(const at::Tensor &in, int m, int n)
+    {
+        auto write_it = [&](const at::Tensor &in, int x, int y, int m, int n) -> void
+        {
+            at::Tensor writeIn = at::full({m, n}, deltaI, TensorOptions(device).dtype(torch::kFloat64));
+            at::Tensor add = dataDigit.index({Slice(x, x+m), Slice(y, y+n)}).bitwise_xor(in);
+
+            totalWrCnt += (m*n);
+            int64_t tmp;
+            totalCmpWrCnt += (tmp = add.sum().item<int64_t>());
+            totalIntervalWrCnt += tmp;
+            cellWrCnt.index_put_({Slice(x, x+m), Slice(y, y+n)}, cellWrCnt.index({Slice(x, x+m), Slice(y, y+n)}).add(add));
+
+            writeIn.mul_(in).add_(IminPCell);
+            data.index_put_({Slice(x, x+m), Slice(y, y+n)}, writeIn);
+            dataDigit.index_put_({Slice(x, x+m), Slice(y, y+n)}, in);
+        };
+
+        int stx, sty, edx, edy;
+        stx = downRotate;
+        sty = rightRotate;
+
+        edx = (stx+m-1)%rowSize;
+        edy = (sty+n-1)%colSize_;
+
+        if (edx>=stx)
+        {
+            if (edy>=sty)
+            {
+                write_it(in, stx, sty, m, n);
+            }
+            else
+            {
+                write_it(in.index({Slice(), Slice(0, colSize_-sty)}), stx, sty, m, colSize_-sty);
+                write_it(in.index({Slice(), Slice(colSize_-sty)}), stx, 0, m, edy+1);
+            }
+        }
+        else
+        {
+            if (edy>=sty)
+            {
+                write_it(in.index({Slice(0, rowSize-stx)}), stx, sty, rowSize-stx, n);
+                write_it(in.index({Slice(rowSize-stx)}), 0, sty, edx+1, n);
+            }
+            else
+            {
+                write_it(in.index({Slice(0, rowSize-stx), Slice(0, colSize_-sty)}), stx, sty, rowSize-stx, colSize_-sty);
+                write_it(in.index({Slice(0, rowSize-stx), Slice(colSize_-sty)}), stx, 0, rowSize-stx, edy+1);
+                write_it(in.index({Slice(rowSize-stx), Slice(0, colSize_-sty)}), 0, sty, edx+1, colSize_-sty);
+                write_it(in.index({Slice(rowSize-stx), Slice(colSize_-sty)}), 0, 0, edx+1, edy+1);
+            }
+        }
+    }
+
+    /*
+     *
+     * readCell from [row, col] to [row, col+len-1]
+     * As we have stored data in type of digit in dataDigit, so just return it.
+     *
+     *
+     * */
+    void readCell(int row, int col, int len, at::Tensor &out)
+    {
+        row = (row+downRotate)%rowSize;
+        col = (col+rightRotate)%colSize_;
+
+        if (col+len<=colSize)
+            out = dataDigit[row].index({torch::indexing::Slice(col, col + len)});
+        else
+        {
+            int len1 = colSize_ - col;
+            int len2 = len-len1;
+            out = torch::cat({dataDigit[row].index({Slice(col, col+len1)}), dataDigit[row].index({Slice(0, len2)})});
+        }
+    }
+
+    /*
+     * VMM 
+     * implement   out = data^t * in.    ^t means transpose
+     *
+     * */
+    void vmm(const at::Tensor &in, at::Tensor &out)
+    {
+        /* only counter mode, don't use vmm */
+    }
+
+    /*
+     *  number mul vector
+     *  out = in * data[row][col <---> col+len-1]
+     *
+     * */
+    void numMulVector(at::Scalar in, int row, int col, int len, at::Tensor &out)
+    {
+        /* only counter mode, don't use nmv*/
+    }
+
+    void print(std::ostream &os)
+    {
+        using std::endl;
+        // os << "data = " << endl;
+        // os << data << endl;
+        os << "dataDigit = " << endl;
+        os << dataDigit << endl;
+        os << "cell write cnt = " << endl;
+        os << cellWrCnt << endl;
+        os << "totalWrCnt = " << totalWrCnt << endl;
+        os << "totalCmpWrCnt = " << totalCmpWrCnt << endl;
+        os << "now totalIntervalWrCnt = " << totalIntervalWrCnt << endl;
+        os << "-------------------------------------" << endl;
+    }
+    at::Tensor data;
+    at::Tensor dataDigit;
+    at::Tensor cellWrCnt;
+    int64_t totalWrCnt, totalCmpWrCnt, totalIntervalWrCnt;
+    int rowSize, colSize, colSize_;
+    double ImaxPCell, IminPCell;
+    double deltaI;
+    int rightRotate, downRotate;
+    torch::DeviceType device;
+};
+
 
 /*
 *   This class manage allocation of phy array.
@@ -65,16 +282,16 @@ public:
     int allocPhyArray(int rowSize, int colSize, bool toGPU = false)
     {
         std::lock_guard<std::mutex> lk(mu);
-        arrList.push_back(new phyArraySimple(rowSize, colSize, toGPU));
+        arrList.push_back(new phyArraySimpleEx(rowSize, colSize, toGPU));
         return arrList.size() - 1;
     }
 
-    phyArraySimple &access(int x)
+    phyArraySimpleEx &access(int x)
     {
         return *arrList[x];
     }
 
-    phyArraySimple &operator[](int x)
+    phyArraySimpleEx &operator[](int x)
     {
         return *arrList[x];
     }
@@ -83,6 +300,68 @@ public:
     {
         for (auto &i : arrList)
             i->print(os);
+    }
+
+
+    void schedule(int interval, int tim, int top_k)
+    {
+        static int64_t cnt = 0;
+
+        ++cnt;
+
+        TORCH_INTERNAL_ASSERT(top_k*2<=arrList.size(), "top_k too large");
+        if (cnt%interval == 0)
+        {
+            for (auto &i : arrList)
+                i->rotate();
+
+            if (cnt%tim == 0)
+            {
+                typedef pair<int, phyArraySimpleEx*> pv;
+                vector<pv> v1, v2;
+                int arr_len = arrList.size();
+                for (int i=0; i<arr_len; ++i)
+                    v1.push_back(make_pair(i, arrList[i]));
+                v2 = v1;
+                sort(v1.begin(), v1.end(), [&](const pv &x, const pv &y) -> bool
+                    {
+                        return x.second->totalCmpWrCnt<y.second->totalCmpWrCnt;        
+                    });
+                
+                sort(v2.begin(), v2.end(), [&](const pv &x, const pv &y) -> bool
+                    {
+                        return x.second->totalIntervalWrCnt>y.second->totalIntervalWrCnt;        
+                    });
+
+                //wr count from small to large, in v1
+                //interval count from large to small, in v2
+
+                for (int i = 0; i<top_k; ++i)
+                {
+                    if (v1[i].second->totalCmpWrCnt<v2[i].second->totalCmpWrCnt && \
+                           v1[i].second->totalIntervalWrCnt<v2[i].second->totalIntervalWrCnt)
+                    {
+                        swap(arrList[v1[i].first], arrList[v2[i].first]);
+                    } 
+                }
+                //here, we simply swap two items in arrList. This is logically right because in counter-only mode, we use realMat for computing in logic_array(pimArrayExampleCounters) and the physical array is not used for computing. So simply swapping is ok and right.
+
+                for (int i = 0; i<top_k; ++i)
+                {
+                    int j = arr_len-i-1;
+                    if (v1[j].second->totalCmpWrCnt>v2[j].second->totalCmpWrCnt && \
+                           v1[j].second->totalIntervalWrCnt>v2[j].second->totalIntervalWrCnt)
+                    {
+                        swap(arrList[v1[j].first], arrList[v2[j].first]);
+                    } 
+                }
+
+
+
+                for (auto &i : arrList)
+                    i->clearIntervalCount();
+            }
+        }
     }
 
     ~phyArrayManager_counters()
@@ -94,7 +373,7 @@ public:
     }
 
 private:
-    std::vector<phyArraySimple *> arrList;
+    std::vector<phyArraySimpleEx *> arrList;
     static std::mutex mu;
 };
 

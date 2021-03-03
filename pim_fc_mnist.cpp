@@ -1,3 +1,4 @@
+#include <fstream>
 #include <torch/torch.h>
 #include <cstddef>
 #include <cstdio>
@@ -20,11 +21,11 @@ const int64_t kTrainBatchSize = 64;
 const int64_t kTestBatchSize = 1000;
 
 // The number of epochs to train.
-const int64_t kNumberOfEpochs = 1;
+const int64_t kNumberOfEpochs = 10;
 
 // After how many batches to log a new update with the loss value.
 const int64_t kLogInterval = 10;
-const auto runDev = torch::kCPU;
+auto runDev = torch::kCPU;
 // Define a new Module.
 struct Net : torch::nn::Module {
   Net() {
@@ -32,9 +33,11 @@ struct Net : torch::nn::Module {
 //    fc1 = register_module("fc1", torch::nn::Linear(784, 64));
 //    fc2 = register_module("fc2", torch::nn::Linear(64, 32));
 //    fc3 = register_module("fc3", torch::nn::Linear(32, 10));
-    fc1 = register_module("fc1", PimLinear(784, 64, kTrainBatchSize, PimArrayType::only_counters_pim_array, runDev));
-    fc2 = register_module("fc2", PimLinear(64, 10, kTrainBatchSize, PimArrayType::only_counters_pim_array, runDev));
-    // fc3 = register_module("fc3", PimLinear(32, 10, kTrainBatchSize, PimArrayType::wb_logic_array, runDev));
+    //fc1 = register_module("fc1", PimLinear(784, 64, kTrainBatchSize, PimArrayType::only_counters_pim_array, runDev));
+    //fc2 = register_module("fc2", PimLinear(64, 10, kTrainBatchSize, PimArrayType::only_counters_pim_array, runDev));
+    fc1 = register_module("fc1", PimLinear(784, 64, kTrainBatchSize, PimArrayType::pim_array, runDev));
+    fc2 = register_module("fc2", PimLinear(64, 10, kTrainBatchSize, PimArrayType::pim_array, runDev));
+// fc3 = register_module("fc3", PimLinear(32, 10, kTrainBatchSize, PimArrayType::wb_logic_array, runDev));
 //    fc1 = register_module("fc1", PimLinear(kTrainBatchSize, PimArrayType::simple_logic_array,
 //        LinearOptions(784, 64).bias(false)));
 //    fc2 = register_module("fc2", PimLinear(kTrainBatchSize, PimArrayType::simple_logic_array,
@@ -131,13 +134,14 @@ auto main() -> int {
   torch::manual_seed(1);
   
   torch::DeviceType device_type;
-  // if (torch::cuda::is_available()) {
-  //   std::cout << "CUDA available! Training on GPU." << std::endl;
-  //   device_type = torch::kCUDA;
-  // } else {
+  if (runDev == torch::kCUDA && torch::cuda::is_available()) {
+     std::cout << "CUDA available! Training on GPU." << std::endl;
+     device_type = torch::kCUDA;
+   } else {
     std::cout << "Training on CPU." << std::endl;
     device_type = torch::kCPU;
-  // }
+    runDev = torch::kCPU;
+  }
   torch::Device device(device_type);
 
   Net model;
@@ -174,6 +178,7 @@ auto main() -> int {
   auto stop = high_resolution_clock::now();
   auto duration = duration_cast<milliseconds>(stop - start);
   std::cout << "Time: " << duration.count() / 1000. << " seconds" << std::endl;
-  // std::cout << model << std::endl;
+  std::ofstream os("out");
+    os << model << std::endl;
   return 0;
 }

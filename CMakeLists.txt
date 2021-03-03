@@ -20,6 +20,10 @@ add_executable(pim_fc_mnist pim_fc_mnist.cpp pure_array.h pim_linear.h)
 target_link_libraries(pim_fc_mnist "${TORCH_LIBRARIES}")
 set_property(TARGET pim_fc_mnist PROPERTY CXX_STANDARD 14)
 
+add_executable(pim_fc_onlycnt_mnist testCounter/pim_fc_onlyCnt_mnist.cpp pure_array.h pim_linear.h)
+target_link_libraries(pim_fc_onlycnt_mnist "${TORCH_LIBRARIES}")
+set_property(TARGET pim_fc_onlycnt_mnist PROPERTY CXX_STANDARD 14)
+
 add_executable(original_conv_mnist original_conv_mnist.cpp)
 target_link_libraries(original_conv_mnist "${TORCH_LIBRARIES}")
 set_property(TARGET original_conv_mnist PROPERTY CXX_STANDARD 14)

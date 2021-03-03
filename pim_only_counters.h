@@ -306,7 +306,10 @@ public:
     void schedule(int interval, int tim, int top_k)
     {
         static int64_t cnt = 0;
-
+        if (cnt==0)
+        {
+            std::cout << "first time in schedule" << std::endl;
+        }
         ++cnt;
 
         TORCH_INTERNAL_ASSERT(top_k*2<=arrList.size(), "top_k too large");
@@ -389,12 +392,12 @@ pim_array_config decf_for_counters = {
     .colSize = 256,
     .phyArrRowSize = 64,
     .phyArrColSize = 64,
-    .inBits = 8,
-    .outBits = 8,
-    .unitBits = 8,
+    .inBits = 10,
+    .outBits = 10,
+    .unitBits = 10,
     .cellBits = 1,
     .has_negative_input = true,
-    .max_phy_input_value = 128,
+    .max_phy_input_value = 16,
     .trunc_input = true,
     .dynamic_max_input = true
 };

@@ -364,6 +364,10 @@ public:
         }
     }
 
+    phyArrayManager_counters()
+    {
+        std::cout << "get in only counters" << std::endl;
+    }
     ~phyArrayManager_counters()
     {
         for (auto &i : arrList)
@@ -553,8 +557,8 @@ public:
         return x.to(torch::kFloat64).div(unitLevels-1).mul(2).subtract(1);
     }
 
-private:
     static phyArrayManager_counters phyArrMan;
+private:
     std::vector<std::vector<int>> arr;
 
     int phyArrRowSize, phyArrColSize;

@@ -281,6 +281,12 @@ class phyArrayManager_counters
 public:
     int allocPhyArray(int rowSize, int colSize, bool toGPU = false)
     {
+        static bool k = true;
+        if (k)
+        {
+            std::cout << "get in only counters" << std::endl;
+            k = false;
+        }
         std::lock_guard<std::mutex> lk(mu);
         arrList.push_back(new phyArraySimpleEx(rowSize, colSize, toGPU));
         return arrList.size() - 1;
@@ -369,7 +375,6 @@ public:
 
     phyArrayManager_counters()
     {
-        std::cout << "get in only counters" << std::endl;
     }
     ~phyArrayManager_counters()
     {
@@ -392,12 +397,12 @@ pim_array_config decf_for_counters = {
     .colSize = 256,
     .phyArrRowSize = 64,
     .phyArrColSize = 64,
-    .inBits = 10,
-    .outBits = 10,
+    .inBits = 12,
+    .outBits = 8,
     .unitBits = 10,
     .cellBits = 1,
     .has_negative_input = true,
-    .max_phy_input_value = 16,
+    .max_phy_input_value = 4,
     .trunc_input = true,
     .dynamic_max_input = true
 };
@@ -745,10 +750,18 @@ torch::Tensor pimArrayExampleCounters::nmv(int64_t row, int64_t col, const torch
 
 torch::Tensor pimArrayExampleCounters::mm(const torch::Tensor &mat) 
 {
+    double max_one = max_phy_input_value;
+
+
+    auto index_larger = mat>max_one;
+    auto index_smaller = mat<-max_one;
+    auto tmp = mat;
+    tmp.index_put_({index_larger}, max_one);
+    tmp.index_put_({index_smaller}, -max_one);
     if (mat.size(1)<realMat.size(0))
-        return torch::matmul(mat, realMat.slice(0, 0, mat.size(1)));
+        return torch::matmul(tmp, realMat.slice(0, 0, mat.size(1)));
     else
-        return torch::matmul(mat, realMat);
+        return torch::matmul(tmp, realMat);
 }
 
 /*

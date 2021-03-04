@@ -39,9 +39,12 @@ const int len = 10;   // #len vectors
 
 // we test a matrix of (len x N) mul (N x M)
 void someSmallTest();
+void accuracyTest();
+
 int main()
 {
-    someSmallTest();
+    //someSmallTest();
+    accuracyTest();
     return 0;
     // torch::Tensor k = torch::ones({3, 4}).to(torch::kCUDA);
     // std::cout << k << std::endl;
@@ -68,7 +71,7 @@ int main()
     }
 
     v = v.to(torch::kCUDA);
-    // cout << "v=\n" << v << endl;
+    cout << "v=\n" << v << endl;
     auto st = clock();
     auto out = pp.mm(v);
     auto ed = clock();
@@ -80,13 +83,60 @@ int main()
 
     ed = clock();
     cout << "our time = " <<(ed-st)/1.0/CLOCKS_PER_SEC << endl;
-    // cout << "diff percent = \n" << (out-out1).div(out)*100 << endl;
-    // cout << "real out=\n" << out <<endl;
-    // cout << "our out1=\n" << out1 << endl;
+    cout << "diff percent = \n" << (out-out1).div(out)*100 << endl;
+    //cout << "real out=\n" << out <<endl;
+    //cout << "our out1=\n" << out1 << endl;
     cout << (((out-out1).div(out)*100).abs()>=10).sum(0).sum(0).template item<double>()/len*100/M << "%" << endl;
 
-    p.print(cout);
+    //p.print(cout);
     return 0;
+}
+
+void accuracyTest()
+{
+    auto op = torch::TensorOptions(torch::kCUDA).dtype(torch::kFloat64);
+    pimArrayExampleCounters p(N, M, op, cf);
+    torch::Tensor pp = torch::rand({N, M}).to(op);
+
+
+    p.phyArrMan.schedule(1, 2, 0);
+    p.phyArrMan.schedule(1, 2, 0);
+    p.phyArrMan.schedule(1, 2, 0);
+    p.phyArrMan.schedule(1, 2, 0);
+    p.phyArrMan.schedule(1, 2, 0);
+    p.phyArrMan.schedule(1, 2, 0);
+    p.phyArrMan.schedule(1, 2, 0);
+    p.phyArrMan.schedule(1, 2, 0);
+    p.phyArrMan.schedule(1, 2, 0);
+    p.phyArrMan.schedule(1, 2, 0);
+
+    p.write_mat(pp);
+
+
+    auto k = p.read_mat().to(op);
+
+    cout << k << endl;
+    cout << pp << endl;
+    cout << (k-pp).div(pp)*100 << endl;
+
+
+    phyArraySimpleEx a(4, 6, false);
+    //a.writeMat(torch::tensor({{1, 0}, {0, 1}}), 2, 2);
+    a.rotate();
+    a.rotate();
+    //a.writeMat(torch::tensor({{1, 1}, {0, 1}}), 2, 2);
+    a.rotate();
+    //a.writeMat(torch::tensor({{1, 1}, {0, 1}}), 2, 2);
+    for (int i=0; i<3; ++i)
+        a.rotate();
+    //a.writeMat(torch::tensor({{0, 1}, {0, 1}}), 2, 2);
+
+    for (int i=0; i<9; ++i)
+       a.rotate(); 
+
+    a.writeMat(torch::tensor({{1, 1, 1, 0}, {1, 1, 0, 1}, {1, 0, 1, 1}, {0, 1, 1, 1}}), 4, 4);
+    a.writeCell(0, 5, 1, torch::tensor({1}));
+    a.print(cout);
 }
 
 void someSmallTest()

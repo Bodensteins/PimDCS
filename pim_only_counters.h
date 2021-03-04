@@ -149,12 +149,14 @@ struct phyArraySimpleEx
     *   write mat into our array.
     *   similar to writeCell
     * */
-    void writeMat(const at::Tensor &in, int m, int n)
+    void writeMat(const at::Tensor &vec, int m, int n)
     {
         auto write_it = [&](const at::Tensor &in, int x, int y, int m, int n) -> void
         {
+            //std::cout << in << std::endl;
             at::Tensor writeIn = at::full({m, n}, deltaI, TensorOptions(device).dtype(torch::kFloat64));
-            at::Tensor add = dataDigit.index({Slice(x, x+m), Slice(y, y+n)}).bitwise_xor(in);
+            //std::cout << dataDigit.index({Slice(x, x+m), Slice(y, y+n)}) << std::endl;
+            at::Tensor add = dataDigit.index({Slice(x, x+m), Slice(y, y+n)}).bitwise_xor(in.to(torch::kInt8));
 
             totalWrCnt += (m*n);
             int64_t tmp;
@@ -178,27 +180,29 @@ struct phyArraySimpleEx
         {
             if (edy>=sty)
             {
-                write_it(in, stx, sty, m, n);
+                write_it(vec, stx, sty, m, n);
             }
             else
             {
-                write_it(in.index({Slice(), Slice(0, colSize_-sty)}), stx, sty, m, colSize_-sty);
-                write_it(in.index({Slice(), Slice(colSize_-sty)}), stx, 0, m, edy+1);
+                //std::cout << "x y m n = " << stx << ' ' << sty << ' ' << m << ' ' << colSize_-sty<< std::endl;
+                //std::cout << "x y m n = " << stx << ' ' << 0 << ' ' << m << ' ' << edy+1<< std::endl;
+                write_it(vec.index({Slice(), Slice(0, colSize_-sty)}), stx, sty, m, colSize_-sty);
+                write_it(vec.index({Slice(), Slice(colSize_-sty)}), stx, 0, m, edy+1);
             }
         }
         else
         {
             if (edy>=sty)
             {
-                write_it(in.index({Slice(0, rowSize-stx)}), stx, sty, rowSize-stx, n);
-                write_it(in.index({Slice(rowSize-stx)}), 0, sty, edx+1, n);
+                write_it(vec.index({Slice(0, rowSize-stx)}), stx, sty, rowSize-stx, n);
+                write_it(vec.index({Slice(rowSize-stx)}), 0, sty, edx+1, n);
             }
             else
             {
-                write_it(in.index({Slice(0, rowSize-stx), Slice(0, colSize_-sty)}), stx, sty, rowSize-stx, colSize_-sty);
-                write_it(in.index({Slice(0, rowSize-stx), Slice(colSize_-sty)}), stx, 0, rowSize-stx, edy+1);
-                write_it(in.index({Slice(rowSize-stx), Slice(0, colSize_-sty)}), 0, sty, edx+1, colSize_-sty);
-                write_it(in.index({Slice(rowSize-stx), Slice(colSize_-sty)}), 0, 0, edx+1, edy+1);
+                write_it(vec.index({Slice(0, rowSize-stx), Slice(0, colSize_-sty)}), stx, sty, rowSize-stx, colSize_-sty);
+                write_it(vec.index({Slice(0, rowSize-stx), Slice(colSize_-sty)}), stx, 0, rowSize-stx, edy+1);
+                write_it(vec.index({Slice(rowSize-stx), Slice(0, colSize_-sty)}), 0, sty, edx+1, colSize_-sty);
+                write_it(vec.index({Slice(rowSize-stx), Slice(colSize_-sty)}), 0, 0, edx+1, edy+1);
             }
         }
     }
@@ -399,10 +403,10 @@ pim_array_config decf_for_counters = {
     .phyArrColSize = 64,
     .inBits = 12,
     .outBits = 8,
-    .unitBits = 10,
+    .unitBits = 16,
     .cellBits = 1,
     .has_negative_input = true,
-    .max_phy_input_value = 4,
+    .max_phy_input_value = 16,
     .trunc_input = true,
     .dynamic_max_input = true
 };

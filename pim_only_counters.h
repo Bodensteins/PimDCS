@@ -330,20 +330,20 @@ public:
 
             if (cnt%tim == 0)
             {
-                typedef pair<int, phyArraySimpleEx*> pv;
+                typedef pair<int, phyArraySimpleEx**> pv;
                 vector<pv> v1, v2;
                 int arr_len = arrList.size();
                 for (int i=0; i<arr_len; ++i)
-                    v1.push_back(make_pair(i, arrList[i]));
+                    v1.push_back(make_pair(i, &arrList[i]));
                 v2 = v1;
                 sort(v1.begin(), v1.end(), [&](const pv &x, const pv &y) -> bool
                     {
-                        return x.second->totalCmpWrCnt<y.second->totalCmpWrCnt;        
+                        return (*x.second)->totalCmpWrCnt<(*y.second)->totalCmpWrCnt;        
                     });
                 
                 sort(v2.begin(), v2.end(), [&](const pv &x, const pv &y) -> bool
                     {
-                        return x.second->totalIntervalWrCnt>y.second->totalIntervalWrCnt;        
+                        return (*x.second)->totalIntervalWrCnt>(*y.second)->totalIntervalWrCnt;        
                     });
 
                 //wr count from small to large, in v1
@@ -351,9 +351,10 @@ public:
 
                 for (int i = 0; i<top_k; ++i)
                 {
-                    if (v1[i].second->totalCmpWrCnt<v2[i].second->totalCmpWrCnt && \
-                           v1[i].second->totalIntervalWrCnt<v2[i].second->totalIntervalWrCnt)
+                    if ((*v1[i].second)->totalCmpWrCnt<(*v2[i].second)->totalCmpWrCnt && \
+                           (*v1[i].second)->totalIntervalWrCnt<(*v2[i].second)->totalIntervalWrCnt)
                     {
+                        //std::cout << "swap:" << v1[i].first << "<--->" << v2[i].first << std::endl;
                         swap(arrList[v1[i].first], arrList[v2[i].first]);
                     } 
                 }
@@ -362,9 +363,10 @@ public:
                 for (int i = 0; i<top_k; ++i)
                 {
                     int j = arr_len-i-1;
-                    if (v1[j].second->totalCmpWrCnt>v2[j].second->totalCmpWrCnt && \
-                           v1[j].second->totalIntervalWrCnt>v2[j].second->totalIntervalWrCnt)
+                    if ((*v1[j].second)->totalCmpWrCnt>(*v2[j].second)->totalCmpWrCnt && \
+                           (*v1[j].second)->totalIntervalWrCnt>(*v2[j].second)->totalIntervalWrCnt)
                     {
+                        //std::cout << "swap:" << v1[j].first << "<--->" << v2[j].first << std::endl;
                         swap(arrList[v1[j].first], arrList[v2[j].first]);
                     } 
                 }
@@ -373,6 +375,7 @@ public:
 
                 for (auto &i : arrList)
                     i->clearIntervalCount();
+                //std::cout << "swap over" << std::endl;
             }
         }
     }
@@ -519,6 +522,7 @@ public:
         for (int i = 0; i < arrX_size; ++i)
             for (int j = 0; j < arrY_size; ++j)
                 phyArrMan[arr[i][j]].print(os);
+        std::cout << "------------logic array-----" << std::endl;
     }
 
     at::Tensor input2digit(const at::Tensor &vec, double &max_one);

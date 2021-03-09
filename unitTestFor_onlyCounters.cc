@@ -27,7 +27,7 @@ pim_array_config cf={
     .outBits = 8,
     .unitBits = 8,
     .cellBits = 1,
-    .has_negative_input = true,
+    .has_negative_input = false,
     .max_phy_input_value = 1,
     .trunc_input = false,
     .dynamic_max_input = true
@@ -40,11 +40,13 @@ const int len = 10;   // #len vectors
 // we test a matrix of (len x N) mul (N x M)
 void someSmallTest();
 void accuracyTest();
+void scheduleTest();
 
 int main()
 {
     //someSmallTest();
-    accuracyTest();
+    //accuracyTest();
+    scheduleTest();
     return 0;
     // torch::Tensor k = torch::ones({3, 4}).to(torch::kCUDA);
     // std::cout << k << std::endl;
@@ -161,4 +163,25 @@ void someSmallTest()
     });
     std::cout << a << std::endl;
     // torch::batch_norm_backward_reduce
+}
+
+void scheduleTest()
+{
+    auto op = torch::TensorOptions(torch::kCPU).dtype(torch::kFloat64);
+    pimArrayExampleCounters pim(128, 24, op, cf);
+    torch::Tensor pp1 = torch::cat({torch::ones({64, 8}).to(op), torch::ones({64, 8}).to(op).mul(-1), torch::ones({64, 8}).to(op).mul(-1)}, 1);
+    torch::Tensor pp2 = torch::ones({64, 24}).to(op).mul(-1);
+
+    pp1 = torch::cat({pp1, pp1}, 0);
+    pp2 = torch::cat({pp2, pp2}, 0); 
+
+    for (int i=0; i<64*64*6; ++i)
+    {
+        pim.write_mat(pp1);
+        pim.write_mat(pp2);
+        pim.phyArrMan.schedule(1, 64*64, 2);
+    }
+
+    cout << pim << endl;
+    cout << "out" << endl;
 }

@@ -285,15 +285,21 @@ class phyArrayManager_counters
 public:
     int allocPhyArray(int rowSize, int colSize, bool toGPU = false)
     {
+        std::lock_guard<std::mutex> lk(mu);
         static bool k = true;
         if (k)
         {
             std::cout << "get in only counters" << std::endl;
             k = false;
         }
-        std::lock_guard<std::mutex> lk(mu);
         arrList.push_back(new phyArraySimpleEx(rowSize, colSize, toGPU));
         return arrList.size() - 1;
+    }
+
+    phyArraySimpleEx &synaccess(int x)
+    {
+        std::lock_guard<std::mutex> lk(mu);
+        return *arrList[x];
     }
 
     phyArraySimpleEx &access(int x)
@@ -474,10 +480,10 @@ public:
                 int k = phyArrMan.allocPhyArray(phyArrRowSize, phyArrColSize + 2, toGPU);
                 arr[i][j] = k;
                 for (int r = 0; r < phyArrRowSize; ++r)
-                    phyArrMan[k].writeCell(r, phyArrColSize + 1, 1, torch::tensor({1}, TensorOptions(device)));
+                    phyArrMan.synaccess(k).writeCell(r, phyArrColSize + 1, 1, torch::tensor({1}, TensorOptions(device)));
             }
-        ImaxPCell = phyArrMan[0].ImaxPCell;
-        IminPCell = phyArrMan[0].IminPCell;
+        ImaxPCell = phyArrMan.synaccess(0).ImaxPCell;
+        IminPCell = phyArrMan.synaccess(0).IminPCell;
         maxIsumPerPhyCol = ImaxPCell * phyArrRowSize;
         phyAllRowSize = phyArrRowSize*arrX_size;
 

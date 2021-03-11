@@ -197,6 +197,12 @@ public:
         return arrList.size() - 1;
     }
 
+    phyArraySimple &synaccess(int x)
+    {
+        std::lock_guard<std::mutex> lk(mu);
+        return *arrList[x];
+    }
+
     phyArraySimple &access(int x)
     {
         return *arrList[x];
@@ -318,10 +324,10 @@ public:
                 int k = phyArrMan.allocPhyArray(phyArrRowSize, phyArrColSize + 2, toGPU);
                 arr[i][j] = k;
                 for (int r = 0; r < phyArrRowSize; ++r)
-                    phyArrMan[k].writeCell(r, phyArrColSize + 1, 1, torch::tensor({1}, TensorOptions(device)));
+                    phyArrMan.synaccess(k).writeCell(r, phyArrColSize + 1, 1, torch::tensor({1}, TensorOptions(device)));
             }
-        ImaxPCell = phyArrMan[0].ImaxPCell;
-        IminPCell = phyArrMan[0].IminPCell;
+        ImaxPCell = phyArrMan.synaccess(0).ImaxPCell;
+        IminPCell = phyArrMan.synaccess(0).IminPCell;
         maxIsumPerPhyCol = ImaxPCell * phyArrRowSize;
         phyAllRowSize = phyArrRowSize*arrX_size;
 

@@ -175,13 +175,13 @@ void scheduleTest()
     pp1 = torch::cat({pp1, pp1}, 0);
     pp2 = torch::cat({pp2, pp2}, 0); 
 
-    for (int i=0; i<64*64*6; ++i)
+    for (int i=0; i<64*64*1; ++i)
     {
         pim.write_mat(pp1);
         pim.write_mat(pp2);
         pim.phyArrMan.schedule(1, 64*64, 2);
     }
 
-    cout << pim << endl;
+    pim.print(cout);
     cout << "out" << endl;
 }

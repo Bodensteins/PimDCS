@@ -394,6 +394,7 @@ public:
         for (int i = 0; i < arrX_size; ++i)
             for (int j = 0; j < arrY_size; ++j)
                 phyArrMan[arr[i][j]].print(os);
+        return os;
     }
 
     at::Tensor input2digit(const at::Tensor &vec, double &max_one);

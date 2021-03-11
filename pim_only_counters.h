@@ -144,6 +144,28 @@ struct phyArraySimpleEx
     {
         totalIntervalWrCnt = 0;
     }
+
+    void initWriteMat(const at::Tensor &in)
+    {
+        auto write_it = [&](const at::Tensor &in, int x, int y, int m, int n) -> void
+        {
+            //std::cout << in << std::endl;
+            at::Tensor writeIn = at::full({m, n}, deltaI, TensorOptions(device).dtype(torch::kFloat64));
+            //std::cout << dataDigit.index({Slice(x, x+m), Slice(y, y+n)}) << std::endl;
+            at::Tensor add = dataDigit.index({Slice(x, x+m), Slice(y, y+n)}).bitwise_xor(in.to(torch::kInt8));
+
+            totalWrCnt += (m*n);
+            int64_t tmp;
+            totalCmpWrCnt += (tmp = add.sum().item<int64_t>());
+            totalIntervalWrCnt += tmp;
+            cellWrCnt.index_put_({Slice(x, x+m), Slice(y, y+n)}, cellWrCnt.index({Slice(x, x+m), Slice(y, y+n)}).add(add));
+
+            writeIn.mul_(in).add_(IminPCell);
+            data.index_put_({Slice(x, x+m), Slice(y, y+n)}, writeIn);
+            dataDigit.index_put_({Slice(x, x+m), Slice(y, y+n)}, in);
+        };
+        write_it(in, 0, 0, rowSize, colSize);
+    }
     /*
     *   m -> in.size(0), n -> in.size(1)
     *   write mat into our array.
@@ -474,13 +496,17 @@ public:
         device = toGPU? torch::kCUDA : torch::kCPU;
         //std::cout << "toGPU " << toGPU << std::endl;
         arr = std::vector<std::vector<int>>(arrX_size, std::vector<int>(arrY_size));
+        torch::Tensor initMat = torch::cat({torch::zeros({phyArrRowSize, phyArrColSize+1}), torch::ones({phyArrRowSize, 1})}, 1);
         for (int i = 0; i < arrX_size; ++i)
             for (int j = 0; j < arrY_size; ++j)
             {
                 int k = phyArrMan.allocPhyArray(phyArrRowSize, phyArrColSize + 2, toGPU);
                 arr[i][j] = k;
-                for (int r = 0; r < phyArrRowSize; ++r)
-                    phyArrMan.synaccess(k).writeCell(r, phyArrColSize + 1, 1, torch::tensor({1}, TensorOptions(device)));
+                //for (int r = 0; r < phyArrRowSize; ++r)
+                //{
+                    //phyArrMan.synaccess(k).writeCell(r, phyArrColSize + 1, 1, torch::tensor({1}, TensorOptions(device)));
+                phyArrMan.synaccess(k).initWriteMat(initMat);
+                //}
             }
         ImaxPCell = phyArrMan.synaccess(0).ImaxPCell;
         IminPCell = phyArrMan.synaccess(0).IminPCell;

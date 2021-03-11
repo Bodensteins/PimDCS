@@ -496,7 +496,7 @@ public:
         device = toGPU? torch::kCUDA : torch::kCPU;
         //std::cout << "toGPU " << toGPU << std::endl;
         arr = std::vector<std::vector<int>>(arrX_size, std::vector<int>(arrY_size));
-        torch::Tensor initMat = torch::cat({torch::zeros({phyArrRowSize, phyArrColSize+1}), torch::ones({phyArrRowSize, 1})}, 1);
+        torch::Tensor initMat = torch::cat({torch::zeros({phyArrRowSize, phyArrColSize+1}, torch::kInt8), torch::ones({phyArrRowSize, 1}, torch::kInt8)}, 1).to(op.device());
         for (int i = 0; i < arrX_size; ++i)
             for (int j = 0; j < arrY_size; ++j)
             {

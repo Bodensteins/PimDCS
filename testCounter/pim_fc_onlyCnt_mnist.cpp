@@ -91,7 +91,7 @@ void train(
     optimizer.step();
     if (batch_idx++ % kLogInterval == 0) {
       std::printf(
-          "Train Epoch: %ld [%5ld/%5ld] Loss: %.4f\n",
+          "Train Epoch: %d [%5ld/%5ld] Loss: %.4f\n",
           epoch,
           batch_idx * batch.data.size(0),
           dataset_size,

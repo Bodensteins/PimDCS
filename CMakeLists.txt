@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.0 FATAL_ERROR)
 project(pimtorch)
-
+#SET(CMAKE_BUILD_TYPE "Debug")
+#SET(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -Wall -g2 -ggdb")
+#SET(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall")
 set(CMAKE_PREFIX_PATH /etc/libtorch/)
 find_package(Torch REQUIRED)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
@@ -43,7 +45,14 @@ set_property(TARGET unittest_only_counters PROPERTY CXX_STANDARD 14)
 add_executable(original_vgg8_cifar10 original_vgg8_cifar10.cc pure_array.h pim_array_example.h pim_only_counters.h pim_linear.h pim_conv.h)
 target_link_libraries(original_vgg8_cifar10 "${TORCH_LIBRARIES}")
 set_property(TARGET original_vgg8_cifar10 PROPERTY CXX_STANDARD 14)
+
+add_executable(pim_vgg8 testCounter/pim_vgg8_cifar10.cc pure_array.h pim_array_example.h pim_only_counters.h pim_linear.h pim_conv.h)
+target_link_libraries(pim_vgg8 "${TORCH_LIBRARIES}")
+set_property(TARGET pim_vgg8 PROPERTY CXX_STANDARD 14)
+
+
 # Test
+
 
 add_executable(logic_array_interface_test logic_array_interface_test.cpp pure_array.h)
 target_link_libraries(logic_array_interface_test "${TORCH_LIBRARIES}")

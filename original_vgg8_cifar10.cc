@@ -3,6 +3,8 @@
 #include <string>
 #include <ctime>
 
+auto runDev = torch::kCPU;
+
 struct VGG8_Net: torch::nn::Module
 {
     VGG8_Net(): conv(6, nullptr), fc1(nullptr), fc2(nullptr)
@@ -170,7 +172,7 @@ void mytrain(std::shared_ptr<VGG8_Net> &net,
         // Update the parameters based on the calculated gradients.
         optimizer.step();
         // Output the loss and checkpoint every 100 batches.
-        if (++batch_index % 20 == 0)
+        if (++batch_index % 2 == 0)
         {
             std::cout << "Epoch: " << epoch << " | Batch: " << batch_index
                         << " | Loss: " << loss.template item<float>() 
@@ -209,7 +211,7 @@ int main(int argc, char *argv[])
     std::cout << "test data read end" << std::endl;
 
     torch::DeviceType device = at::kCPU;
-    if (torch::cuda::is_available())
+    if (torch::cuda::is_available() && runDev!=torch::kCPU)
     {
         std::cout << "gpu enabled" << std::endl;
         device = at::kCUDA;

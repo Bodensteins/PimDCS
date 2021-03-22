@@ -59,6 +59,7 @@ using PIM::SimpleLogicArray;
 using torch::TensorOptions;
 using namespace PIM;
 
+static int parallel_size = 0;
 struct phyArraySimpleEx
 {
     phyArraySimpleEx(int rowSize = 128, int colSize = 128, bool toGPU = false) : rowSize(rowSize), colSize(colSize)
@@ -74,7 +75,8 @@ struct phyArraySimpleEx
 
         device = toGPU? torch::kCUDA : torch::kCPU;
         torch::TensorOptions op(device);
-        data = at::full({rowSize, colSize}, IminPCell, op.dtype(torch::kFloat64));   //data in type of current, Imin or Imax
+        
+        //data = at::full({rowSize, colSize}, IminPCell, op.dtype(torch::kFloat64));   //data in type of current, Imin or Imax
         dataDigit = at::full({rowSize, colSize}, 0, op.dtype(torch::kInt8));         //data in type of digit value 0(Imin)/1(Imax)
         cellWrCnt = at::zeros({rowSize, colSize}, op.dtype(torch::kInt64));                 
 
@@ -86,7 +88,7 @@ struct phyArraySimpleEx
     {
         auto write_it = [&](int row, int col, int len, const at::Tensor &in) -> void
         {
-            at::Tensor writeIn = at::full({len}, deltaI, TensorOptions(device).dtype(torch::kFloat64));
+            //at::Tensor writeIn = at::full({len}, deltaI, TensorOptions(device).dtype(torch::kFloat64));
             at::Tensor rowAdd = dataDigit[row];
 
             totalWrCnt += len;              // write count 
@@ -97,8 +99,8 @@ struct phyArraySimpleEx
             cellWrCnt[row].index_put_({torch::indexing::Slice(col, col + len)},
                     cellWrCnt[row].index({torch::indexing::Slice(col, col + len)}).add(rowAdd)); //cmp write count of each cell 
 
-            writeIn.mul_(in).add_(IminPCell);
-            data[row].index_put_({torch::indexing::Slice(col, col + len)}, writeIn);    //data in type of current
+            //writeIn.mul_(in).add_(IminPCell);
+            //data[row].index_put_({torch::indexing::Slice(col, col + len)}, writeIn);    //data in type of current
             dataDigit[row].index_put_({torch::indexing::Slice(col, col + len)}, in);    //data in type of digit
         };
         
@@ -150,7 +152,7 @@ struct phyArraySimpleEx
         auto write_it = [&](const at::Tensor &in, int x, int y, int m, int n) -> void
         {
             //std::cout << in << std::endl;
-            at::Tensor writeIn = at::full({m, n}, deltaI, TensorOptions(device).dtype(torch::kFloat64));
+            //at::Tensor writeIn = at::full({m, n}, deltaI, TensorOptions(device).dtype(torch::kFloat64));
             //std::cout << dataDigit.index({Slice(x, x+m), Slice(y, y+n)}) << std::endl;
             at::Tensor add = dataDigit.index({Slice(x, x+m), Slice(y, y+n)}).bitwise_xor(in.to(torch::kInt8));
 
@@ -160,8 +162,8 @@ struct phyArraySimpleEx
             totalIntervalWrCnt += tmp;
             cellWrCnt.index_put_({Slice(x, x+m), Slice(y, y+n)}, cellWrCnt.index({Slice(x, x+m), Slice(y, y+n)}).add(add));
 
-            writeIn.mul_(in).add_(IminPCell);
-            data.index_put_({Slice(x, x+m), Slice(y, y+n)}, writeIn);
+            //writeIn.mul_(in).add_(IminPCell);
+            //data.index_put_({Slice(x, x+m), Slice(y, y+n)}, writeIn);
             dataDigit.index_put_({Slice(x, x+m), Slice(y, y+n)}, in);
         };
         write_it(in, 0, 0, rowSize, colSize);
@@ -176,7 +178,7 @@ struct phyArraySimpleEx
         auto write_it = [&](const at::Tensor &in, int x, int y, int m, int n) -> void
         {
             //std::cout << in << std::endl;
-            at::Tensor writeIn = at::full({m, n}, deltaI, TensorOptions(device).dtype(torch::kFloat64));
+            //at::Tensor writeIn = at::full({m, n}, deltaI, TensorOptions(device).dtype(torch::kFloat64));
             //std::cout << dataDigit.index({Slice(x, x+m), Slice(y, y+n)}) << std::endl;
             at::Tensor add = dataDigit.index({Slice(x, x+m), Slice(y, y+n)}).bitwise_xor(in.to(torch::kInt8));
 
@@ -186,8 +188,8 @@ struct phyArraySimpleEx
             totalIntervalWrCnt += tmp;
             cellWrCnt.index_put_({Slice(x, x+m), Slice(y, y+n)}, cellWrCnt.index({Slice(x, x+m), Slice(y, y+n)}).add(add));
 
-            writeIn.mul_(in).add_(IminPCell);
-            data.index_put_({Slice(x, x+m), Slice(y, y+n)}, writeIn);
+            //writeIn.mul_(in).add_(IminPCell);
+            //data.index_put_({Slice(x, x+m), Slice(y, y+n)}, writeIn);
             dataDigit.index_put_({Slice(x, x+m), Slice(y, y+n)}, in);
         };
 
@@ -285,7 +287,7 @@ struct phyArraySimpleEx
         os << "now totalIntervalWrCnt = " << totalIntervalWrCnt << endl;
         os << "-------------------------------------" << endl;
     }
-    at::Tensor data;
+    //at::Tensor data;
     at::Tensor dataDigit;
     at::Tensor cellWrCnt;
     int64_t totalWrCnt, totalCmpWrCnt, totalIntervalWrCnt;
@@ -430,11 +432,11 @@ std::mutex phyArrayManager_counters::mu;
 pim_array_config decf_for_counters = {
     .rowSize = 256,
     .colSize = 256,
-    .phyArrRowSize = 64,
-    .phyArrColSize = 64,
+    .phyArrRowSize = 512,
+    .phyArrColSize = 512,
     .inBits = 12,
     .outBits = 8,
-    .unitBits = 16,
+    .unitBits = 8,
     .cellBits = 1,
     .has_negative_input = true,
     .max_phy_input_value = 16,
@@ -609,6 +611,8 @@ public:
     static phyArrayManager_counters phyArrMan;
 private:
     std::vector<std::vector<int>> arr;
+
+    std::mutex mu;
 
     int phyArrRowSize, phyArrColSize;
     int arrX_size, arrY_size;
@@ -793,13 +797,12 @@ torch::Tensor pimArrayExampleCounters::mm(const torch::Tensor &mat)
 {
     double max_one = max_phy_input_value;
 
-
-    auto index_larger = mat>max_one;
-    auto index_smaller = mat<-max_one;
-    auto tmp = mat;
+    auto tmp = mat.clone();
+    auto index_larger = tmp>max_one;
+    auto index_smaller = tmp<-max_one;
     tmp.index_put_({index_larger}, max_one);
     tmp.index_put_({index_smaller}, -max_one);
-    if (mat.size(1)<realMat.size(0))
+    if (tmp.size(1)<realMat.size(0))
         return torch::matmul(tmp, realMat.slice(0, 0, mat.size(1)));
     else
         return torch::matmul(tmp, realMat);
@@ -811,6 +814,7 @@ torch::Tensor pimArrayExampleCounters::mm(const torch::Tensor &mat)
 */
 void pimArrayExampleCounters::write_mat(const torch::Tensor &mat) 
 {
+    std::lock_guard<std::mutex> lk(mu);
     int M = std::min(mat.size(0), rowSize);
     int N = std::min(mat.size(1), colSize);
     // at::parallel_for(0, len, 0, [&](int st, int ed)->void
@@ -822,17 +826,18 @@ void pimArrayExampleCounters::write_mat(const torch::Tensor &mat)
     realMat.index_put_({Slice(0, M), Slice(0, N)}, digit2unit(data)); 
     torch::Tensor dataDigit = torch::empty({M, N * unitBits}, TensorOptions(device).dtype(torch::kInt8));
 
-    for (int i=0; i<unitBits; ++i)
+    at::parallel_for(0, unitBits, parallel_size, [&](int st, int ed)->void
     {
-        dataDigit.index_put_({Slice(), Slice(i, N*unitBits, unitBits)}, (data.bitwise_and(1<<i)!=0));
-    }
+        for (int i=st; i<ed; ++i)
+            dataDigit.index_put_({Slice(), Slice(i, N*unitBits, unitBits)}, (data.bitwise_and(1<<i)!=0));
+    });
 
     int ed_arrY, ed_arrColId;
     int ed_arrX, ed_arrRowId;
     getColPos(N, ed_arrY, ed_arrColId);
     getRowPos(M, ed_arrX, ed_arrRowId);
     
-    at::parallel_for(0, ed_arrX*ed_arrY, 0, [&](int st, int ed)->void
+    at::parallel_for(0, ed_arrX*ed_arrY, parallel_size, [&](int st, int ed)->void
     {
         for (int k=st; k<ed; ++k)
         {
@@ -852,7 +857,7 @@ void pimArrayExampleCounters::write_mat(const torch::Tensor &mat)
     // }
     if (ed_arrRowId!=0)
     {
-        at::parallel_for(0, ed_arrY, 0, [&](int st, int ed)
+        at::parallel_for(0, ed_arrY, parallel_size, [&](int st, int ed)
         {
             for (int j=st; j<ed; ++j)
             {
@@ -869,7 +874,7 @@ void pimArrayExampleCounters::write_mat(const torch::Tensor &mat)
 
     if (ed_arrColId!=0)
     {
-        at::parallel_for(0, ed_arrX, 0, [&](int st, int ed)
+        at::parallel_for(0, ed_arrX, parallel_size, [&](int st, int ed)
         {
             for (int i=st; i<ed; ++i)
             {

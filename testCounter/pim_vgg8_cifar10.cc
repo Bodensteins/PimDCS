@@ -11,10 +11,10 @@
 using namespace PIM;
 
 
-int kTestBatchSize = 64;
-int kTrainBatchSize = 64;
-int kNumberOfEpochs = 50;
-auto runDev = torch::kCUDA;
+int kTestBatchSize = 32;
+int kTrainBatchSize = 32;
+int kNumberOfEpochs = 10;
+auto runDev = torch::kCPU;
 auto pim_type = PimArrayType::only_counters_pim_array;//PimArrayType::simple_logic_array;
 
 
@@ -56,18 +56,19 @@ struct VGG8_Net: torch::nn::Module
     // Implement the Net's algorithm.
     torch::Tensor forward(torch::Tensor x)
     {
-        using torch::relu;      
+        using torch::relu;     
+        using torch::sigmoid; 
         namespace F = torch::nn::functional;
-        x = F::max_pool2d( relu(conv[1](relu(conv[0](x)))), F::MaxPool2dFuncOptions(2).stride(2) ); 
+        x = F::max_pool2d( torch::sigmoid( conv[1]( torch::sigmoid(conv[0](x)).clone() ) ), F::MaxPool2dFuncOptions(2).stride(2) ); 
 
-        x = F::max_pool2d( relu(conv[3](relu(conv[2](x)))), F::MaxPool2dFuncOptions(2).stride(2) );  
+        x = F::max_pool2d( torch::sigmoid( conv[3]( torch::sigmoid(conv[2](x)).clone() ) ), F::MaxPool2dFuncOptions(2).stride(2) );  
 
-        x = F::max_pool2d( relu(conv[5](relu(conv[4](x)))), F::MaxPool2dFuncOptions(2).stride(2) ); 
+        x = F::max_pool2d( torch::sigmoid( conv[5]( torch::sigmoid(conv[4](x)).clone() ) ), F::MaxPool2dFuncOptions(2).stride(2) ); 
 
-        x = F::max_pool2d( relu(conv[6](x)), F::MaxPool2dFuncOptions(2).stride(2) );
+        x = F::max_pool2d( torch::sigmoid(conv[6](x)), F::MaxPool2dFuncOptions(2).stride(2) );
         x = x.view({x.size(0), -1});
         //x = torch::dropout(x, /*p=*/0.6, /*training=*/is_training());
-        x = torch::relu(fc1(x));
+        x = torch::sigmoid(fc1(x)).clone();
         //x = torch::dropout(x, /*p=*/0.6, /*training=*/is_training());
         x = fc2(x);
         x = torch::log_softmax(x, 1);
@@ -187,6 +188,8 @@ void mytrain(std::shared_ptr<VGG8_Net> &net,
     size_t batch_index = 0;
     int correct = 0;
     int ssize = 0;
+    net->train();
+    //torch::autograd::AnomalyMode::set_enabled(true);
     // Iterate the data loader to yield batches from the dataset.
     for (auto &batch : data_loader)
     {
@@ -205,7 +208,7 @@ void mytrain(std::shared_ptr<VGG8_Net> &net,
         // Update the parameters based on the calculated gradients.
         optimizer.step();
         // Output the loss and checkpoint every 100 batches.
-        if (++batch_index % 20 == 0)
+        if (++batch_index % 2 == 0)
         {
             std::cout << "Epoch: " << epoch << " | Batch: " << batch_index
                         << " | Loss: " << loss.template item<float>() 

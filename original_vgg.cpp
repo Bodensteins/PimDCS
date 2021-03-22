@@ -10,8 +10,8 @@ using namespace std::chrono;
 using namespace torch::nn;
 
 // Where to find the CIFAR10 dataset.
-//std::string kDataRoot = "../data/cifar10-dataset/";
-std::string kDataRoot = "../data";
+std::string kDataRoot = "../data/cifar10-dataset/";
+//std::string kDataRoot = "../data";
 
 // The batch size for training.
 const int64_t kTrainBatchSize = 64;
@@ -20,7 +20,7 @@ const int64_t kTrainBatchSize = 64;
 const int64_t kTestBatchSize = 1000;
 
 // The number of epochs to train.
-const int64_t kNumberOfEpochs = 40;
+const int64_t kNumberOfEpochs = 50;
 
 // After how many batches to log a new update with the loss value.
 const int64_t kLogInterval = 10;
@@ -116,7 +116,7 @@ void train(
   float train_l = 0, train_acc_sum = 0;
 
   for (auto& batch : data_loader) {
-    auto data = batch.data.to(device, torch::kFloat64), targets = batch.target.to(device);
+    auto data = batch.data.to(device, torch::kFloat64), targets = batch.target.squeeze(1).to(device, torch::kLong);
     optimizer.zero_grad();
     auto output = model.forward(data);
     auto loss = torch::nn::functional::cross_entropy(output, targets);
@@ -150,7 +150,7 @@ void test(
   double test_loss = 0;
   int32_t correct = 0;
   for (const auto& batch : data_loader) {
-    auto data = batch.data.to(device, torch::kFloat64), targets = batch.target.to(device);
+    auto data = batch.data.to(device, torch::kFloat64), targets = batch.target.squeeze(1).to(device, torch::kLong);
     auto output = model.forward(data);
     test_loss += torch::nn::functional::cross_entropy(
         output,
@@ -187,60 +187,67 @@ auto main() -> int {
       {1, 64},
       {1, 128},
       {2, 256},
-//      {2, 512},
-//      {2, 512},
+      {2, 512},
+      {2, 512},
   };
-  std::vector<std::vector<ExpandingArray<4>>> in_shapes = {
-      {{kTrainBatchSize, 1, 28, 28}},
-      {{kTrainBatchSize, 64, 14, 14}},
-      {{kTrainBatchSize, 128, 7, 7}, {kTrainBatchSize, 256, 7, 7}},
-  };
+
+
+//  std::vector<std::vector<ExpandingArray<4>>> in_shapes = {
+//      {{kTrainBatchSize, 1, 28, 28}},
+//      {{kTrainBatchSize, 64, 14, 14}},
+//      {{kTrainBatchSize, 128, 7, 7}, {kTrainBatchSize, 256, 7, 7}},
+//  };
+
+  std::vector<std::vector<ExpandingArray<4>>> in_shapes = {};
+
   VGG model(conv_arch_shape, false, kTrainBatchSize, in_shapes);
   model.to(device, torch::kFloat64);
 
   auto start = high_resolution_clock::now();
 
-//  std::cout << "Reading data..." << std::endl;
-//  CIFAR10Dataset train_data(kDataRoot + "data_batch_1.bin");
-//  train_data.add(kDataRoot + "data_batch_2.bin");
-//  train_data.add(kDataRoot + "data_batch_3.bin");
-//  train_data.add(kDataRoot + "data_batch_4.bin");
-//  train_data.add(kDataRoot + "data_batch_5.bin");
-//  CIFAR10Dataset test_data(kDataRoot + "test_batch.bin");
-//
-//  auto train_dataset = train_data.map(
-//          torch::data::transforms::Normalize<>({0.485, 0.456, 0.406}, {0.229, 0.224, 0.225}))
+  std::cout << "Reading data..." << std::endl;
+  CIFAR10Dataset train_data(kDataRoot + "data_batch_1.bin");
+  train_data.add(kDataRoot + "data_batch_2.bin");
+  train_data.add(kDataRoot + "data_batch_3.bin");
+  train_data.add(kDataRoot + "data_batch_4.bin");
+  train_data.add(kDataRoot + "data_batch_5.bin");
+  CIFAR10Dataset test_data(kDataRoot + "test_batch.bin");
+
+  auto train_dataset = train_data.map(
+          torch::data::transforms::Normalize<>({0.485, 0.456, 0.406}, {0.229, 0.224, 0.225}))
+      .map(torch::data::transforms::Stack<>());
+  const size_t train_dataset_size = train_dataset.size().value();
+  auto train_loader =
+      torch::data::make_data_loader<torch::data::samplers::RandomSampler>(
+          std::move(train_dataset), torch::data::DataLoaderOptions(kTrainBatchSize).workers(8));
+
+  auto test_dataset = test_data.map(
+          torch::data::transforms::Normalize<>({0.485, 0.456, 0.406}, {0.229, 0.224, 0.225}))
+      .map(torch::data::transforms::Stack<>());
+  const size_t test_dataset_size = test_dataset.size().value();
+  auto test_loader = torch::data::make_data_loader(
+      std::move(test_dataset),
+      torch::data::DataLoaderOptions(kTestBatchSize).workers(8));
+
+//  auto train_dataset = torch::data::datasets::MNIST(kDataRoot)
+//      .map(torch::data::transforms::Normalize<>(0.1307, 0.3081))
 //      .map(torch::data::transforms::Stack<>());
 //  const size_t train_dataset_size = train_dataset.size().value();
 //  auto train_loader =
 //      torch::data::make_data_loader<torch::data::samplers::SequentialSampler>(
 //          std::move(train_dataset), kTrainBatchSize);
 //
-//  auto test_dataset = test_data.map(
-//          torch::data::transforms::Normalize<>({0.485, 0.456, 0.406}, {0.229, 0.224, 0.225}))
+//  auto test_dataset = torch::data::datasets::MNIST(
+//      kDataRoot, torch::data::datasets::MNIST::Mode::kTest)
+//      .map(torch::data::transforms::Normalize<>(0.1307, 0.3081))
 //      .map(torch::data::transforms::Stack<>());
 //  const size_t test_dataset_size = test_dataset.size().value();
-//  auto test_loader = torch::data::make_data_loader(std::move(test_dataset), kTestBatchSize);
-
-  auto train_dataset = torch::data::datasets::MNIST(kDataRoot)
-      .map(torch::data::transforms::Normalize<>(0.1307, 0.3081))
-      .map(torch::data::transforms::Stack<>());
-  const size_t train_dataset_size = train_dataset.size().value();
-  auto train_loader =
-      torch::data::make_data_loader<torch::data::samplers::SequentialSampler>(
-          std::move(train_dataset), kTrainBatchSize);
-
-  auto test_dataset = torch::data::datasets::MNIST(
-      kDataRoot, torch::data::datasets::MNIST::Mode::kTest)
-      .map(torch::data::transforms::Normalize<>(0.1307, 0.3081))
-      .map(torch::data::transforms::Stack<>());
-  const size_t test_dataset_size = test_dataset.size().value();
-  auto test_loader =
-      torch::data::make_data_loader(std::move(test_dataset), kTestBatchSize);
+//  auto test_loader =
+//      torch::data::make_data_loader(std::move(test_dataset), kTestBatchSize);
 
 
   torch::optim::SGD optimizer(
-      model.parameters(), torch::optim::SGDOptions(0.01).momentum(0.3));
+      model.parameters(), torch::optim::SGDOptions(0.05).momentum(0.3));
 //  torch::optim::Adam optimizer(model.parameters(), torch::optim::AdamOptions(1e-3));
 
   for (size_t epoch = 1; epoch <= kNumberOfEpochs; ++epoch) {

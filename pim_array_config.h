@@ -32,6 +32,14 @@ struct pim_array_config
         trunc_input = config["trunc_input"].as<bool>();
         dynamic_max_input = config["dynamic_max_input"].as<bool>();
     }
+
+    void print(std::ostream & os)
+    {
+        os << "phyArr sizes = [" << phyArrRowSize << ',' << phyArrColSize << "]\n" \
+            << "in/out/unit bits" "= [" << inBits << '/' << outBits << '/' << unitBits << "]\n" \
+            << "has neg " << has_negative_input << ',' << "max_phy_input =" << max_phy_input_value \
+            << "trunc_input " << trunc_input << "dynamic_max " << dynamic_max_input << std::endl;
+    }
 };
 
 

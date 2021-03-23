@@ -15,6 +15,7 @@ int kTestBatchSize = 32;
 int kTrainBatchSize = 32;
 int kNumberOfEpochs = 10;
 auto runDev = torch::kCPU;
+std::string out_string = "pim_vgg8_cifar10_out";
 auto pim_type = PimArrayType::only_counters_pim_array;//PimArrayType::simple_logic_array;
 
 
@@ -288,7 +289,7 @@ int main(int argc, char *argv[])
     else
         torch::save(net, "net_go.pt");  
     
-    std::ofstream out("pim_vgg8_cifar10_out");
+    std::ofstream out(out_string);
     out << *net << std::endl; 
     return 0;
 }

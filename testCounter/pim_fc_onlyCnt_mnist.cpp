@@ -24,7 +24,7 @@ const int64_t kTestBatchSize = 1000;
 const int64_t kNumberOfEpochs = 10;
 
 // After how many batches to log a new update with the loss value.
-const int64_t kLogInterval = 10;
+const int64_t kLogInterval = 100;
 auto runDev = torch::kCPU;
 // Define a new Module.
 struct Net : torch::nn::Module {
@@ -80,13 +80,13 @@ void train(
   model.train();
   size_t batch_idx = 0;
   for (auto& batch : data_loader) {
-    std::cout << batch_idx << std::endl;
+    //std::cout << batch_idx << std::endl;
     auto data = batch.data.to(device, torch::kFloat64), targets = batch.target.to(device);
     optimizer.zero_grad();
     auto output = model.forward(data);
     auto loss = torch::nll_loss(output, targets);
     AT_ASSERT(!std::isnan(loss.template item<float>()));
-    pimArrayExampleCounters::phyArrMan.schedule(8, 8*64*64, 16);    
+    //pimArrayExampleCounters::phyArrMan.schedule(8, 8*64*64, 16);    
     loss.backward();
     optimizer.step();
     if (batch_idx++ % kLogInterval == 0) {

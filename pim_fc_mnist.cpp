@@ -80,7 +80,7 @@ void train(
   model.train();
   size_t batch_idx = 0;
   for (auto& batch : data_loader) {
-    std::cout << batch_idx << std::endl;
+    //std::cout << batch_idx << std::endl;
     auto data = batch.data.to(device, torch::kFloat64), targets = batch.target.to(device);
     optimizer.zero_grad();
     auto output = model.forward(data);

@@ -18,7 +18,6 @@ struct pim_array_config
     
     pim_array_config(std::string filename = "../pimarray.yaml")
     {
-        pim_array_config x;
         YAML::Node config = YAML::LoadFile(filename);
         rowSize = config["rowSize"].as<int>();
         colSize = config["colSize"].as<int>();

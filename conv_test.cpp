@@ -1,7 +1,3 @@
-//
-// Created by 周恒 on 2020/11/23.
-//
-
 #include <torch/torch.h>
 #include <iostream>
 #include "logic_array_interface.h"

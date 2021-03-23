@@ -4,13 +4,12 @@
 #pragma once
 
 #include "pim_array_config.h"
+#include "phy_array_simple.h"
 #include "logic_array_interface.h"
 #include <cassert>
 #include <mutex>
 #include <algorithm>
 #include <vector>
-#include "phy_array_simple.h"
-
 
 using torch::indexing::Slice;
 using torch::indexing::Ellipsis;
@@ -82,18 +81,18 @@ private:
     static std::mutex mu;
 };
 
-//std::mutex phyArrayManager::mu;
+std::mutex phyArrayManager::mu;
 
 
 class pimArrayExample : public LogicArrayInterface
 {
 public:
-//    pimArrayExample(int rowSizeIn, int colSizeIn, const torch::TensorOptions& op = {}, pim_array_config cf = decf): LogicArrayInterface(rowSizeIn, colSizeIn)
-//    {
-//        cf.rowSize = rowSizeIn;
-//        cf.colSize = colSizeIn;
-//        init(cf, op);
-//    }
+   pimArrayExample(int rowSizeIn, int colSizeIn, const torch::TensorOptions& op = {}, pim_array_config cf = decf): LogicArrayInterface(rowSizeIn, colSizeIn)
+   {
+       cf.rowSize = rowSizeIn;
+       cf.colSize = colSizeIn;
+       init(cf, op);
+   }
 
     pimArrayExample(const pim_array_config &cf, const torch::TensorOptions &op = {}): LogicArrayInterface(cf.rowSize, cf.colSize)
     {

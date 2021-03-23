@@ -18,20 +18,8 @@ using std::endl;
 //     bool dynamic_max_input;
 // };
 
-pim_array_config cf={
-    .rowSize = 256,
-    .colSize = 256,
-    .phyArrRowSize = 64,
-    .phyArrColSize = 64,
-    .inBits = 8,
-    .outBits = 8,
-    .unitBits = 8,
-    .cellBits = 1,
-    .has_negative_input = false,
-    .max_phy_input_value = 1,
-    .trunc_input = false,
-    .dynamic_max_input = true
-};
+pim_array_config cf;
+
 
 const int N = 5;  // array of N x M
 const int M = 5;   // 

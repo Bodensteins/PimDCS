@@ -1,7 +1,3 @@
-//
-// Created by 周恒 on 2020/11/22.
-//
-
 #ifndef PIMTORCH_PIM_LINEAR_H
 #define PIMTORCH_PIM_LINEAR_H
 

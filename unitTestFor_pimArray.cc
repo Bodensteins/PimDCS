@@ -77,7 +77,7 @@ void someSmallTest()
     torch::Tensor a = torch::full({9, 9}, 1);
     cout << a.sum() << endl;
     //pimArrayExample p(N, M, {}, cf);
-    pimArrayExample p(global_array_config);
+    pimArrayExample p(decf);
     p.write_mat(torch::tensor({{1.0, 0.5}}));
     std::cout << "---" << std::endl;
     std::cout << p.read_cell(0, 0).toDouble() << std::endl;

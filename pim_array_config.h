@@ -1,7 +1,3 @@
-//
-// Created by chenghuan on 1/6/21.
-//
-
 #ifndef PIMTORCH_PIM_ARRAY_CONFIG_H
 #define PIMTORCH_PIM_ARRAY_CONFIG_H
 
@@ -19,9 +15,10 @@ struct pim_array_config
     double max_phy_input_value;                     // input value has its maximum, we will use this maximum to regionalizatoin input value by inBits.
     bool trunc_input;                               // if true, the value > max_phy_input_value, will trunc to the max_phy_input_value. if false, if will reprot error if value>max_phy_input
     bool dynamic_max_input;                         // if true, we will dynamic get max_input rather than use max_phy_input_value
-
-    pim_array_config(const std::string filename = "../pimarray.yaml")
+    
+    pim_array_config(std::string filename = "../pimarray.yaml")
     {
+        pim_array_config x;
         YAML::Node config = YAML::LoadFile(filename);
         rowSize = config["rowSize"].as<int>();
         colSize = config["colSize"].as<int>();
@@ -38,8 +35,9 @@ struct pim_array_config
     }
 };
 
-extern const pim_array_config decf = pim_array_config("../pim_onlyCounter.yaml");;//global config
-extern const pim_array_config decf_for_counters = pim_array_config("../pim_onlyCounter.yaml");
-;//global config
+
+const pim_array_config decf("../pimarray.yaml");
+
+const pim_array_config decf_for_counters("../pim_onlyCounter.yaml");
 
 #endif //PIMTORCH_PIM_ARRAY_CONFIG_H

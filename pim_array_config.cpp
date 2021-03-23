@@ -4,4 +4,6 @@
 
 #include "pim_array_config.h"
 
-const pim_array_config global_array_config = pim_array_config();
+const pim_array_config decf = pim_array_config();
+
+const pim_array_config decf_for_counters = pim_array_config();

@@ -40,12 +40,18 @@
 
 #pragma once
 
+#include "pim_array_config.h"
 #include "pim_array_example.h"
 #include <cassert>
 #include <mutex>
 #include <algorithm>
 #include <vector>
+#include <map>
 
+using std::swap;
+using std::pair;
+using std::make_pair;
+using std::vector;
 using torch::indexing::Slice;
 using torch::indexing::Ellipsis;
 using torch::indexing::None;
@@ -53,6 +59,246 @@ using PIM::LogicArrayInterface;
 using PIM::SimpleLogicArray;
 using torch::TensorOptions;
 using namespace PIM;
+
+static int parallel_size = 0;
+struct phyArraySimpleEx
+{
+    phyArraySimpleEx(int rowSize = 128, int colSize = 128, bool toGPU = false) : rowSize(rowSize), colSize(colSize)
+    {
+        double minConduct = 1e-6;   //define minimum & maximum conduct of a cell
+        double maxConduct = 1e-4;
+        double readVoltage = 0.5;   //define read voltage
+
+        ImaxPCell = readVoltage * maxConduct;   //get current under read voltage
+        IminPCell = readVoltage * minConduct;
+        deltaI = ImaxPCell - IminPCell;
+        totalIntervalWrCnt = totalCmpWrCnt = totalWrCnt = 0;
+
+        device = toGPU? torch::kCUDA : torch::kCPU;
+        torch::TensorOptions op(device);
+        
+        //data = at::full({rowSize, colSize}, IminPCell, op.dtype(torch::kFloat64));   //data in type of current, Imin or Imax
+        dataDigit = at::full({rowSize, colSize}, 0, op.dtype(torch::kInt8));         //data in type of digit value 0(Imin)/1(Imax)
+        cellWrCnt = at::zeros({rowSize, colSize}, op.dtype(torch::kInt64));                 
+
+        rightRotate = downRotate = 0;
+        colSize_ = colSize-2;
+    }
+
+    void writeCell(int row, int col, int len, const at::Tensor &in)
+    {
+        auto write_it = [&](int row, int col, int len, const at::Tensor &in) -> void
+        {
+            //at::Tensor writeIn = at::full({len}, deltaI, TensorOptions(device).dtype(torch::kFloat64));
+            at::Tensor rowAdd = dataDigit[row];
+
+            totalWrCnt += len;              // write count 
+            int64_t tmp;
+            rowAdd = rowAdd.index({torch::indexing::Slice(col, col + len)}).bitwise_xor(in);
+            totalCmpWrCnt += (tmp = rowAdd.sum().item<int64_t>());  //cmp write count, only write different data to origin data will be counted
+            totalIntervalWrCnt += tmp;
+            cellWrCnt[row].index_put_({torch::indexing::Slice(col, col + len)},
+                    cellWrCnt[row].index({torch::indexing::Slice(col, col + len)}).add(rowAdd)); //cmp write count of each cell 
+
+            //writeIn.mul_(in).add_(IminPCell);
+            //data[row].index_put_({torch::indexing::Slice(col, col + len)}, writeIn);    //data in type of current
+            dataDigit[row].index_put_({torch::indexing::Slice(col, col + len)}, in);    //data in type of digit
+        };
+        
+        /* ref colum don't rotate, rotate only happen to data region */
+        if (col == colSize-1 && len == 1) // write ref column 1, never rotate
+        {
+            write_it(row, col, len, in);
+            return;
+        }
+
+        row = (row+downRotate)%rowSize;
+        col = (col+rightRotate)%colSize_;
+
+        if (col+len<=colSize_)
+        {
+            write_it(row, col, len, in);
+        }
+        else
+        {
+            int len1, len2;
+            len1 = colSize_ - col;
+            len2 = len-len1; 
+            write_it(row, col, len1, in.index({Slice(0, len1)}));
+            write_it(row, 0, len2, in.index({Slice(len1, len1+len2)}));
+        }
+
+
+    }
+
+    void rotate()
+    {
+        ++rightRotate;
+        if (rightRotate == colSize_)
+        {
+            ++downRotate;
+            rightRotate = 0;
+            if (downRotate == rowSize)
+                downRotate = 0;
+        }
+    }
+    
+    void clearIntervalCount()
+    {
+        totalIntervalWrCnt = 0;
+    }
+
+    void initWriteMat(const at::Tensor &in)
+    {
+        auto write_it = [&](const at::Tensor &in, int x, int y, int m, int n) -> void
+        {
+            //std::cout << in << std::endl;
+            //at::Tensor writeIn = at::full({m, n}, deltaI, TensorOptions(device).dtype(torch::kFloat64));
+            //std::cout << dataDigit.index({Slice(x, x+m), Slice(y, y+n)}) << std::endl;
+            at::Tensor add = dataDigit.index({Slice(x, x+m), Slice(y, y+n)}).bitwise_xor(in.to(torch::kInt8));
+
+            totalWrCnt += (m*n);
+            int64_t tmp;
+            totalCmpWrCnt += (tmp = add.sum().item<int64_t>());
+            totalIntervalWrCnt += tmp;
+            cellWrCnt.index_put_({Slice(x, x+m), Slice(y, y+n)}, cellWrCnt.index({Slice(x, x+m), Slice(y, y+n)}).add(add));
+
+            //writeIn.mul_(in).add_(IminPCell);
+            //data.index_put_({Slice(x, x+m), Slice(y, y+n)}, writeIn);
+            dataDigit.index_put_({Slice(x, x+m), Slice(y, y+n)}, in);
+        };
+        write_it(in, 0, 0, rowSize, colSize);
+    }
+    /*
+    *   m -> in.size(0), n -> in.size(1)
+    *   write mat into our array.
+    *   similar to writeCell
+    * */
+    void writeMat(const at::Tensor &vec, int m, int n)
+    {
+        auto write_it = [&](const at::Tensor &in, int x, int y, int m, int n) -> void
+        {
+            //std::cout << in << std::endl;
+            //at::Tensor writeIn = at::full({m, n}, deltaI, TensorOptions(device).dtype(torch::kFloat64));
+            //std::cout << dataDigit.index({Slice(x, x+m), Slice(y, y+n)}) << std::endl;
+            at::Tensor add = dataDigit.index({Slice(x, x+m), Slice(y, y+n)}).bitwise_xor(in.to(torch::kInt8));
+
+            totalWrCnt += (m*n);
+            int64_t tmp;
+            totalCmpWrCnt += (tmp = add.sum().item<int64_t>());
+            totalIntervalWrCnt += tmp;
+            cellWrCnt.index_put_({Slice(x, x+m), Slice(y, y+n)}, cellWrCnt.index({Slice(x, x+m), Slice(y, y+n)}).add(add));
+
+            //writeIn.mul_(in).add_(IminPCell);
+            //data.index_put_({Slice(x, x+m), Slice(y, y+n)}, writeIn);
+            dataDigit.index_put_({Slice(x, x+m), Slice(y, y+n)}, in);
+        };
+
+        int stx, sty, edx, edy;
+        stx = downRotate;
+        sty = rightRotate;
+
+        edx = (stx+m-1)%rowSize;
+        edy = (sty+n-1)%colSize_;
+
+        if (edx>=stx)
+        {
+            if (edy>=sty)
+            {
+                write_it(vec, stx, sty, m, n);
+            }
+            else
+            {
+                //std::cout << "x y m n = " << stx << ' ' << sty << ' ' << m << ' ' << colSize_-sty<< std::endl;
+                //std::cout << "x y m n = " << stx << ' ' << 0 << ' ' << m << ' ' << edy+1<< std::endl;
+                write_it(vec.index({Slice(), Slice(0, colSize_-sty)}), stx, sty, m, colSize_-sty);
+                write_it(vec.index({Slice(), Slice(colSize_-sty)}), stx, 0, m, edy+1);
+            }
+        }
+        else
+        {
+            if (edy>=sty)
+            {
+                write_it(vec.index({Slice(0, rowSize-stx)}), stx, sty, rowSize-stx, n);
+                write_it(vec.index({Slice(rowSize-stx)}), 0, sty, edx+1, n);
+            }
+            else
+            {
+                write_it(vec.index({Slice(0, rowSize-stx), Slice(0, colSize_-sty)}), stx, sty, rowSize-stx, colSize_-sty);
+                write_it(vec.index({Slice(0, rowSize-stx), Slice(colSize_-sty)}), stx, 0, rowSize-stx, edy+1);
+                write_it(vec.index({Slice(rowSize-stx), Slice(0, colSize_-sty)}), 0, sty, edx+1, colSize_-sty);
+                write_it(vec.index({Slice(rowSize-stx), Slice(colSize_-sty)}), 0, 0, edx+1, edy+1);
+            }
+        }
+    }
+
+    /*
+     *
+     * readCell from [row, col] to [row, col+len-1]
+     * As we have stored data in type of digit in dataDigit, so just return it.
+     *
+     *
+     * */
+    void readCell(int row, int col, int len, at::Tensor &out)
+    {
+        row = (row+downRotate)%rowSize;
+        col = (col+rightRotate)%colSize_;
+
+        if (col+len<=colSize)
+            out = dataDigit[row].index({torch::indexing::Slice(col, col + len)});
+        else
+        {
+            int len1 = colSize_ - col;
+            int len2 = len-len1;
+            out = torch::cat({dataDigit[row].index({Slice(col, col+len1)}), dataDigit[row].index({Slice(0, len2)})});
+        }
+    }
+
+    /*
+     * VMM 
+     * implement   out = data^t * in.    ^t means transpose
+     *
+     * */
+    void vmm(const at::Tensor &in, at::Tensor &out)
+    {
+        /* only counter mode, don't use vmm */
+    }
+
+    /*
+     *  number mul vector
+     *  out = in * data[row][col <---> col+len-1]
+     *
+     * */
+    void numMulVector(at::Scalar in, int row, int col, int len, at::Tensor &out)
+    {
+        /* only counter mode, don't use nmv*/
+    }
+
+    void print(std::ostream &os)
+    {
+        using std::endl;
+        // os << "data = " << endl;
+        // os << data << endl;
+        os << "dataDigit = " << endl;
+        os << dataDigit << endl;
+        os << "cell write cnt = " << endl;
+        os << cellWrCnt << endl;
+        os << "totalWrCnt = " << totalWrCnt << endl;
+        os << "totalCmpWrCnt = " << totalCmpWrCnt << endl;
+        os << "now totalIntervalWrCnt = " << totalIntervalWrCnt << endl;
+        os << "-------------------------------------" << endl;
+    }
+    //at::Tensor data;
+    at::Tensor dataDigit;
+    at::Tensor cellWrCnt;
+    int64_t totalWrCnt, totalCmpWrCnt, totalIntervalWrCnt;
+    int rowSize, colSize, colSize_;
+    double ImaxPCell, IminPCell;
+    double deltaI;
+    int rightRotate, downRotate;
+    torch::DeviceType device;
+};
+
 
 /*
 *   This class manage allocation of phy array.
@@ -65,16 +311,28 @@ public:
     int allocPhyArray(int rowSize, int colSize, bool toGPU = false)
     {
         std::lock_guard<std::mutex> lk(mu);
-        arrList.push_back(new phyArraySimple(rowSize, colSize, toGPU));
+        static bool k = true;
+        if (k)
+        {
+            std::cout << "get in only counters" << std::endl;
+            k = false;
+        }
+        arrList.push_back(new phyArraySimpleEx(rowSize, colSize, toGPU));
         return arrList.size() - 1;
     }
 
-    phyArraySimple &access(int x)
+    phyArraySimpleEx &synaccess(int x)
+    {
+        std::lock_guard<std::mutex> lk(mu);
+        return *arrList[x];
+    }
+
+    phyArraySimpleEx &access(int x)
     {
         return *arrList[x];
     }
 
-    phyArraySimple &operator[](int x)
+    phyArraySimpleEx &operator[](int x)
     {
         return *arrList[x];
     }
@@ -85,6 +343,77 @@ public:
             i->print(os);
     }
 
+
+    void schedule(int interval, int tim, int top_k)
+    {
+        static int64_t cnt = 0;
+        if (cnt==0)
+        {
+            std::cout << "first time in schedule" << std::endl;
+        }
+        ++cnt;
+
+        TORCH_INTERNAL_ASSERT(top_k*2<=arrList.size(), "top_k too large");
+        if (cnt%interval == 0)
+        {
+            for (auto &i : arrList)
+                i->rotate();
+
+            if (cnt%tim == 0)
+            {
+                typedef pair<int, phyArraySimpleEx**> pv;
+                vector<pv> v1, v2;
+                int arr_len = arrList.size();
+                for (int i=0; i<arr_len; ++i)
+                    v1.push_back(make_pair(i, &arrList[i]));
+                v2 = v1;
+                sort(v1.begin(), v1.end(), [&](const pv &x, const pv &y) -> bool
+                    {
+                        return (*x.second)->totalCmpWrCnt<(*y.second)->totalCmpWrCnt;        
+                    });
+                
+                sort(v2.begin(), v2.end(), [&](const pv &x, const pv &y) -> bool
+                    {
+                        return (*x.second)->totalIntervalWrCnt>(*y.second)->totalIntervalWrCnt;        
+                    });
+
+                //wr count from small to large, in v1
+                //interval count from large to small, in v2
+
+                for (int i = 0; i<top_k; ++i)
+                {
+                    if ((*v1[i].second)->totalCmpWrCnt<(*v2[i].second)->totalCmpWrCnt && \
+                           (*v1[i].second)->totalIntervalWrCnt<(*v2[i].second)->totalIntervalWrCnt)
+                    {
+                        //std::cout << "swap:" << v1[i].first << "<--->" << v2[i].first << std::endl;
+                        swap(arrList[v1[i].first], arrList[v2[i].first]);
+                    } 
+                }
+                //here, we simply swap two items in arrList. This is logically right because in counter-only mode, we use realMat for computing in logic_array(pimArrayExampleCounters) and the physical array is not used for computing. So simply swapping is ok and right.
+
+                for (int i = 0; i<top_k; ++i)
+                {
+                    int j = arr_len-i-1;
+                    if ((*v1[j].second)->totalCmpWrCnt>(*v2[j].second)->totalCmpWrCnt && \
+                           (*v1[j].second)->totalIntervalWrCnt>(*v2[j].second)->totalIntervalWrCnt)
+                    {
+                        //std::cout << "swap:" << v1[j].first << "<--->" << v2[j].first << std::endl;
+                        swap(arrList[v1[j].first], arrList[v2[j].first]);
+                    } 
+                }
+
+
+
+                for (auto &i : arrList)
+                    i->clearIntervalCount();
+                //std::cout << "swap over" << std::endl;
+            }
+        }
+    }
+
+    phyArrayManager_counters()
+    {
+    }
     ~phyArrayManager_counters()
     {
         for (auto &i : arrList)
@@ -94,27 +423,14 @@ public:
     }
 
 private:
-    std::vector<phyArraySimple *> arrList;
+    std::vector<phyArraySimpleEx *> arrList;
     static std::mutex mu;
 };
 
 std::mutex phyArrayManager_counters::mu;
 
 
-pim_array_config decf_for_counters = {
-    .rowSize = 256,
-    .colSize = 256,
-    .phyArrRowSize = 64,
-    .phyArrColSize = 64,
-    .inBits = 8,
-    .outBits = 8,
-    .unitBits = 8,
-    .cellBits = 1,
-    .has_negative_input = true,
-    .max_phy_input_value = 128,
-    .trunc_input = true,
-    .dynamic_max_input = true
-};
+
 
 
 /*
@@ -170,16 +486,20 @@ public:
         device = toGPU? torch::kCUDA : torch::kCPU;
         //std::cout << "toGPU " << toGPU << std::endl;
         arr = std::vector<std::vector<int>>(arrX_size, std::vector<int>(arrY_size));
+        torch::Tensor initMat = torch::cat({torch::zeros({phyArrRowSize, phyArrColSize+1}, torch::kInt8), torch::ones({phyArrRowSize, 1}, torch::kInt8)}, 1).to(op.device());
         for (int i = 0; i < arrX_size; ++i)
             for (int j = 0; j < arrY_size; ++j)
             {
                 int k = phyArrMan.allocPhyArray(phyArrRowSize, phyArrColSize + 2, toGPU);
                 arr[i][j] = k;
-                for (int r = 0; r < phyArrRowSize; ++r)
-                    phyArrMan[k].writeCell(r, phyArrColSize + 1, 1, torch::tensor({1}, TensorOptions(device)));
+                //for (int r = 0; r < phyArrRowSize; ++r)
+                //{
+                    //phyArrMan.synaccess(k).writeCell(r, phyArrColSize + 1, 1, torch::tensor({1}, TensorOptions(device)));
+                phyArrMan.synaccess(k).initWriteMat(initMat);
+                //}
             }
-        ImaxPCell = phyArrMan[0].ImaxPCell;
-        IminPCell = phyArrMan[0].IminPCell;
+        ImaxPCell = phyArrMan.synaccess(0).ImaxPCell;
+        IminPCell = phyArrMan.synaccess(0).IminPCell;
         maxIsumPerPhyCol = ImaxPCell * phyArrRowSize;
         phyAllRowSize = phyArrRowSize*arrX_size;
 
@@ -224,6 +544,8 @@ public:
         for (int i = 0; i < arrX_size; ++i)
             for (int j = 0; j < arrY_size; ++j)
                 phyArrMan[arr[i][j]].print(os);
+        os << "------------logic array-----" << std::endl;
+        return os;
     }
 
     at::Tensor input2digit(const at::Tensor &vec, double &max_one);
@@ -250,12 +572,18 @@ public:
 
     int unit2digit(double x)
     {
+        x = x>1? 1 : x<-1? -1 : x;
         return trunc_45((x + 1) / 2 * (unitLevels - 1));
     }
 
     torch::Tensor unit2digit(const torch::Tensor &x)
     {
-        return x.add(1).div(2.0).mul(unitLevels - 1).add(0.5).to(torch::kInt32);
+        auto larger = x>1;
+        auto less = x<-1;
+        auto y = x;
+        y.index_put_({larger}, 1.0);
+        y.index_put_({less}, -1.0);
+        return y.add(1).div(2.0).mul(unitLevels - 1).add(0.5).to(torch::kInt32);
     }
 
     double digit2unit(int x)
@@ -268,9 +596,11 @@ public:
         return x.to(torch::kFloat64).div(unitLevels-1).mul(2).subtract(1);
     }
 
-private:
     static phyArrayManager_counters phyArrMan;
+private:
     std::vector<std::vector<int>> arr;
+
+    std::mutex mu;
 
     int phyArrRowSize, phyArrColSize;
     int arrX_size, arrY_size;
@@ -453,10 +783,17 @@ torch::Tensor pimArrayExampleCounters::nmv(int64_t row, int64_t col, const torch
 
 torch::Tensor pimArrayExampleCounters::mm(const torch::Tensor &mat) 
 {
-    if (mat.size(1)<realMat.size(0))
-        return torch::matmul(mat, realMat.slice(0, 0, mat.size(1)));
+    double max_one = max_phy_input_value;
+
+    auto tmp = mat.clone();
+    auto index_larger = tmp>max_one;
+    auto index_smaller = tmp<-max_one;
+    tmp.index_put_({index_larger}, max_one);
+    tmp.index_put_({index_smaller}, -max_one);
+    if (tmp.size(1)<realMat.size(0))
+        return torch::matmul(tmp, realMat.slice(0, 0, mat.size(1)));
     else
-        return torch::matmul(mat, realMat);
+        return torch::matmul(tmp, realMat);
 }
 
 /*
@@ -465,6 +802,7 @@ torch::Tensor pimArrayExampleCounters::mm(const torch::Tensor &mat)
 */
 void pimArrayExampleCounters::write_mat(const torch::Tensor &mat) 
 {
+    std::lock_guard<std::mutex> lk(mu);
     int M = std::min(mat.size(0), rowSize);
     int N = std::min(mat.size(1), colSize);
     // at::parallel_for(0, len, 0, [&](int st, int ed)->void
@@ -476,24 +814,25 @@ void pimArrayExampleCounters::write_mat(const torch::Tensor &mat)
     realMat.index_put_({Slice(0, M), Slice(0, N)}, digit2unit(data)); 
     torch::Tensor dataDigit = torch::empty({M, N * unitBits}, TensorOptions(device).dtype(torch::kInt8));
 
-    for (int i=0; i<unitBits; ++i)
+    at::parallel_for(0, unitBits, parallel_size, [&](int st, int ed)->void
     {
-        dataDigit.index_put_({Slice(), Slice(i, N*unitBits, unitBits)}, (data.bitwise_and(1<<i)!=0));
-    }
+        for (int i=st; i<ed; ++i)
+            dataDigit.index_put_({Slice(), Slice(i, N*unitBits, unitBits)}, (data.bitwise_and(1<<i)!=0));
+    });
 
     int ed_arrY, ed_arrColId;
     int ed_arrX, ed_arrRowId;
     getColPos(N, ed_arrY, ed_arrColId);
     getRowPos(M, ed_arrX, ed_arrRowId);
     
-    at::parallel_for(0, ed_arrX*ed_arrY, 0, [&](int st, int ed)->void
+    at::parallel_for(0, ed_arrX*ed_arrY, parallel_size, [&](int st, int ed)->void
     {
         for (int k=st; k<ed; ++k)
         {
             int i=k/ed_arrY;
             int j=k%ed_arrY;
             phyArrMan[arr[i][j]].writeMat(dataDigit.index({Slice(i*phyArrRowSize, (i+1)*phyArrRowSize), Slice(j*usedcellsPerRow, (j+1)*usedcellsPerRow)}),\
-                            phyArrRowSize, phyArrColSize);
+                            phyArrRowSize, usedcellsPerRow);
         }
     });
     // for (int i=0; i<ed_arrX; ++i)
@@ -506,12 +845,12 @@ void pimArrayExampleCounters::write_mat(const torch::Tensor &mat)
     // }
     if (ed_arrRowId!=0)
     {
-        at::parallel_for(0, ed_arrY, 0, [&](int st, int ed)
+        at::parallel_for(0, ed_arrY, parallel_size, [&](int st, int ed)
         {
             for (int j=st; j<ed; ++j)
             {
                 phyArrMan[arr[ed_arrX][j]].writeMat(dataDigit.index({Slice(ed_arrX*phyArrRowSize, M), Slice(j*usedcellsPerRow, (j+1)*usedcellsPerRow)}),\
-                            ed_arrRowId, phyArrColSize);
+                            ed_arrRowId, usedcellsPerRow);
             }
         });
         // for (int j=0; j<ed_arrY; ++j)
@@ -523,7 +862,7 @@ void pimArrayExampleCounters::write_mat(const torch::Tensor &mat)
 
     if (ed_arrColId!=0)
     {
-        at::parallel_for(0, ed_arrX, 0, [&](int st, int ed)
+        at::parallel_for(0, ed_arrX, parallel_size, [&](int st, int ed)
         {
             for (int i=st; i<ed; ++i)
             {
@@ -538,7 +877,7 @@ void pimArrayExampleCounters::write_mat(const torch::Tensor &mat)
         // }
     }
 
-    if (ed_arrColId!=0 && ed_arrColId!=0)
+    if (ed_arrRowId!=0 && ed_arrColId!=0)
     {
         phyArrMan[arr[ed_arrX][ed_arrY]].writeMat(dataDigit.index({Slice(ed_arrX*phyArrRowSize, M), Slice(ed_arrY*usedcellsPerRow, N*unitBits)}),\
                          ed_arrRowId, ed_arrColId);

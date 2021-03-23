@@ -27,7 +27,7 @@ pim_array_config cf={
     .outBits = 8,
     .unitBits = 8,
     .cellBits = 1,
-    .has_negative_input = true,
+    .has_negative_input = false,
     .max_phy_input_value = 1,
     .trunc_input = false,
     .dynamic_max_input = true
@@ -39,9 +39,14 @@ const int len = 10;   // #len vectors
 
 // we test a matrix of (len x N) mul (N x M)
 void someSmallTest();
+void accuracyTest();
+void scheduleTest();
+
 int main()
 {
-    someSmallTest();
+    //someSmallTest();
+    //accuracyTest();
+    scheduleTest();
     return 0;
     // torch::Tensor k = torch::ones({3, 4}).to(torch::kCUDA);
     // std::cout << k << std::endl;
@@ -68,7 +73,7 @@ int main()
     }
 
     v = v.to(torch::kCUDA);
-    // cout << "v=\n" << v << endl;
+    cout << "v=\n" << v << endl;
     auto st = clock();
     auto out = pp.mm(v);
     auto ed = clock();
@@ -80,13 +85,60 @@ int main()
 
     ed = clock();
     cout << "our time = " <<(ed-st)/1.0/CLOCKS_PER_SEC << endl;
-    // cout << "diff percent = \n" << (out-out1).div(out)*100 << endl;
-    // cout << "real out=\n" << out <<endl;
-    // cout << "our out1=\n" << out1 << endl;
+    cout << "diff percent = \n" << (out-out1).div(out)*100 << endl;
+    //cout << "real out=\n" << out <<endl;
+    //cout << "our out1=\n" << out1 << endl;
     cout << (((out-out1).div(out)*100).abs()>=10).sum(0).sum(0).template item<double>()/len*100/M << "%" << endl;
 
-    p.print(cout);
+    //p.print(cout);
     return 0;
+}
+
+void accuracyTest()
+{
+    auto op = torch::TensorOptions(torch::kCUDA).dtype(torch::kFloat64);
+    pimArrayExampleCounters p(N, M, op, cf);
+    torch::Tensor pp = torch::rand({N, M}).to(op);
+
+
+    p.phyArrMan.schedule(1, 2, 0);
+    p.phyArrMan.schedule(1, 2, 0);
+    p.phyArrMan.schedule(1, 2, 0);
+    p.phyArrMan.schedule(1, 2, 0);
+    p.phyArrMan.schedule(1, 2, 0);
+    p.phyArrMan.schedule(1, 2, 0);
+    p.phyArrMan.schedule(1, 2, 0);
+    p.phyArrMan.schedule(1, 2, 0);
+    p.phyArrMan.schedule(1, 2, 0);
+    p.phyArrMan.schedule(1, 2, 0);
+
+    p.write_mat(pp);
+
+
+    auto k = p.read_mat().to(op);
+
+    cout << k << endl;
+    cout << pp << endl;
+    cout << (k-pp).div(pp)*100 << endl;
+
+
+    phyArraySimpleEx a(4, 6, false);
+    //a.writeMat(torch::tensor({{1, 0}, {0, 1}}), 2, 2);
+    a.rotate();
+    a.rotate();
+    //a.writeMat(torch::tensor({{1, 1}, {0, 1}}), 2, 2);
+    a.rotate();
+    //a.writeMat(torch::tensor({{1, 1}, {0, 1}}), 2, 2);
+    for (int i=0; i<3; ++i)
+        a.rotate();
+    //a.writeMat(torch::tensor({{0, 1}, {0, 1}}), 2, 2);
+
+    for (int i=0; i<9; ++i)
+       a.rotate(); 
+
+    a.writeMat(torch::tensor({{1, 1, 1, 0}, {1, 1, 0, 1}, {1, 0, 1, 1}, {0, 1, 1, 1}}), 4, 4);
+    a.writeCell(0, 5, 1, torch::tensor({1}));
+    a.print(cout);
 }
 
 void someSmallTest()
@@ -111,4 +163,25 @@ void someSmallTest()
     });
     std::cout << a << std::endl;
     // torch::batch_norm_backward_reduce
+}
+
+void scheduleTest()
+{
+    auto op = torch::TensorOptions(torch::kCPU).dtype(torch::kFloat64);
+    pimArrayExampleCounters pim(128, 24, op, cf);
+    torch::Tensor pp1 = torch::cat({torch::ones({64, 8}).to(op), torch::ones({64, 8}).to(op).mul(-1), torch::ones({64, 8}).to(op).mul(-1)}, 1);
+    torch::Tensor pp2 = torch::ones({64, 24}).to(op).mul(-1);
+
+    pp1 = torch::cat({pp1, pp1}, 0);
+    pp2 = torch::cat({pp2, pp2}, 0); 
+
+    for (int i=0; i<64*64*1; ++i)
+    {
+        pim.write_mat(pp1);
+        pim.write_mat(pp2);
+        pim.phyArrMan.schedule(1, 64*64, 2);
+    }
+
+    pim.print(cout);
+    cout << "out" << endl;
 }

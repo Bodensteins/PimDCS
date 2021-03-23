@@ -14,6 +14,7 @@ using namespace torch::autograd;
 using namespace torch::nn;
 using namespace at::native;
 namespace F = torch::nn::functional;
+static int parallel_for_size = 0;
 
 namespace PIM {
   template<typename T>
@@ -177,7 +178,7 @@ namespace PIM {
       ctx->save_for_backward({input, weight, bias.has_value() ? bias.value() : Tensor()});
       ctx->saved_data["stride"] = std::vector<int64_t>(stride.vec());
       ctx->saved_data["padding"] = std::vector<int64_t>(padding.vec());
-      ctx->saved_data["wb_ptr"] = c10::make_intrusive<PimArrayPtr>(wb);
+      //ctx->saved_data["wb_ptr"] = c10::make_intrusive<PimArrayPtr>(wb);
       ctx->saved_data["wb_t_ptr"] = c10::make_intrusive<PimArrayPtr>(wb_t);;
       ctx->saved_data["prev_ptrs"] = c10::make_intrusive<PimArrayPtrList>(prevs);;
 
@@ -200,15 +201,15 @@ namespace PIM {
 //        wb_t.ptr->write_mat(weight.flip({2, 3}).permute({0, 2, 3, 1}).reshape({-1, n_input_plane}));
       }
 
-      // gold result
-      Tensor output;
-      if (bias.has_value()) {
-        output = functional::conv2d(
-            input, weight, F::Conv2dFuncOptions().bias(bias.value()).stride(stride).padding(padding));
-      } else {
-        output = functional::conv2d(
-            input, weight, F::Conv2dFuncOptions().stride(stride).padding(padding));
-      }
+      // // gold result
+      // Tensor output;
+      // if (bias.has_value()) {
+      //   output = functional::conv2d(
+      //       input, weight, F::Conv2dFuncOptions().bias(bias.value()).stride(stride).padding(padding));
+      // } else {
+      //   output = functional::conv2d(
+      //       input, weight, F::Conv2dFuncOptions().stride(stride).padding(padding));
+      // }
 
       auto pim_input = F::unfold(input,
           UnfoldOptions(kernel_size).padding(padding).stride(stride)).transpose(1, 2);
@@ -219,7 +220,7 @@ namespace PIM {
         pim_input = add_bias(pim_input);
       }
 
-      at::parallel_for(0, batch_size, 0, [&](int64_t start, int64_t end) {
+      at::parallel_for(0, batch_size, parallel_for_size, [&](int64_t start, int64_t end) {
         for (int64_t i = start; i < end; i++) {
           pim_output[i] = wb.ptr->mm(pim_input[i]);   // shape of wb_ptr: (in_features, out_features)
         }
@@ -250,7 +251,7 @@ namespace PIM {
       auto stride = ctx->saved_data["stride"].toIntVector();
       auto padding = ctx->saved_data["padding"].toIntVector();
 
-      c10::intrusive_ptr<PimArrayPtr> wb_ptr = ctx->saved_data["wb_ptr"].toCustomClass<PimArrayPtr>();
+      //c10::intrusive_ptr<PimArrayPtr> wb_ptr = ctx->saved_data["wb_ptr"].toCustomClass<PimArrayPtr>();
       c10::intrusive_ptr<PimArrayPtr> wb_t_ptr = ctx->saved_data["wb_t_ptr"].toCustomClass<PimArrayPtr>();
       c10::intrusive_ptr<PimArrayPtrList> prev_ptrs = ctx->saved_data["prev_ptrs"].toCustomClass<PimArrayPtrList>();
 
@@ -263,7 +264,7 @@ namespace PIM {
       Tensor unf_dLdZ = F::unfold(insert_dLdZ,
           F::UnfoldFuncOptions(kernel_size).padding(unfold_padding)).transpose(1, 2);
       Tensor dZ_ = torch::zeros({batch_size, input.size(1), unf_dLdZ.size(1)}, grad_output.options());
-      at::parallel_for(0, batch_size, 0, [&](int64_t start, int64_t end) {
+      at::parallel_for(0, batch_size, parallel_for_size, [&](int64_t start, int64_t end) {
         for (int64_t i = start; i < end; i++) {
           dZ_[i] = wb_t_ptr->ptr->mm(unf_dLdZ[i]).transpose(0, 1);
         }
@@ -276,7 +277,7 @@ namespace PIM {
           F::UnfoldFuncOptions(input_size).padding(unfold_padding)).transpose(1, 2);
       std::vector<Tensor> dW_(batch_size);
       auto dLdZ_chunks = unf_swap_dLdZ.chunk(batch_size, 2);
-      at::parallel_for(0, batch_size, 0, [&](int64_t start, int64_t end) {
+      at::parallel_for(0, batch_size, parallel_for_size, [&](int64_t start, int64_t end) {
         for (int64_t i = start; i < end; i++) {
           dW_[i] = torch::zeros({weight.size(0), input.size(1), unf_swap_dLdZ.size(1)}, grad_output.options());
           for (int64_t j = 0; j < weight.size(0); j++) {
@@ -409,7 +410,7 @@ namespace PIM {
         case PimArrayType::only_counters_pim_array:
           return PimConv2dFunction<pimArrayExampleCounters>::apply(
               wb_ptr, wb_t_ptr, prev_ptrs,
-              input, weight, options.bias() ? bias : c10::optional<Tensor>(),
+              input, weight, options.bias() ? bias: c10::optional<Tensor>(),
               options.stride(), options.padding(), is_training_);
         default:
           TORCH_INTERNAL_ASSERT(false, "pim conv, forward type not supported!")

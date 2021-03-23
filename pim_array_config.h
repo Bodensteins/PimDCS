@@ -9,14 +9,16 @@
 
 struct pim_array_config
 {
-    int32_t rowSize, colSize;
-    int32_t phyArrRowSize, phyArrColSize;
-    int32_t inBits, outBits, unitBits, cellBits;
+    int32_t rowSize, colSize;                       //  logic array size
+    int32_t phyArrRowSize, phyArrColSize;           //  phy array size, a logic array is formed by one or multiple phy arrays.
+    int32_t inBits, outBits, unitBits, cellBits;    /*  input/output data bits.  unit bits means precision of data in array. cell bits means one memory cell's precision
+                                                        e.g. unitBits = 8, cellBits = 2.  we need 4 memory cell to represent 1 unit.
+                                                   */
 
-    bool has_negative_input;
-    double max_phy_input_value;
-    bool trunc_input;
-    bool dynamic_max_input;
+    bool has_negative_input;                        // input value has negative number
+    double max_phy_input_value;                     // input value has its maximum, we will use this maximum to regionalizatoin input value by inBits.
+    bool trunc_input;                               // if true, the value > max_phy_input_value, will trunc to the max_phy_input_value. if false, if will reprot error if value>max_phy_input
+    bool dynamic_max_input;                         // if true, we will dynamic get max_input rather than use max_phy_input_value
 
     pim_array_config(const std::string filename = "../pimarray.yaml")
     {
@@ -36,7 +38,8 @@ struct pim_array_config
     }
 };
 
-extern const pim_array_config global_array_config;//global config
-
+extern const pim_array_config decf = pim_array_config("../pim_onlyCounter.yaml");;//global config
+extern const pim_array_config decf_for_counters = pim_array_config("../pim_onlyCounter.yaml");
+;//global config
 
 #endif //PIMTORCH_PIM_ARRAY_CONFIG_H

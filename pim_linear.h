@@ -43,7 +43,7 @@ namespace PIM {
         const Tensor &input, const Tensor &weight, const c10::optional<Tensor> &bias, bool is_training) {
       ctx->save_for_backward({input, weight, bias.has_value() ? bias.value() : Tensor()});
 
-      ctx->saved_data["wb_ptr"] = c10::make_intrusive<PimArrayPtr>(wb);
+      // ctx->saved_data["wb_ptr"] = c10::make_intrusive<PimArrayPtr>(wb);
       ctx->saved_data["wb_t_ptr"] = c10::make_intrusive<PimArrayPtr>(wb_t);
       ctx->saved_data["prev_ptr"] = c10::make_intrusive<PimArrayPtr>(prev);
 

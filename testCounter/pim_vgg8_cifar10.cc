@@ -1,49 +1,84 @@
-#include "pure_array.h"
+#include "../pure_array.h"
+#include "../pim_conv.h"
+#include "../pim_linear.h"
 #include <iostream>
 #include <string>
 #include <ctime>
+#include <torch/torch.h>
+#include <chrono>
+#include <omp.h>
 
+using namespace PIM;
+
+
+int kTestBatchSize = 32;
+int kTrainBatchSize = 32;
+int kNumberOfEpochs = 10;
 auto runDev = torch::kCPU;
+std::string out_string = "pim_vgg8_cifar10_out";
+auto pim_type = PimArrayType::only_counters_pim_array;//PimArrayType::simple_logic_array;
+
 
 struct VGG8_Net: torch::nn::Module
 {
-    VGG8_Net(): conv(6, nullptr), fc1(nullptr), fc2(nullptr)
+    VGG8_Net(): conv(7, nullptr), fc1(nullptr), fc2(nullptr)
     {
-        conv[0] = register_module("conv0", torch::nn::Conv2d(torch::nn::Conv2dOptions(3, 128, 3).padding(1)));
-        conv[1] = register_module("conv1", torch::nn::Conv2d(torch::nn::Conv2dOptions(128, 128, 3).padding(1)));
-        conv[2] = register_module("conv2", torch::nn::Conv2d(torch::nn::Conv2dOptions(128, 256, 3).padding(1)));
-        conv[3] = register_module("conv3", torch::nn::Conv2d(torch::nn::Conv2dOptions(256, 256, 3).padding(1)));
-        conv[4] = register_module("conv4", torch::nn::Conv2d(torch::nn::Conv2dOptions(256, 512, 3).padding(1)));
-        conv[5] = register_module("conv5", torch::nn::Conv2d(torch::nn::Conv2dOptions(512, 512, 3).padding(1)));
+        //conv[0] = register_module("conv0", torch::nn::Conv2d(torch::nn::Conv2dOptions(3, 128, 3).padding(1)));
+        //conv[1] = register_module("conv1", torch::nn::Conv2d(torch::nn::Conv2dOptions(128, 128, 3).padding(1)));
+        //conv[2] = register_module("conv2", torch::nn::Conv2d(torch::nn::Conv2dOptions(128, 256, 3).padding(1)));
+        //conv[3] = register_module("conv3", torch::nn::Conv2d(torch::nn::Conv2dOptions(256, 256, 3).padding(1)));
+        //conv[4] = register_module("conv4", torch::nn::Conv2d(torch::nn::Conv2dOptions(256, 512, 3).padding(1)));
+        //conv[5] = register_module("conv5", torch::nn::Conv2d(torch::nn::Conv2dOptions(512, 512, 3).padding(1)));
         // conv[6] = register_module("conv6", torch::nn::Conv2d(torch::nn::Conv2dOptions(512, 1024, 3).padding(1)));
-        fc1 = register_module("fc1", torch::nn::Linear(8192, 512));
-        fc2 = register_module("fc2", torch::nn::Linear(512, 10));
+        conv[0] = register_module("conv0", PimConv2d(ExpandingArray<4>({kTrainBatchSize, 3, 32, 32}), pim_type, Conv2dOptions(3, 128, 3).padding(1), runDev));
+
+        std::cout << "0" << std::endl;
+        conv[1] = register_module("conv1", PimConv2d(ExpandingArray<4>({kTrainBatchSize, 128, 32, 32}), pim_type, Conv2dOptions(128, 128, 3).padding(1), runDev)); 
+        std::cout << "1" << std::endl;
+        
+        conv[2] = register_module("conv2", PimConv2d(ExpandingArray<4>({kTrainBatchSize, 128, 16, 16}), pim_type, Conv2dOptions(128, 256, 3).padding(1), runDev));
+
+        std::cout << "2" << std::endl;
+        conv[3] = register_module("conv3", PimConv2d(ExpandingArray<4>({kTrainBatchSize, 256, 16, 16}), pim_type, Conv2dOptions(256, 256, 3).padding(1), runDev));
+
+        conv[4] = register_module("conv4", PimConv2d(ExpandingArray<4>({kTrainBatchSize, 256, 8, 8}), pim_type, Conv2dOptions(256, 512, 3).padding(1), runDev));
+
+        std::cout << "4" << std::endl;
+        conv[5] = register_module("conv5", PimConv2d(ExpandingArray<4>({kTrainBatchSize, 512, 8, 8}), pim_type, Conv2dOptions(512, 512, 3).padding(1), runDev));
+
+        conv[6] = register_module("conv6", PimConv2d(ExpandingArray<4>({kTrainBatchSize, 512, 4, 4}), pim_type, Conv2dOptions(512, 1024, 3).padding(1), runDev));
+        
+        std::cout << "6" << std::endl;
+        fc1 = register_module("fc1", PimLinear(4096, 128, kTrainBatchSize, pim_type, runDev));
+        
+        fc2 = register_module("fc2", PimLinear(128, 10, kTrainBatchSize, pim_type, runDev));
     }
 
     // Implement the Net's algorithm.
     torch::Tensor forward(torch::Tensor x)
     {
-        using torch::relu;      
+        using torch::relu;     
+        using torch::sigmoid; 
         namespace F = torch::nn::functional;
-        x = F::max_pool2d( relu(conv[1](relu(conv[0](x)))), F::MaxPool2dFuncOptions(2).stride(2) ); 
+        x = F::max_pool2d( torch::sigmoid( conv[1]( torch::sigmoid(conv[0](x)).clone() ) ), F::MaxPool2dFuncOptions(2).stride(2) ); 
 
-        x = F::max_pool2d( relu(conv[3](relu(conv[2](x)))), F::MaxPool2dFuncOptions(2).stride(2) );  
+        x = F::max_pool2d( torch::sigmoid( conv[3]( torch::sigmoid(conv[2](x)).clone() ) ), F::MaxPool2dFuncOptions(2).stride(2) );  
 
-        x = F::max_pool2d( relu(conv[5](relu(conv[4](x)))), F::MaxPool2dFuncOptions(2).stride(2) ); 
+        x = F::max_pool2d( torch::sigmoid( conv[5]( torch::sigmoid(conv[4](x)).clone() ) ), F::MaxPool2dFuncOptions(2).stride(2) ); 
 
-        // x = F::max_pool2d( relu(conv[6](x)), F::MaxPool2dFuncOptions(2).stride(2) );
+        x = F::max_pool2d( torch::sigmoid(conv[6](x)), F::MaxPool2dFuncOptions(2).stride(2) );
         x = x.view({x.size(0), -1});
-        x = torch::dropout(x, /*p=*/0.6, /*training=*/is_training());
-        x = torch::relu(fc1(x));
-        x = torch::dropout(x, /*p=*/0.6, /*training=*/is_training());
+        //x = torch::dropout(x, /*p=*/0.6, /*training=*/is_training());
+        x = torch::sigmoid(fc1(x)).clone();
+        //x = torch::dropout(x, /*p=*/0.6, /*training=*/is_training());
         x = fc2(x);
         x = torch::log_softmax(x, 1);
         return x;
     }
 
     // Use one of many "standard library" modules.
-    std::vector<torch::nn::Conv2d> conv;
-    torch::nn::Linear fc1, fc2;
+    std::vector<PimConv2d> conv;
+    PimLinear fc1, fc2;
 };
 
 
@@ -132,7 +167,7 @@ void mytest(std::shared_ptr<VGG8_Net> &net,
 
     for (auto &batch : data_loader)
     {
-         torch::Tensor prediction = net->forward(batch.data.to(device));
+         torch::Tensor prediction = net->forward(batch.data.to(device, torch::kFloat64));
          auto out = prediction.argmax(1);
          correct += out.eq(batch.target.to(device).view({-1})).sum().template item<int64_t>();
         
@@ -154,13 +189,15 @@ void mytrain(std::shared_ptr<VGG8_Net> &net,
     size_t batch_index = 0;
     int correct = 0;
     int ssize = 0;
+    net->train();
+    //torch::autograd::AnomalyMode::set_enabled(true);
     // Iterate the data loader to yield batches from the dataset.
     for (auto &batch : data_loader)
     {
         // Reset gradients.
         optimizer.zero_grad();
         // Execute the model on the input data.
-        torch::Tensor prediction = net->forward(batch.data.to(device));
+        torch::Tensor prediction = net->forward(batch.data.to(device, torch::kFloat64));
 
         auto out = prediction.argmax(1);
         correct += out.eq(batch.target.to(device).view({-1})).sum().template item<int64_t>();
@@ -194,7 +231,21 @@ void mytrain(std::shared_ptr<VGG8_Net> &net,
 
 int main(int argc, char *argv[])
 {
+    torch::DeviceType device_type;
+    if (runDev == torch::kCUDA && torch::cuda::is_available()) {
+        std::cout << "CUDA available! Training on GPU." << std::endl;
+        device_type = torch::kCUDA;
+    } else {
+        std::cout << "Training on CPU." << std::endl;
+        device_type = torch::kCPU;
+        runDev = torch::kCPU;
+    }
+    torch::Device device(device_type);
+
+
     auto net = std::make_shared<VGG8_Net>();
+    net->to(device, torch::kFloat64);
+    
     std::string tr_data_path = "/home/bing/HDD/mysoft/test/cifar10/dataset/";
     
     cifar10Dataset train_data(tr_data_path+"data_batch_1.bin");
@@ -210,21 +261,14 @@ int main(int argc, char *argv[])
     cifar10Dataset test_data(test_data_path+"test_batch.bin");
     std::cout << "test data read end" << std::endl;
 
-    torch::DeviceType device = at::kCPU;
-    if (torch::cuda::is_available() && runDev!=torch::kCPU)
-    {
-        std::cout << "gpu enabled" << std::endl;
-        device = at::kCUDA;
-    }
-
-    int batch_size = 64;
+    int batch_size = kTrainBatchSize;
     
     auto tr_data_loader = torch::data::make_data_loader(train_data.map(torch::data::transforms::Normalize<>({0.485, 0.456, 0.406}, {0.229, 0.224, 0.225})).map(torch::data::transforms::Stack<>()), batch_size);
     auto te_data_loader = torch::data::make_data_loader(test_data.map(torch::data::transforms::Normalize<>({0.485, 0.456, 0.406}, {0.229, 0.224, 0.225})).map(torch::data::transforms::Stack<>()), batch_size);
 
     torch::optim::SGD optimizer(net->parameters(), /*lr=*/0.01);
 
-    net->to(device);
+
     bool going_on = false;  
     if (argc>1 && std::string(argv[1])=="GO_ON")
     {
@@ -232,7 +276,7 @@ int main(int argc, char *argv[])
         torch::load(net, "net.pt");
     }
     start = time(0);
-    for (int epoch=1; epoch<=50; ++epoch)
+    for (int epoch=1; epoch<=kNumberOfEpochs; ++epoch)
     {
         mytrain(net, *tr_data_loader, device, train_data.size().value(), batch_size, optimizer, epoch, going_on);
         mytest(net, *te_data_loader, device, test_data.size().value());
@@ -244,5 +288,8 @@ int main(int argc, char *argv[])
         torch::save(net, "net.pt");
     else
         torch::save(net, "net_go.pt");  
+    
+    std::ofstream out(out_string);
+    out << *net << std::endl; 
     return 0;
 }

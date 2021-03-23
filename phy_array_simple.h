@@ -1,7 +1,3 @@
-//
-// Created by chenghuan on 1/6/21.
-//
-
 #ifndef PIMTORCH_PHYARRAYSIMPLE_H
 #define PIMTORCH_PHYARRAYSIMPLE_H
 
@@ -58,6 +54,25 @@ struct phyArraySimple
         dataDigit[row].index_put_({Slice(col, col + len)}, in);
     }
 
+    void initWriteMat(const at::Tensor &in)
+    {
+        auto write_it = [&](const at::Tensor &in, int x, int y, int m, int n) -> void
+        {
+            //std::cout << in << std::endl;
+            at::Tensor writeIn = at::full({m, n}, deltaI, TensorOptions(device).dtype(torch::kFloat64));
+            //std::cout << dataDigit.index({Slice(x, x+m), Slice(y, y+n)}) << std::endl;
+            at::Tensor add = dataDigit.index({Slice(x, x+m), Slice(y, y+n)}).bitwise_xor(in.to(torch::kInt8));
+
+            totalWrCnt += (m*n);
+            totalCmpWrCnt += (add.sum().item<int64_t>());
+            cellWrCnt.index_put_({Slice(x, x+m), Slice(y, y+n)}, cellWrCnt.index({Slice(x, x+m), Slice(y, y+n)}).add(add));
+
+            writeIn.mul_(in).add_(IminPCell);
+            data.index_put_({Slice(x, x+m), Slice(y, y+n)}, writeIn);
+            dataDigit.index_put_({Slice(x, x+m), Slice(y, y+n)}, in);
+        };
+        write_it(in, 0, 0, rowSize, colSize);
+    }
     /*
     *   m -> in.size(0), n -> in.size(1)
     *   write mat in to our array.

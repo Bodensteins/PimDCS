@@ -60,16 +60,16 @@ struct VGG8_Net: torch::nn::Module
         using torch::relu;     
         using torch::sigmoid; 
         namespace F = torch::nn::functional;
-        x = F::max_pool2d( torch::sigmoid( conv[1]( torch::sigmoid(conv[0](x)).clone() ) ), F::MaxPool2dFuncOptions(2).stride(2) ); 
+        x = F::max_pool2d( torch::relu( conv[1]( torch::relu(conv[0](x)).clone() ) ), F::MaxPool2dFuncOptions(2).stride(2) ); 
 
-        x = F::max_pool2d( torch::sigmoid( conv[3]( torch::sigmoid(conv[2](x)).clone() ) ), F::MaxPool2dFuncOptions(2).stride(2) );  
+        x = F::max_pool2d( torch::relu( conv[3]( torch::relu(conv[2](x)).clone() ) ), F::MaxPool2dFuncOptions(2).stride(2) );  
 
-        x = F::max_pool2d( torch::sigmoid( conv[5]( torch::sigmoid(conv[4](x)).clone() ) ), F::MaxPool2dFuncOptions(2).stride(2) ); 
+        x = F::max_pool2d( torch::relu( conv[5]( torch::relu(conv[4](x)).clone() ) ), F::MaxPool2dFuncOptions(2).stride(2) ); 
 
-        x = F::max_pool2d( torch::sigmoid(conv[6](x)), F::MaxPool2dFuncOptions(2).stride(2) );
+        x = F::max_pool2d( torch::relu(conv[6](x)), F::MaxPool2dFuncOptions(2).stride(2) );
         x = x.view({x.size(0), -1});
         //x = torch::dropout(x, /*p=*/0.6, /*training=*/is_training());
-        x = torch::sigmoid(fc1(x)).clone();
+        x = torch::relu(fc1(x)).clone();
         //x = torch::dropout(x, /*p=*/0.6, /*training=*/is_training());
         x = fc2(x);
         x = torch::log_softmax(x, 1);

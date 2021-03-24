@@ -437,6 +437,7 @@ public:
         outLevels = 1 << outBits;
         has_negative_input = cf.has_negative_input;
         max_phy_input_value = cf.max_phy_input_value;
+        max_weight_value = cf.max_weight_value;
         trunc_input = cf.trunc_input;
         dynamic_max_input = cf.dynamic_max_input;
 
@@ -535,28 +536,28 @@ public:
 
     int unit2digit(double x)
     {
+        x /= max_weight_value;
         x = x>1? 1 : x<-1? -1 : x;
         return trunc_45((x + 1) / 2 * (unitLevels - 1));
     }
 
     torch::Tensor unit2digit(const torch::Tensor &x)
     {
-        auto larger = x>1;
-        auto less = x<-1;
-        auto y = x;
-        y.index_put_({larger}, 1.0);
-        y.index_put_({less}, -1.0);
+        auto y = x.clone();
+        y.div_(max_weight_value);
+        y.index_put_({x>1}, 1.0);
+        y.index_put_({x<-1}, -1.0);
         return y.add(1).div(2.0).mul(unitLevels - 1).add(0.5).to(torch::kInt32);
     }
 
     double digit2unit(int x)
     {
-        return 1.0 * x / (unitLevels - 1) * 2 - 1;
+        return max_weight_value * (1.0*x / (unitLevels - 1) * 2 - 1);
     }
 
     torch::Tensor digit2unit(const torch::Tensor &x)
     {
-        return x.to(torch::kFloat64).div(unitLevels-1).mul(2).subtract(1);
+        return x.to(torch::kFloat64).div((unitLevels-1)/2.0).subtract(1).mul(max_weight_value);
     }
 
     static phyArrayManager_counters phyArrMan;
@@ -571,7 +572,7 @@ private:
     int usedcellsPerRow;
 
     bool has_negative_input;
-    double max_phy_input_value;
+    double max_phy_input_value, max_weight_value;
     bool trunc_input;
     bool dynamic_max_input;
     int inBits, outBits, unitBits, cellBits;

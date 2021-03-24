@@ -13,6 +13,7 @@ struct pim_array_config
 
     bool has_negative_input;                        // input value has negative number
     double max_phy_input_value;                     // input value has its maximum, we will use this maximum to regionalizatoin input value by inBits.
+    double max_weight_value;                        // weight value has its maximum, we will use this maximum to regionalizatoin weight value by unitBits.
     bool trunc_input;                               // if true, the value > max_phy_input_value, will trunc to the max_phy_input_value. if false, if will reprot error if value>max_phy_input
     bool dynamic_max_input;                         // if true, we will dynamic get max_input rather than use max_phy_input_value
     
@@ -29,6 +30,7 @@ struct pim_array_config
         cellBits = config["cellBits"].as<int>();
         has_negative_input = config["has_negative_input"].as<bool>();
         max_phy_input_value = config["max_phy_input_value"].as<double>();
+        max_weight_value = config["max_weight_value"].as<double>();
         trunc_input = config["trunc_input"].as<bool>();
         dynamic_max_input = config["dynamic_max_input"].as<bool>();
     }

@@ -2,9 +2,9 @@
 // Created by 周恒 on 2020/12/22.
 //
 
-#include "../pim_linear.h"
-#include "../pim_conv.h"
-#include "../logic_array_interface.h"
+#include "../src/pim_linear.h"
+#include "../src/pim_conv.h"
+#include "../src/logic_array_interface.h"
 
 
 template<typename PimType>

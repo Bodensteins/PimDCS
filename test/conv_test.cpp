@@ -4,8 +4,8 @@
 
 #include <torch/torch.h>
 #include <iostream>
-#include "logic_array_interface.h"
-#include "pim_conv.h"
+#include "../src/logic_array_interface.h"
+#include "../src/pim_conv.h"
 
 
 using namespace torch;

@@ -8,8 +8,8 @@
 #include <torch/torch.h>
 #include <array>
 #include <vector>
-#include "pim_conv.h"
-#include "pim_linear.h"
+#include "../src/pim_conv.h"
+#include "../src/pim_linear.h"
 
 torch::nn::Sequential vgg_block(const int kNumConvs, int in_channels, int out_channels, bool use_pim,
     std::vector<ExpandingArray<4>>& in_shapes ) {

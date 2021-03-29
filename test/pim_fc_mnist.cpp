@@ -4,7 +4,7 @@
 #include <iostream>
 #include <string>
 #include <chrono>
-#include "pim_linear.h"
+#include "../src/pim_linear.h"
 
 using namespace std::chrono;
 using namespace PIM;

@@ -51,8 +51,9 @@ class ONN(nn.Module):
 
     self.criterion = nn.CrossEntropyLoss().to(self.device)
     self.freeze_threshold = self.s / self.max_num_hidden_layers + freeze_threshold
-    self.freeze_status = [False] * self.max_num_hidden_layers
-    self.correct = 0
+    self.freeze_steps = [0] * self.max_num_hidden_layers
+
+    self.cumulative_error = 0
     # self.tb_writer = tb_writer
     self.vis = vis
     # self.alpha_history = [self.alpha.data.cpu().numpy()]
@@ -97,8 +98,11 @@ class ONN(nn.Module):
         self.zero_grad()
 
       for i in range(len(losses_per_layer)):
-        self.hidden_layers[i].weight.data -= self.n * w[i]
-        self.hidden_layers[i].bias.data -= self.n * b[i]
+        if self.alpha[i].item() >= self.freeze_threshold or batch_idx % 2 == 0:
+          self.hidden_layers[i].weight.data -= self.n * w[i]
+          self.hidden_layers[i].bias.data -= self.n * b[i]
+        else:
+          self.freeze_steps[i] += 1
 
       for i in range(len(losses_per_layer)):
         self.alpha[i] *= torch.pow(self.b, losses_per_layer[i])
@@ -110,23 +114,16 @@ class ONN(nn.Module):
     real_output = torch.sum(torch.mul(
       self.alpha.view(self.max_num_hidden_layers, 1).repeat(1, self.batch_size).view(
         self.max_num_hidden_layers, self.batch_size, 1), predictions_per_layer), 0)
-    self.correct += torch.argmax(real_output, dim=1).eq(Y).sum().item()
+    self.cumulative_error += torch.argmax(real_output, dim=1).ne(Y).sum().item()
 
     if show_loss and batch_idx % 1000 == 0:
       loss = self.criterion(real_output, Y)
       self.vis.line(X=torch.Tensor([batch_idx]), Y=torch.Tensor([loss]), win='Final Loss of Train',
                     update='append', opts={'title': 'Final Loss of Train', 'xlabel': 'step', 'ylabel': 'loss'})
-      self.vis.line(X=torch.Tensor([batch_idx]), Y=torch.Tensor([self.correct / (batch_idx + 1) * self.batch_size]),
-                    win='Cumulative Accuracy', update='append',
-                    opts={'title': 'Cumulative Accuracy', 'xlabel': 'step', 'ylabel': 'accuracy'})
+      self.vis.line(X=torch.Tensor([batch_idx]), Y=torch.Tensor([self.cumulative_error / (batch_idx + 1) * self.batch_size]),
+                    win='Cumulative Error Rate', update='append',
+                    opts={'title': 'Cumulative Error Rate', 'xlabel': 'step', 'ylabel': 'error rate'})
       for i in range(len(losses_per_layer)):
-        if self.alpha[i].item() < self.freeze_threshold and self.freeze_status[i] == False:
-          self.output_layers[i].requires_grad_(False)
-          self.freeze_status[i] = True
-        elif self.alpha[i].item() >= self.freeze_threshold and self.freeze_status[i] == True:
-          self.output_layers[i].requires_grad_(True)
-          self.freeze_status[i] = False
-
         self.vis.line(X=torch.Tensor([batch_idx]), Y=torch.Tensor([losses_per_layer[i]]), win='Train Loss',
                       name='layer %d' % i, update='append',
                       opts={'title': 'Train Loss',
@@ -139,41 +136,6 @@ class ONN(nn.Module):
                                              'ylabel': 'alpha',
                                              'showlegend': True})
 
-      # self.loss_array.append(loss)
-      # if (len(self.loss_array) % 1000) == 0:
-      #   print("WARNING: Set 'show_loss' to 'False' when not debugging. "
-      #         "It will deteriorate the fitting performance.")
-      #   loss = torch.Tensor(self.loss_array).mean()
-      #   print("Alpha:" + str(self.alpha.data.cpu().numpy()))
-      #   print("Training Loss: " + str(loss.cpu().numpy()))
-      #   if self.vis is not None:
-      #     # self.tb_writer.add_histogram('alpha', self.alpha.data.cpu().numpy(), batch_idx)
-      #     # self.tb_writer.add_scalar('loss/final_loss', loss, batch_idx)
-      #     # for i in range(len(losses_per_layer)):
-      #     #   self.tb_writer.add_scalar('loss/loss%d' % i, losses_per_layer[i], batch_idx)
-      #
-      #     # self.alpha_history.append(self.alpha.data.cpu().numpy())
-      #     # self.alpha_steps.append(str(batch_idx))
-      #
-      #     self.vis.line(X=torch.Tensor([batch_idx]), Y=torch.Tensor([loss]), win='Final Loss of Train',
-      #                   update='append', opts={'title': 'Final Loss of Train', 'xlabel': 'step', 'ylabel': 'loss'})
-      #
-      #     # self.vis.close(win='Alpha')
-      #     # self.vis.bar(X=np.stack(self.alpha_history), win='Alpha', opts=dict(
-      #     #   stacked=True,
-      #     #   legend=['layer %d' % i for i in range(len(losses_per_layer))],
-      #     #   rownames=self.alpha_steps
-      #     # ))
-      #
-      #     for i in range(len(losses_per_layer)):
-      #       self.vis.line(X=torch.Tensor([batch_idx]), Y=torch.Tensor([losses_per_layer[i]]), win='Loss of Layer %d' % i,
-      #                   update='append', opts={'title': 'Loss of Layer %d' % i, 'xlabel': 'step', 'ylabel': 'loss'})
-      #       self.vis.line(X=torch.Tensor([batch_idx]), Y=torch.Tensor([self.alpha[i]]), win='Alpha', name='layer %d' % i,
-      #                   update='append', opts={'title': 'Alpha',
-      #                                          'xlabel': 'step',
-      #                                          'ylabel': 'alpha',
-      #                                          'showlegend': True})
-      # self.loss_array.clear()
 
   def forward(self, X):
     hidden_connections = []

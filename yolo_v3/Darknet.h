@@ -12,6 +12,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include "yaml-cpp/yaml.h"
 
 using namespace std;
 
@@ -19,35 +20,37 @@ struct Darknet : torch::nn::Module {
 
 public:
 
-	Darknet(const char *conf_file, torch::Device *device);
+  Darknet(YAML::Node &config, torch::Device &device);
 
-	map<string, string>* get_net_info();
+  map<string, string> *get_net_info();
 
-	void load_weights(const char *weight_file);
+  void load_weights();
 
-	torch::Tensor forward(torch::Tensor x);
+  torch::Tensor forward(torch::Tensor x);
 
-	/**
-	 *  对预测数据进行筛选
-	 */
-	torch::Tensor write_results(torch::Tensor prediction, int num_classes, float confidence, float nms_conf = 0.4);
+  /**
+   *  对预测数据进行筛选
+   */
+  torch::Tensor write_results(torch::Tensor prediction, int num_classes, float confidence, float nms_conf = 0.4);
 
 private:
 
-	torch::Device *_device;
+  torch::Device device;
 
-	vector<map<string, string>> blocks;
+  vector<map<string, string>> blocks;
 
-	torch::nn::Sequential features;
+  torch::nn::Sequential features;
 
-	vector<torch::nn::Sequential> module_list;
+  vector<torch::nn::Sequential> module_list;
 
-    // load YOLOv3 
-    void load_cfg(const char *cfg_file);
+  YAML::Node config;
 
-    void create_modules();
+  // load YOLOv3
+  void load_cfg();
 
-    int get_int_from_cfg(map<string, string> block, string key, int default_value);
+  void create_modules();
 
-    string get_string_from_cfg(map<string, string> block, string key, string default_value);
+  int get_int_from_cfg(map<string, string> block, string key, int default_value);
+
+  string get_string_from_cfg(map<string, string> block, string key, string default_value);
 };

@@ -5,7 +5,7 @@
 #include <iostream>
 #include <string>
 #include <chrono>
-#include "../src/pim_conv.h"
+#include "../include/pim_conv.h"
 
 using namespace std::chrono;
 

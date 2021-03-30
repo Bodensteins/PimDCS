@@ -8,6 +8,8 @@
 *
 *******************************************************************************/
 #include "Darknet.h"
+#include "../include/pim_conv.h"
+#include "../include/pim_linear.h"
 #include <stdio.h>
 #include <iostream>
 #include <typeinfo>
@@ -257,16 +259,14 @@ struct DetectionLayer : torch::nn::Module {
 //---------------------------------------------------------------------------
 // Darknet
 //---------------------------------------------------------------------------
-Darknet::Darknet(const char *cfg_file, torch::Device *device) {
-
-  load_cfg(cfg_file);
-
-  _device = device;
-
+Darknet::Darknet(YAML::Node &config, torch::Device &device)
+  : config(config), device(device){
+  load_cfg();
   create_modules();
 }
 
-void Darknet::load_cfg(const char *cfg_file) {
+void Darknet::load_cfg() {
+  const string cfg_file = config["cfg_path"].as<string>();
   ifstream fs(cfg_file);
   string line;
 
@@ -313,7 +313,7 @@ void Darknet::create_modules() {
   std::vector<int> output_filters;
 
   int index = 0;
-
+  int conv_index = 0;
   int filters = 0;
 
   for (size_t i = 0, len = blocks.size(); i < len; i++) {
@@ -339,9 +339,14 @@ void Darknet::create_modules() {
       int pad = padding > 0 ? (kernel_size - 1) / 2 : 0;
       bool with_bias = batch_normalize > 0 ? false : true;
 
-      torch::nn::Conv2d conv = torch::nn::Conv2d(
-          conv_options(prev_filters, filters, kernel_size, stride, pad, 1, with_bias));
-      module->push_back(conv);
+//      torch::nn::Conv2d conv = torch::nn::Conv2d(
+//          conv_options(prev_filters, filters, kernel_size, stride, pad, 1, with_bias));
+      auto in_shape = config["conv_in_shapes"][conv_index++].as<std::vector<int64_t>>();
+      PIM::PimConv2d pim_conv = PIM::PimConv2d(
+          ExpandingArray<4>(in_shape),
+          PIM::PimArrayType::simple_logic_array,
+          Conv2dOptions(in_shape[1], filters, kernel_size).stride(stride).padding(pad).bias(with_bias));
+      module->push_back(pim_conv);
 
       if (batch_normalize > 0) {
         torch::nn::BatchNorm2dImpl bn = torch::nn::BatchNorm2dImpl(
@@ -450,7 +455,8 @@ map<string, string> *Darknet::get_net_info() {
   return nullptr;
 }
 
-void Darknet::load_weights(const char *weight_file) {
+void Darknet::load_weights() {
+  const string weight_file = config["weights_path"].as<string>();
   ifstream fs(weight_file, ios::binary);
 
   if (!fs) {
@@ -491,7 +497,8 @@ void Darknet::load_weights(const char *weight_file) {
     torch::nn::Sequential seq_module = module_list[i];
 
     auto conv_module = seq_module.ptr()->ptr(0);
-    torch::nn::Conv2dImpl *conv_imp = dynamic_cast<torch::nn::Conv2dImpl *>(conv_module.get());
+//    torch::nn::Conv2dImpl *conv_imp = dynamic_cast<torch::nn::Conv2dImpl *>(conv_module.get());
+    PIM::PimConv2dImpl *pim_conv_imp = dynamic_cast<PIM::PimConv2dImpl *>(conv_module.get());
 
     int batch_normalize = get_int_from_cfg(module_info, "batch_normalize", 0);
 
@@ -525,22 +532,22 @@ void Darknet::load_weights(const char *weight_file) {
       bn_imp->running_mean.set_data(bn_running_mean);
       bn_imp->running_var.set_data(bn_running_var);
     } else {
-      int num_conv_biases = conv_imp->bias.numel();
+      int num_conv_biases = pim_conv_imp->bias.numel();
 
       at::Tensor conv_bias = weights.slice(0, index_weight, index_weight + num_conv_biases);
       index_weight += num_conv_biases;
 
-      conv_bias = conv_bias.view_as(conv_imp->bias);
-      conv_imp->bias.set_data(conv_bias);
+      conv_bias = conv_bias.view_as(pim_conv_imp->bias);
+      pim_conv_imp->bias.set_data(conv_bias);
     }
 
-    int num_weights = conv_imp->weight.numel();
+    int num_weights = pim_conv_imp->weight.numel();
 
     at::Tensor conv_weights = weights.slice(0, index_weight, index_weight + num_weights);
     index_weight += num_weights;
 
-    conv_weights = conv_weights.view_as(conv_imp->weight);
-    conv_imp->weight.set_data(conv_weights);
+    conv_weights = conv_weights.view_as(pim_conv_imp->weight);
+    pim_conv_imp->weight.set_data(conv_weights);
   }
 }
 
@@ -562,7 +569,6 @@ torch::Tensor Darknet::forward(torch::Tensor x) {
 
     if (layer_type == "convolutional" || layer_type == "upsample" || layer_type == "maxpool") {
       torch::nn::SequentialImpl *seq_imp = dynamic_cast<torch::nn::SequentialImpl *>(module_list[i].ptr().get());
-
       x = seq_imp->forward(x);
       outputs[i] = x;
     } else if (layer_type == "route") {
@@ -594,7 +600,7 @@ torch::Tensor Darknet::forward(torch::Tensor x) {
       int inp_dim = get_int_from_cfg(net_info, "height", 0);
       int num_classes = get_int_from_cfg(block, "classes", 0);
 
-      x = seq_imp->forward(x, inp_dim, num_classes, *_device);
+      x = seq_imp->forward(x, inp_dim, num_classes, device);
 
       if (write == 0) {
         result = x;

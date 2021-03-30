@@ -4,7 +4,7 @@
 
 #include <iostream>
 #include <torch/torch.h>
-#include "../src/pim_linear.h"
+#include "../include/pim_linear.h"
 
 using namespace torch::nn;
 using namespace PIM;

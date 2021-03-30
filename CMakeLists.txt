@@ -68,3 +68,7 @@ set_property(TARGET conv_test PROPERTY CXX_STANDARD 14)
 add_executable(simple_test simple_test.cpp)
 target_link_libraries(simple_test "${TORCH_LIBRARIES}" yaml-cpp)
 set_property(TARGET simple_test PROPERTY CXX_STANDARD 14)
+
+add_executable(unittestFor_pimPro unittest/unitTestFor_pimarraypro.cc)
+target_link_libraries(unittestFor_pimPro "${TORCH_LIBRARIES}" yaml-cpp)
+set_property(TARGET unittestFor_pimPro PROPERTY CXX_STANDARD 14)

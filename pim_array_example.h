@@ -1293,26 +1293,10 @@ void pimArrayPro::write_mat(const torch::Tensor &mat, int row, int col)
 */
 torch::Tensor pimArrayPro::mm(const torch::Tensor &mat)
 {
-    phyArrayPro::preWork_struct prew = {
-        .has_negative_input = conf.has_negative_input,
-        .max_phy_input_value = conf.max_phy_input_value,
-        .trunc_input = conf.trunc_input,
-        .dynamic_max_input = conf.dynamic_max_input,
-        .inBits = conf.inBits
-    };
-
-    phyArrayPro::postWork_struct pw = {
-            .mode = conf.mode,
-            .inBits = conf.inBits,
-            .unitBits = conf.unitBits,
-            .outBits = conf.outBits
-    };
-
     int batch_size = mat.size(0);
     double max_one;
-    at::Tensor input = phyArrayPro::preWorkForMM(mat, prew, std::ref(max_one)); // input should be tensor of size {batch_size, inBits/inVBits, rowSize}
+    at::Tensor input = phyArrayPro::preWorkForMM(mat, &conf, &phyArrManPro[arr[0][0]].conf, std::ref(max_one)); // input should be tensor of size {batch_size, inBits/inVBits, rowSize}
     
-    return {};
     at::Tensor out = torch::empty({arrX_size, batch_size, arrY_size * unitNumPerPhyRow}, op.dtype(torch::kF64));
 
     // postive & negative array mode
@@ -1325,9 +1309,9 @@ torch::Tensor pimArrayPro::mm(const torch::Tensor &mat)
                 int i = k / arrY_size;
                 int j = k % arrY_size;
 
-                out[i].index({Slice(), Slice(j * unitNumPerPhyRow, (j + 1) * unitNumPerPhyRow)}) = phyArrManPro[arr[i][j]].mm(input.index({Slice(), Slice(), Slice(i * phyArrRowSize, (i + 1) * phyArrRowSize)}), max_one, phyArrayPro::postWorkForMM, pw);
+                out[i].index({Slice(), Slice(j * unitNumPerPhyRow, (j + 1) * unitNumPerPhyRow)}) = phyArrManPro[arr[i][j]].mm(input.index({Slice(), Slice(), Slice(i * phyArrRowSize, (i + 1) * phyArrRowSize)}), &conf, max_one, phyArrayPro::postWorkForMM);
 
-                nout[i].index({Slice(), Slice(j * unitNumPerPhyRow, (j + 1) * unitNumPerPhyRow)}) = phyArrManPro[narr[i][j]].mm(input.index({Slice(), Slice(), Slice(i * phyArrRowSize, (i + 1) * phyArrRowSize)}), max_one, phyArrayPro::postWorkForMM, pw);
+                nout[i].index({Slice(), Slice(j * unitNumPerPhyRow, (j + 1) * unitNumPerPhyRow)}) = phyArrManPro[narr[i][j]].mm(input.index({Slice(), Slice(), Slice(i * phyArrRowSize, (i + 1) * phyArrRowSize)}), &conf, max_one, phyArrayPro::postWorkForMM);
             }
         });
         out.subtract_(nout);
@@ -1340,7 +1324,7 @@ torch::Tensor pimArrayPro::mm(const torch::Tensor &mat)
                 int i = k / arrY_size;
                 int j = k % arrY_size;
 
-                out[i].index({Slice(), Slice(j * unitNumPerPhyRow, (j + 1) * unitNumPerPhyRow)}) = phyArrManPro[arr[i][j]].mm(input.index({Slice(), Slice(), Slice(i * phyArrRowSize, (i + 1) * phyArrRowSize)}), max_one, phyArrayPro::postWorkForMM, pw);
+                out[i].index({Slice(), Slice(j * unitNumPerPhyRow, (j + 1) * unitNumPerPhyRow)}) = phyArrManPro[arr[i][j]].mm(input.index({Slice(), Slice(), Slice(i * phyArrRowSize, (i + 1) * phyArrRowSize)}), &conf, max_one, phyArrayPro::postWorkForMM);
             }
         });
     }

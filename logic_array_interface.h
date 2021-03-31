@@ -10,7 +10,7 @@
 namespace PIM {
 
   enum class PimArrayType {
-    simple_logic_array, pim_array, only_counters_pim_array
+    simple_logic_array, pim_array, only_counters_pim_array, pim_array_pro
   };
 
  std::ostream &operator << ( std::ostream& stream, const PimArrayType &type)

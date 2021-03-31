@@ -127,7 +127,7 @@ public:
         device = toGPU ? torch::kCUDA : torch::kCPU;
         //std::cout << "toGPU " << toGPU << std::endl;
         arr = std::vector<std::vector<int>>(arrX_size, std::vector<int>(arrY_size));
-        torch::Tensor initMat = torch::cat({torch::zeros({phyArrRowSize, phyArrColSize + 1}, torch::kInt8), torch::ones({phyArrRowSize, 1}, torch::kInt8)}, 1).to(op.device());
+        at::Tensor initMat = torch::cat({torch::zeros({phyArrRowSize, phyArrColSize + 1}, torch::kInt8), torch::ones({phyArrRowSize, 1}, torch::kInt8)}, 1).to(op.device());
         for (int i = 0; i < arrX_size; ++i)
             for (int j = 0; j < arrY_size; ++j)
             {
@@ -152,26 +152,26 @@ public:
 
     torch::Scalar read_cell(int64_t row, int64_t col) override;
 
-    void write_row(int64_t row, int64_t col, const torch::Tensor &vec) override;
+    void write_row(int64_t row, int64_t col, const at::Tensor &vec) override;
 
-    torch::Tensor read_row(int64_t row, int64_t col, int64_t size) override; //从x行从y列开始读取size个列的数据
+    at::Tensor read_row(int64_t row, int64_t col, int64_t size) override; //从x行从y列开始读取size个列的数据
 
-    torch::Tensor mv(const torch::Tensor &vec) override;
+    at::Tensor mv(const at::Tensor &vec) override;
 
-    torch::Tensor dot_column(const torch::Tensor &vec, int64_t col) override;
+    at::Tensor dot_column(const at::Tensor &vec, int64_t col) override;
 
-    torch::Tensor nmv(int64_t row, int64_t col, const torch::Scalar &value, int64_t size) override; //数值乘以向量，需要输入操作的row号
+    at::Tensor nmv(int64_t row, int64_t col, const torch::Scalar &value, int64_t size) override; //数值乘以向量，需要输入操作的row号
 
-    void write_mat(const torch::Tensor &mat) override;
-    torch::Tensor read_mat() override;
-    torch::Tensor mm(const torch::Tensor &mat) override;
+    void write_mat(const at::Tensor &mat) override;
+    at::Tensor read_mat() override;
+    at::Tensor mm(const at::Tensor &mat) override;
 
     torch::IntArrayRef sizes() const override
     {
         return torch::IntArrayRef(sizes_vec);
     }
 
-    torch::Tensor &resize(torch::IntArrayRef size) const override
+    at::Tensor &resize(torch::IntArrayRef size) const override
     {
         std::cout << "currently, we do not support resize." << std::endl;
         throw("currently, we do not support resize.");
@@ -215,7 +215,7 @@ public:
         return trunc_45((x + 1) / 2 * (unitLevels - 1));
     }
 
-    torch::Tensor unit2digit(const torch::Tensor &x)
+    at::Tensor unit2digit(const at::Tensor &x)
     {
         auto y = x.clone();
         y.div_(max_weight_value);
@@ -229,7 +229,7 @@ public:
         return max_weight_value * (1.0 * x / (unitLevels - 1) * 2 - 1);
     }
 
-    torch::Tensor digit2unit(const torch::Tensor &x)
+    at::Tensor digit2unit(const at::Tensor &x)
     {
         return x.to(torch::kFloat64).div((unitLevels - 1) / 2.0).subtract(1).mul(max_weight_value);
     }
@@ -291,8 +291,9 @@ torch::Scalar pimArrayExample::read_cell(int64_t row, int64_t col)
     return digit2unit(x);
 }
 
-void pimArrayExample::write_row(int64_t row, int64_t col, const torch::Tensor &vec)
+void pimArrayExample::write_row(int64_t row, int64_t col, const at::Tensor &vecin)
 {
+    at::Tensor vec = vecin.detach();
     int len = vec.size(0);
     int col_ed = col + len;
 
@@ -332,7 +333,7 @@ void pimArrayExample::write_row(int64_t row, int64_t col, const torch::Tensor &v
     }
 }
 
-torch::Tensor pimArrayExample::read_row(int64_t row, int64_t col, int64_t size) //从x行从y列开始读取size个列的数据
+at::Tensor pimArrayExample::read_row(int64_t row, int64_t col, int64_t size) //从x行从y列开始读取size个列的数据
 {
     int col_ed = col + size;
 
@@ -462,8 +463,9 @@ at::Tensor pimArrayExample::input2digit(const at::Tensor &vec, double &max_one)
  *
  *
  * */
-torch::Tensor pimArrayExample::mv(const torch::Tensor &vec)
+at::Tensor pimArrayExample::mv(const at::Tensor &vecin)
 {
+    at::Tensor vec = vecin.detach();
     double max_one;
     at::Tensor vecDigit;
     const static double scalar_value = maxIsumPerPhyCol / (ImaxPCell - IminPCell) / (unitLevels - 1) / (outLevels - 1) / (inLevels - 1);
@@ -549,12 +551,12 @@ torch::Tensor pimArrayExample::mv(const torch::Tensor &vec)
     return out.index({Slice(0, colSize)});
 }
 
-torch::Tensor pimArrayExample::dot_column(const torch::Tensor &vec, int64_t col)
+at::Tensor pimArrayExample::dot_column(const at::Tensor &vec, int64_t col)
 {
     assert("not implement dot_colume" != "not implement dot_colume");
 }
 
-torch::Tensor pimArrayExample::nmv(int64_t row, int64_t col, const torch::Scalar &value, int64_t size) //数值乘以向量，需要输入操作的row号
+at::Tensor pimArrayExample::nmv(int64_t row, int64_t col, const torch::Scalar &value, int64_t size) //数值乘以向量，需要输入操作的row号
 {
     //assert("not_implement");
     assert(false);
@@ -564,8 +566,9 @@ torch::Tensor pimArrayExample::nmv(int64_t row, int64_t col, const torch::Scalar
  *  similar to MV function. but input param is a mat with dim 1 of batch_size.
  *
  * */
-torch::Tensor pimArrayExample::mm(const torch::Tensor &mat)
+at::Tensor pimArrayExample::mm(const at::Tensor &matin)
 {
+    auto mat = matin.detach();
     double max_one;
     int len = mat.size(0);
     at::Tensor vecDigit;
@@ -657,8 +660,9 @@ torch::Tensor pimArrayExample::mm(const torch::Tensor &mat)
 *   in face, now we only use write_mat in pim_linear & pim_conv.
 *   so we optimizer it first. and then come to write_row & write_cell
 */
-void pimArrayExample::write_mat(const torch::Tensor &mat)
+void pimArrayExample::write_mat(const at::Tensor &matin)
 {
+    at::Tensor mat = matin.detach();
     int M = std::min(mat.size(0), rowSize);
     int N = std::min(mat.size(1), colSize);
     // at::parallel_for(0, M, 0, [&](int st, int ed)->void
@@ -667,8 +671,8 @@ void pimArrayExample::write_mat(const torch::Tensor &mat)
     //         write_row(i, 0, mat[i]);
     // });
 
-    torch::Tensor data = unit2digit(mat).index({Slice(0, M), Slice(0, N)});
-    torch::Tensor dataDigit = torch::empty({M, N * unitBits}, TensorOptions(device).dtype(torch::kInt8));
+    at::Tensor data = unit2digit(mat).index({Slice(0, M), Slice(0, N)});
+    at::Tensor dataDigit = torch::empty({M, N * unitBits}, TensorOptions(device).dtype(torch::kInt8));
 
     for (int i = 0; i < unitBits; ++i)
     {
@@ -735,7 +739,7 @@ void pimArrayExample::write_mat(const torch::Tensor &mat)
     }
 }
 
-torch::Tensor pimArrayExample::read_mat()
+at::Tensor pimArrayExample::read_mat()
 {
     at::Tensor out = torch::empty({rowSize, colSize}, TensorOptions(device).dtype(torch::kFloat64));
     at::parallel_for(0, rowSize, 0, [&](int st, int ed) -> void {
@@ -748,7 +752,7 @@ torch::Tensor pimArrayExample::read_mat()
 class phyArrayManagerPro
 {
 public:
-    int allocPhyArray(int rowSize, int colSize, torch::TensorOptions op = {})
+    int allocPhyArray(int rowSize, int colSize, at::TensorOptions op = {})
     {
         std::lock_guard<std::mutex> lk(mu);
         arrList.push_back(new phyArrayPro(rowSize, colSize, op));
@@ -821,56 +825,56 @@ public:
         return read_mat(row, col, 1, 1).sum().item<double>();
     }
 
-    void write_row(int64_t row, int64_t col, const torch::Tensor &vec) override
+    void write_row(int64_t row, int64_t col, const at::Tensor &vec) override
     {
         write_mat(vec, row, col);
     }
 
-    torch::Tensor read_row(int64_t row, int64_t col, int64_t size) override //从x行从y列开始读取size个列的数据
+    at::Tensor read_row(int64_t row, int64_t col, int64_t size) override //从x行从y列开始读取size个列的数据
     {
         return read_mat(row, col, 1, size).clone().reshape({size});
     }
 
-    torch::Tensor mv(const torch::Tensor &vec) override
+    at::Tensor mv(const at::Tensor &vec) override
     {
         std::cout << "currently, we do not support mv." << std::endl;
         throw("currently, we do not support mv.");
     }
 
-    torch::Tensor dot_column(const torch::Tensor &vec, int64_t col) override
+    at::Tensor dot_column(const at::Tensor &vec, int64_t col) override
     {
         std::cout << "currently, we do not support dot_column." << std::endl;
         throw("currently, we do not support dot_column.");
     }
 
-    torch::Tensor nmv(int64_t row, int64_t col, const torch::Scalar &value, int64_t size) override //数值乘以向量，需要输入操作的row号
+    at::Tensor nmv(int64_t row, int64_t col, const torch::Scalar &value, int64_t size) override //数值乘以向量，需要输入操作的row号
     {
         std::cout << "currently, we do not support nmv." << std::endl;
         throw("currently, we do not support nmv.");
     }
 
-    void write_mat(const torch::Tensor &mat) override
+    void write_mat(const at::Tensor &mat) override
     {
         write_mat(mat, 0, 0);
     }
 
-    torch::Tensor read_mat() override
+    at::Tensor read_mat() override
     {
         return read_mat(0, 0);
     }
 
     at::Tensor read_mat(int row, int col, int m = phyArrayPro::index_len_max, int n = phyArrayPro::index_len_max);
-    void write_mat(const torch::Tensor &mat, int row, int col);
+    void write_mat(const at::Tensor &mat, int row, int col);
 
     // only mm is used in conv and linear, so we implement it first
-    torch::Tensor mm(const torch::Tensor &mat) override;
+    at::Tensor mm(const at::Tensor &mat) override;
 
     torch::IntArrayRef sizes() const override
     {
         return torch::IntArrayRef(sizes_vec);
     }
 
-    torch::Tensor &resize(torch::IntArrayRef size) const override
+    at::Tensor &resize(torch::IntArrayRef size) const override
     {
         std::cout << "currently, we do not support resize." << std::endl;
         throw("currently, we do not support resize.");
@@ -1131,8 +1135,9 @@ at::Tensor pimArrayPro::read_mat(int row, int col, int m, int n)
  * @param row: start row
  * @param col: start col
  */
-void pimArrayPro::write_mat(const torch::Tensor &mat, int row, int col)
+void pimArrayPro::write_mat(const at::Tensor &matin, int row, int col)
 {
+    at::Tensor mat = matin.detach();
     int64_t m = mat.size(0), n = mat.size(1);
     int ed_row = std::min(row + m, rowSize);
     int ed_col = std::min(col + n, colSize);
@@ -1291,8 +1296,9 @@ void pimArrayPro::write_mat(const torch::Tensor &mat, int row, int col)
 * @param mat input matrix, should be 2D Tensor of sizes {batch_size, rowSize}
 * @return 2d tensor of sizes {batch_size, colSize}
 */
-torch::Tensor pimArrayPro::mm(const torch::Tensor &mat)
+at::Tensor pimArrayPro::mm(const at::Tensor &matin)
 {
+    at::Tensor mat = matin.detach();
     int batch_size = mat.size(0);
     double max_one;
     at::Tensor input = phyArrayPro::preWorkForMM(mat, &conf, &phyArrManPro[arr[0][0]].conf, std::ref(max_one)); // input should be tensor of size {batch_size, inBits/inVBits, rowSize}
@@ -1318,15 +1324,15 @@ torch::Tensor pimArrayPro::mm(const torch::Tensor &mat)
     }
     else // ref col mode
     {
-        at::parallel_for(0, arrX_size * arrY_size, 0, [&](int st, int ed) {
-            for (int k = st; k < ed; ++k)
+        //at::parallel_for(0, arrX_size * arrY_size, 100, [&](int st, int ed) {
+            for (int k = 0; k < arrX_size * arrY_size; ++k)
             {
                 int i = k / arrY_size;
                 int j = k % arrY_size;
 
                 out[i].index({Slice(), Slice(j * unitNumPerPhyRow, (j + 1) * unitNumPerPhyRow)}) = phyArrManPro[arr[i][j]].mm(input.index({Slice(), Slice(), Slice(i * phyArrRowSize, (i + 1) * phyArrRowSize)}), &conf, max_one, phyArrayPro::postWorkForMM);
             }
-        });
+       // });
     }
     return out.sum(0).index({Slice(), Slice(0, colSize)});
 }

@@ -615,8 +615,9 @@ torch::Scalar pimArrayExampleCounters::read_cell(int64_t row, int64_t col)
     return realMat[row][col].item();
 }
 
-void pimArrayExampleCounters::write_row(int64_t row, int64_t col, const torch::Tensor &vec)
+void pimArrayExampleCounters::write_row(int64_t row, int64_t col, const torch::Tensor &vecin)
 {
+    at::Tensor vec = vecin.detach();
     int len = vec.size(0);
     int col_ed = col + len;
 
@@ -730,13 +731,15 @@ at::Tensor pimArrayExampleCounters::input2digit(const at::Tensor &vec, double &m
     return vecOut;
 }
 
-torch::Tensor pimArrayExampleCounters::mv(const torch::Tensor &vec)
+torch::Tensor pimArrayExampleCounters::mv(const torch::Tensor &vecin)
 {
+    at::Tensor vec = vecin.detach();
     return torch::matmul(vec.reshape({1, -1}), realMat);
 }
 
-torch::Tensor pimArrayExampleCounters::dot_column(const torch::Tensor &vec, int64_t col)
+torch::Tensor pimArrayExampleCounters::dot_column(const torch::Tensor &vecin, int64_t col)
 {
+    at::Tensor vec = vecin.detach();
     return torch::matmul(vec.reshape({1, -1}), realMat.index({Slice(), Slice(col, col+1)}));
 }
 
@@ -745,8 +748,9 @@ torch::Tensor pimArrayExampleCounters::nmv(int64_t row, int64_t col, const torch
     return realMat[row].slice(0, col, col+size).mul(value);
 }
 
-torch::Tensor pimArrayExampleCounters::mm(const torch::Tensor &mat) 
+torch::Tensor pimArrayExampleCounters::mm(const torch::Tensor &matin) 
 {
+    at::Tensor mat = matin.detach();
     double max_one = max_phy_input_value;
 
     auto tmp = mat.clone();
@@ -764,9 +768,10 @@ torch::Tensor pimArrayExampleCounters::mm(const torch::Tensor &mat)
 *   in face, now we only use write_mat in pim_linear & pim_conv.
 *   so we optimizer it first. and then come to write_row & write_cell
 */
-void pimArrayExampleCounters::write_mat(const torch::Tensor &mat) 
+void pimArrayExampleCounters::write_mat(const torch::Tensor &matin) 
 {
     std::lock_guard<std::mutex> lk(mu);
+    at::Tensor mat = matin.detach();
     int M = std::min(mat.size(0), rowSize);
     int N = std::min(mat.size(1), colSize);
     // at::parallel_for(0, len, 0, [&](int st, int ed)->void

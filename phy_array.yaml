@@ -1,0 +1,14 @@
+phy_array_readMode: 2
+phy_array_writeMode: 0
+writeV: 3
+readV: 1
+computeV: 1
+C2C_en: false
+D2D_en: false
+nonLinearIV_en: false
+write_cnt_en: true
+energy_cal_en: false
+minConduct: 1e-6
+maxConduct: 1e-3
+inVBits: 2
+cellBits: 4

@@ -75,29 +75,29 @@ namespace PIM {
      * @param col index of column
      * @param vec vector to write
      */
-    virtual void write_row(int64_t row, int64_t col, const torch::Tensor &vec) = 0;
+    virtual void write_row(int64_t row, int64_t col, const at::Tensor &vec) = 0;
 
     /**
      * Reads a row values with a specific size.
      * @param row index of row
      * @param col index of column
      * @param size read size
-     * @return torch::Tensor
+     * @return at::Tensor
      */
-    virtual torch::Tensor read_row(int64_t row, int64_t col, int64_t size) = 0;
+    virtual at::Tensor read_row(int64_t row, int64_t col, int64_t size) = 0;
 
     /**
      * Writes a matrix(2D Tensor).
      * Note that, deep copy should be used.
      * @param mat matrix to write
      */
-    virtual void write_mat(const torch::Tensor &mat) = 0;
+    virtual void write_mat(const at::Tensor &mat) = 0;
 
     /**
      * Reads a matrix(2D Tensor)
      * @return torch::Tensor
      */
-    virtual torch::Tensor read_mat() = 0;
+    virtual at::Tensor read_mat() = 0;
 
 
     /**
@@ -105,14 +105,14 @@ namespace PIM {
      * @param mat input matrix
      * @return torch::Tensor
      */
-    virtual torch::Tensor mm(const torch::Tensor &mat) = 0;
+    virtual at::Tensor mm(const at::Tensor &mat) = 0;
 
     /**
      * Performs a matrix-vector product of self matrix and the vector vec.
      * @param vec
-     * @return torch::Tensor
+     * @return at::Tensor
      */
-    virtual torch::Tensor mv(const torch::Tensor &vec) = 0;
+    virtual at::Tensor mv(const at::Tensor &vec) = 0;
 
     /**
      * Performs a dot product of input vec and specific column.
@@ -130,11 +130,11 @@ namespace PIM {
      * @param size size of resulting tensor
      * @return torch::Tensor
      */
-    virtual torch::Tensor nmv(int64_t row, int64_t col, const torch::Scalar &value, int64_t size) = 0;
+    virtual at::Tensor nmv(int64_t row, int64_t col, const torch::Scalar &value, int64_t size) = 0;
 
     virtual torch::IntArrayRef sizes() const = 0;
 
-    virtual torch::Tensor &resize(torch::IntArrayRef size) const = 0;
+    virtual at::Tensor &resize(torch::IntArrayRef size) const = 0;
 
     virtual std::ostream &print(std::ostream &os) const = 0;
 
@@ -176,7 +176,7 @@ namespace PIM {
       return arr[row][col].item();
     }
 
-    torch::Tensor mm(const torch::Tensor &mat) override {
+    at::Tensor mm(const at::Tensor &mat) override {
 //    std::vector<torch::Tensor> l;
 //    for (int64_t i = 0; i < mat.size(0); ++i) {
 //      l.push_back(mv(mat.select(0, i)));
@@ -185,7 +185,7 @@ namespace PIM {
       return torch::mm(mat, arr);
     }
 
-    torch::Tensor mv(const torch::Tensor &vec) override {
+    at::Tensor mv(const at::Tensor &vec) override {
 //    std::vector<torch::Tensor> l;
 //    for (int64_t i = 0; i < colSize; ++i) {
 //      l.push_back(dot_column(vec, i));
@@ -194,37 +194,37 @@ namespace PIM {
       return torch::mv(arr.t(), vec);
     }
 
-    void write_row(int64_t row, int64_t col, const torch::Tensor &vec) override {
+    void write_row(int64_t row, int64_t col, const at::Tensor &vec) override {
       int64_t len = vec.sizes()[0];
       assert(len > 0 && row < rowSize && col + len - 1 < colSize);
       arr.index_put_({torch::full(len, row, torch::kLong), torch::arange(col, col + len, torch::kLong)}, vec);
     }
 
-    torch::Tensor read_row(int64_t row, int64_t col, int64_t size) override {
+    at::Tensor read_row(int64_t row, int64_t col, int64_t size) override {
       assert(size > 0 && row < rowSize && col + size - 1 < colSize);
       return arr.index({row}).slice(0, col, col + size);
     }
 
-    void write_mat(const torch::Tensor &mat) override {
+    void write_mat(const at::Tensor &mat) override {
 //    assert(torch::is_same_size(arr, mat));
     arr = mat.clone();
 //      arr = mat;
     }
 
-    torch::Tensor read_mat() override {
+    at::Tensor read_mat() override {
 //    return arr.slice(0, row_begin, row_end);
       return arr;
     }
 
-    torch::Tensor dot_column(const torch::Tensor &vec, int64_t col) override {
+    at::Tensor dot_column(const at::Tensor &vec, int64_t col) override {
       return arr.select(1, col).dot(vec);
     }
 
-    torch::Tensor nmv(int64_t row, int64_t col, const torch::Scalar &value, int64_t size) override {
+    at::Tensor nmv(int64_t row, int64_t col, const torch::Scalar &value, int64_t size) override {
       return arr.index({row}).mul(value).slice(0, col, col + size);
     }
 
-    torch::Tensor &resize(torch::IntArrayRef size) const override {
+    at::Tensor &resize(torch::IntArrayRef size) const override {
       return arr.resize_(size);
     }
 
@@ -258,7 +258,7 @@ namespace PIM {
 
     ~SimpleLogicArray() override = default;
   private:
-    torch::Tensor arr;
+    at::Tensor arr;
   };
 
  TORCH_LIBRARY(SimpleLogicArray, m) {

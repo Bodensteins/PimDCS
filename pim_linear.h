@@ -192,6 +192,9 @@ namespace PIM {
         case PimArrayType::only_counters_pim_array:
           return PimLinearFunction<pimArrayExampleCounters>::apply(wb_ptr, wb_t_ptr, prev_ptr, input, weight,
               options.bias() ? bias : c10::optional<Tensor>(), is_training_);
+        case PimArrayType::pim_array_pro:
+          return PimLinearFunction<pimArrayPro>::apply(wb_ptr, wb_t_ptr, prev_ptr, input, weight,
+              options.bias() ? bias : c10::optional<Tensor>(), is_training_);
         default:
           TORCH_INTERNAL_ASSERT(false, "pimlinear, forward type not support!")
       }

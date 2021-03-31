@@ -263,7 +263,7 @@ at::Tensor phyArrayPro::mm(const at::Tensor &mat)
     if (conf.energy_cal_en)
     {
     }
-    return torch::matmul(mat, data.index({Slice(0, mat.size(2))}).to(torch::kF64) * deltaConduct + conf.minConduct).div(rowSize*(deltaConduct));
+    return torch::matmul(mat, data.index({Slice(0, mat.size(2))}).to(torch::kF64) * deltaConduct + conf.minConduct).div(rowSize*conf.maxConduct);
 }
 
 /**
@@ -383,11 +383,12 @@ at::Tensor phyArrayPro::postWorkForMM(const at::Tensor &mat, pim_array_config *p
     int unitNumPerPhyRow = pconf->phyArrColSize / cellsPerUnit;
     int usedCellsPerRow = unitNumPerPhyRow * cellsPerUnit;
     int nums = pconf->inBits/pconf->inVBits;
-    double scalar_value = max_one * pconf->phyArrRowSize /(unitLevels-1) * pconf->max_weight_value /(outLevels -1) *((1 << pconf->inVBits)-1) / (inLevels-1);
+    double scalar_value = max_one *pconf->phyArrRowSize /(unitLevels-1) * pconf->max_weight_value /(outLevels -1) *((1 << pconf->inVBits)-1) / (inLevels-1) * ((1 <<pconf->cellBits)-1);
     at::Tensor out;
 
     if (pconf->mode == 1) // ref col mode
     {
+        scalar_value *= conf->maxConduct/(conf->maxConduct-conf->minConduct);
         out = mat.mul(outLevels - 1).round(); //let out range from 0 -- outLevels -1, double
 
         out.index({Slice(), Slice(), Slice(0, pconf->phyArrColSize+1)}).subtract_(out.index({Slice(), Slice(), Slice(pconf->phyArrColSize+1)}));

@@ -20,6 +20,10 @@ struct Net : torch::nn::Module {
   PimLinear fc1{nullptr};
 };
 
+torch::Tensor backward(torch::Tensor &grad_output, torch::Tensor &input, torch::Tensor &w, torch::Tensor &b) {
+
+}
+
 int main() {
 //  Net model;
 //  model.to(torch::kCPU);

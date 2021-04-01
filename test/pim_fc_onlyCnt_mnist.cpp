@@ -24,7 +24,7 @@ const int64_t kTestBatchSize = 1000;
 const int64_t kNumberOfEpochs = 10;
 
 // After how many batches to log a new update with the loss value.
-const int64_t kLogInterval = 10;
+const int64_t kLogInterval = 100;
 auto runDev = torch::kCPU;
 // Define a new Module.
 struct Net : torch::nn::Module {
@@ -33,10 +33,10 @@ struct Net : torch::nn::Module {
 //    fc1 = register_module("fc1", torch::nn::Linear(784, 64));
 //    fc2 = register_module("fc2", torch::nn::Linear(64, 32));
 //    fc3 = register_module("fc3", torch::nn::Linear(32, 10));
-    //fc1 = register_module("fc1", PimLinear(784, 64, kTrainBatchSize, PimArrayType::only_counters_pim_array, runDev));
-    //fc2 = register_module("fc2", PimLinear(64, 10, kTrainBatchSize, PimArrayType::only_counters_pim_array, runDev));
-    fc1 = register_module("fc1", PimLinear(784, 64, kTrainBatchSize, PimArrayType::pim_array_pro, runDev));
-    fc2 = register_module("fc2", PimLinear(64, 10, kTrainBatchSize, PimArrayType::pim_array_pro, runDev));
+    fc1 = register_module("fc1", PimLinear(784, 64, kTrainBatchSize, PimArrayType::only_counters_pim_array, runDev));
+    fc2 = register_module("fc2", PimLinear(64, 10, kTrainBatchSize, PimArrayType::only_counters_pim_array, runDev));
+    //fc1 = register_module("fc1", PimLinear(784, 64, kTrainBatchSize, PimArrayType::pim_array, runDev));
+    //fc2 = register_module("fc2", PimLinear(64, 10, kTrainBatchSize, PimArrayType::pim_array, runDev));
 // fc3 = register_module("fc3", PimLinear(32, 10, kTrainBatchSize, PimArrayType::wb_logic_array, runDev));
 //    fc1 = register_module("fc1", PimLinear(kTrainBatchSize, PimArrayType::simple_logic_array,
 //        LinearOptions(784, 64).bias(false)));
@@ -86,6 +86,7 @@ void train(
     auto output = model.forward(data);
     auto loss = torch::nll_loss(output, targets);
     AT_ASSERT(!std::isnan(loss.template item<float>()));
+    //pimArrayExampleCounters::phyArrMan.schedule(8, 8*64*64, 16);    
     loss.backward();
     optimizer.step();
     if (batch_idx++ % kLogInterval == 0) {

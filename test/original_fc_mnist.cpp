@@ -69,7 +69,7 @@ void train(
 
     if (batch_idx++ % kLogInterval == 0) {
       std::printf(
-          "\rTrain Epoch: %ld [%5ld/%5ld] Loss: %.4f",
+          "\rTrain Epoch: %d [%5ld/%5ld] Loss: %.4f",
           epoch,
           batch_idx * batch.data.size(0),
           dataset_size,

@@ -137,31 +137,27 @@ struct phyArraySimple
 struct phyArrayPro
 {
 
-    phyArrayPro(int rowSize, int colSize, torch::TensorOptions op = {}, phy_array_config conf = phy_decf)
+    phyArrayPro(int rowSize, int colSize, torch::TensorOptions op = {}, const pim_array_pro_config *conf = &pro_decf): conf(conf)
     {
         this->rowSize = rowSize;
         this->colSize = colSize;
-        conf = phy_decf;
         readEnergy = writeEnergy = 0;
-        levels = 1 << conf.cellBits;
-        deltaConduct = (conf.maxConduct - conf.minConduct) / (levels-1);
+        deltaConduct = (conf->maxConduct - conf->minConduct) / (conf->cellLevels-1);
         this->op = op;
-        if (conf.cellBits <= 8)
+        if (conf->cellBits <= 8)
             data = torch::zeros({rowSize, colSize}, op.dtype(torch::kUInt8));
-        else if (conf.cellBits < 32)
+        else if (conf->cellBits < 32)
             data = torch::zeros({rowSize, colSize}, op.dtype(torch::kInt32));
         else
         {
             throw "too big cellBits, in phyArrayPro";
         }
 
-        // to calculate energy, we need write cnt
-        if (conf.energy_cal_en)
-            conf.write_cnt_en = true;
-
+        
+    
         totalWrCnt = 0;
 
-        if (conf.write_cnt_en)
+        if (conf->write_cnt_en)
         {
             cellWrCnt = torch::zeros({rowSize, colSize}, op.dtype(torch::kInt64));
             totalCmpWrCnt = 0;
@@ -175,25 +171,25 @@ struct phyArrayPro
     template <typename F, typename Fdata, typename T, typename DataToPostWork>
     at::Tensor mm(const at::Tensor &mat, F preWork, Fdata pim_conf, DataToPostWork d, T postWork)
     {
-        return postWork(mm(preWork(mat, pim_conf, &conf, std::ref(d))), pim_conf, &conf, std::ref(d));
+        return postWork(mm(preWork(mat, pim_conf, std::ref(d))), pim_conf, std::ref(d));
     }
 
     template <typename T, typename Fdata, typename DataToPostWork>
     at::Tensor mm(const at::Tensor &mat, Fdata pim_conf, DataToPostWork d, T postWork)
     {
-        return postWork(mm(mat), pim_conf, &conf, std::ref(d));
+        return postWork(mm(mat), pim_conf, std::ref(d));
     }
 
     at::Tensor mm(const at::Tensor &mat);
 
     void print(std::ostream &);
 
-    static at::Tensor preWorkForMM(const at::Tensor &mat, pim_array_config *pconf, phy_array_config *conf, double &max_one);
-    static at::Tensor postWorkForMM(const at::Tensor &mat, pim_array_config *pconf, phy_array_config *conf, double &max_one);
+    static at::Tensor preWorkForMM(const at::Tensor &mat, const pim_array_pro_config *conf, double &max_one);
+    static at::Tensor postWorkForMM(const at::Tensor &mat, const pim_array_pro_config *conf, double &max_one);
     static const int index_len_max = std::numeric_limits<int>::max() / 2;
 
-    phy_array_config conf;
-    int rowSize, colSize, levels;
+    const pim_array_pro_config *const conf;
+    int rowSize, colSize;
     double deltaConduct;
     double readEnergy, writeEnergy;
     // double area; not support area now
@@ -218,7 +214,7 @@ void phyArrayPro::writeMat(const at::Tensor &mat, int row, int col)
 
     int64_t m = mat.size(0), n = mat.size(1);
     totalWrCnt += m * n;
-    if (conf.write_cnt_en)
+    if (conf->write_cnt_en)
     {
         //currently, cell write cnt is simply equal to whther it is wrriten or not, does not based on pluse number when cell bits >1
         at::Tensor add = (data.index({Slice(row, row + m), Slice(col, col + n)}) != mat);
@@ -227,7 +223,7 @@ void phyArrayPro::writeMat(const at::Tensor &mat, int row, int col)
     }
 
     // remains future works
-    if (conf.energy_cal_en)
+    if (conf->energy_cal_en)
     {
     }
 
@@ -246,7 +242,7 @@ void phyArrayPro::writeMat(const at::Tensor &mat, int row, int col)
 at::Tensor phyArrayPro::readMat(int row, int col, int m, int n)
 {
     // remains future works
-    if (conf.energy_cal_en)
+    if (conf->energy_cal_en)
     {
     }
     return data.index({Slice(row, row + m), Slice(col, col + n)});
@@ -260,10 +256,10 @@ at::Tensor phyArrayPro::readMat(int row, int col, int m, int n)
 at::Tensor phyArrayPro::mm(const at::Tensor &mat)
 {
     // remains future works
-    if (conf.energy_cal_en)
+    if (conf->energy_cal_en)
     {
     }
-    return torch::matmul(mat, data.index({Slice(0, mat.size(2))}).to(torch::kF64) * deltaConduct + conf.minConduct).div(rowSize*conf.maxConduct);
+    return torch::matmul(mat, data.index({Slice(0, mat.size(2))}).to(torch::kF64) * deltaConduct + conf->minConduct).div(rowSize*conf->maxConduct);
 }
 
 /**
@@ -272,28 +268,27 @@ at::Tensor phyArrayPro::mm(const at::Tensor &mat)
 * @param mat input matrix. {batch_size, rowSize}
 * @return Tensor. return 3d tensor {batch_size, inBits/inVBits, rowSize}.
 */
-at::Tensor phyArrayPro::preWorkForMM(const at::Tensor &mat, pim_array_config *pconf, phy_array_config *conf, double &max_one)
+at::Tensor phyArrayPro::preWorkForMM(const at::Tensor &mat, const pim_array_pro_config *conf, double &max_one)
 {
-    if (pconf->dynamic_max_input)
+    if (conf->dynamic_max_input)
     {
-        if (pconf->has_negative_input)
-            max_one = std::min(pconf->max_phy_input_value, mat.abs().max().item<double>());
+        if (conf->has_negative_input)
+            max_one = std::min(conf->max_phy_input_value, mat.abs().max().item<double>());
         else
-            max_one = std::min(pconf->max_phy_input_value, mat.max().item<double>());
+            max_one = std::min(conf->max_phy_input_value, mat.max().item<double>());
         // std::cout << "max_one = " << max_one << std::endl;
     }
     else
-        max_one = pconf->max_phy_input_value;
+        max_one = conf->max_phy_input_value;
 
     at::Tensor out;
-    int inLevels = (1 << pconf->inBits);
-    int inVLevels = (1 << pconf->inVBits);
-    int nums = pconf->inBits / pconf->inVBits;
-    double k = (inLevels - 1) / max_one;
 
-    if (pconf->has_negative_input)
+    // int nums = conf->inBits / conf->inVBits;
+    double k = (conf->inLevels - 1) / max_one;
+
+    if (conf->has_negative_input)
     {
-        if (pconf->inBits <= 1)
+        if (conf->inBits <= 1)
         {
             throw("has neg input, inbits should be >1.");
         }
@@ -302,17 +297,17 @@ at::Tensor phyArrayPro::preWorkForMM(const at::Tensor &mat, pim_array_config *pc
         int num_larger_than_max = index_larger.sum(torch::kInt32).item<int>();
         int num_smaller_than_min = index_smaller.sum(torch::kInt32).item<int>();
 
-        if (!pconf->trunc_input && num_larger_than_max + num_smaller_than_min != 0)
+        if (!conf->trunc_input && num_larger_than_max + num_smaller_than_min != 0)
         {
             throw("trunc_input = false, && input exsits value mx than maximum or less than min. please modify config of array.");
         }
-        if (pconf->inVBits == 1) // complement form to represent number
+        if (conf->inVBits == 1) // complement form to represent number
         {
             out = mat.add(max_one).mul(k / 2);
-            out.index_put_({index_larger}, inLevels - 1);
+            out.index_put_({index_larger}, conf->inLevels - 1);
             out.index_put_({index_smaller}, 0);
 
-            out = out.add(0.5).to(torch::kInt32).bitwise_xor((1 << (pconf->inBits - 1)));
+            out = out.add(0.5).to(torch::kInt32).bitwise_xor((1 << (conf->inBits - 1)));
             max_one *= 2;
         }
         else //support negative voltage for negative number
@@ -320,18 +315,18 @@ at::Tensor phyArrayPro::preWorkForMM(const at::Tensor &mat, pim_array_config *pc
             auto neg = mat < 0;
             
             out = mat.abs().mul(k).add(0.5).to(torch::kI32);
-            out.index_put_({index_larger}, inLevels - 1);
-            out.index_put_({index_smaller}, inLevels - 1);
+            out.index_put_({index_larger}, conf->inLevels - 1);
+            out.index_put_({index_smaller}, conf->inLevels - 1);
 
-            at::Tensor output = torch::empty({out.size(0), nums, out.size(1)}, TensorOptions(mat.device()).dtype(torch::kFloat64));
-            at::Tensor neg_index = torch::empty({out.size(0), nums, out.size(1)}, TensorOptions(mat.device()).dtype(torch::kBool));
-            int mask = inVLevels - 1;
+            at::Tensor output = torch::empty({out.size(0), conf->inPluses, out.size(1)}, TensorOptions(mat.device()).dtype(torch::kFloat64));
+            at::Tensor neg_index = torch::empty({out.size(0), conf->inPluses, out.size(1)}, TensorOptions(mat.device()).dtype(torch::kBool));
+            int mask = conf->inVLevels - 1;
             neg = neg.view({out.size(0), 1, out.size(1)});
             out = out.view({out.size(0), 1, out.size(1)});
-            at::parallel_for(0, nums, 0, [&](int st, int ed) {
+            at::parallel_for(0, conf->inPluses, 0, [&](int st, int ed) {
                 for (int i = st; i < ed; ++i)
                 {
-                    output.index_put_({Slice(), Slice(i, i + 1)}, (out.__rshift__(i * pconf->inVBits).bitwise_and(mask).div((double)(inVLevels - 1))));
+                    output.index_put_({Slice(), Slice(i, i + 1)}, (out.__rshift__(i * conf->inVBits).bitwise_and(mask).div((double)(conf->inVLevels - 1))));
                     neg_index.index_put_({Slice(), Slice(i, i + 1)}, neg);
                 }
             });
@@ -345,23 +340,23 @@ at::Tensor phyArrayPro::preWorkForMM(const at::Tensor &mat, pim_array_config *pc
         auto index_smaller = mat < 0;
         int num_larger_than_max = index_larger.sum(torch::kInt32).item<int>();
         int num_smaller_than_min = index_smaller.sum(torch::kInt32).item<int>();
-        if (!pconf->trunc_input && num_larger_than_max + num_smaller_than_min != 0)
+        if (!conf->trunc_input && num_larger_than_max + num_smaller_than_min != 0)
         {
             throw("trunc_input = false, && input exsits value mx than maximum or less than min. please modify config of array.");
         }
         out = mat.mul(k).add(0.5).to(torch::kInt32);
-        out.index_put_({index_larger}, inLevels - 1);
+        out.index_put_({index_larger}, conf->inLevels - 1);
         out.index_put_({index_smaller}, 0);
     }
 
     // out is {batch_size, rowSize}
-    at::Tensor output = torch::empty({out.size(0), nums, out.size(1)}, TensorOptions(mat.device()).dtype(torch::kFloat64));
-    int mask = inVLevels - 1;
+    at::Tensor output = torch::empty({out.size(0), conf->inPluses, out.size(1)}, TensorOptions(mat.device()).dtype(torch::kFloat64));
+    int mask = conf->inVLevels - 1;
     out = out.view({out.size(0), 1, out.size(1)});
-    at::parallel_for(0, nums, 0, [&](int st, int ed) {
+    at::parallel_for(0, conf->inPluses, 0, [&](int st, int ed) {
         for (int i = st; i < ed; ++i)
         {
-            output.index_put_({Slice(), Slice(i, i + 1)}, (out.__rshift__(i * pconf->inVBits).bitwise_and(mask).div((double)(inVLevels - 1))) );
+            output.index_put_({Slice(), Slice(i, i + 1)}, (out.__rshift__(i * conf->inVBits).bitwise_and(mask).div((double)(conf->inVLevels - 1))) );
         }
     });
 
@@ -374,104 +369,97 @@ at::Tensor phyArrayPro::preWorkForMM(const at::Tensor &mat, pim_array_config *pc
 * @param max_one: data will be used in post work, max_one is send from prework
 * @return tensor sizes {batch_size, unitNumPerPhyRow}
 */
-at::Tensor phyArrayPro::postWorkForMM(const at::Tensor &mat, pim_array_config *pconf, phy_array_config *conf, double &max_one)
+at::Tensor phyArrayPro::postWorkForMM(const at::Tensor &mat, const pim_array_pro_config *conf, double &max_one)
 {
-    int outLevels = 1 << pconf->outBits;
-    int unitLevels = 1 << pconf->unitBits;
-    int inLevels = 1 << pconf->inBits;
-    int cellsPerUnit = pconf->unitBits / pconf->cellBits;
-    int unitNumPerPhyRow = pconf->phyArrColSize / cellsPerUnit;
-    int usedCellsPerRow = unitNumPerPhyRow * cellsPerUnit;
-    int nums = pconf->inBits/pconf->inVBits;
-    double scalar_value = max_one *pconf->phyArrRowSize /(unitLevels-1) * pconf->max_weight_value /(outLevels -1) *((1 << pconf->inVBits)-1) / (inLevels-1) * ((1 <<pconf->cellBits)-1);
+    // int nums = conf->inBits/conf->inVBits;
+    double scalar_value = max_one *conf->phyArrRowSize /(conf->unitLevels-1) * conf->max_weight_value /(conf->outLevels -1) *(conf->inVLevels-1) / (conf->inLevels-1) * (conf->cellLevels-1);
     at::Tensor out;
 
-    if (pconf->mode == 1) // ref col mode
+    if (conf->mode == 1) // ref col mode
     {
         scalar_value *= conf->maxConduct/(conf->maxConduct-conf->minConduct);
-        out = mat.mul(outLevels - 1).round(); //let out range from 0 -- outLevels -1, double
+        out = mat.mul(conf->outLevels - 1).round(); //let out range from 0 -- outLevels -1, double
 
-        out.index({Slice(), Slice(), Slice(0, pconf->phyArrColSize+1)}).subtract_(out.index({Slice(), Slice(), Slice(pconf->phyArrColSize+1)}));
+        out.index({Slice(), Slice(), Slice(0, conf->phyArrColSize+1)}).subtract_(out.index({Slice(), Slice(), Slice(conf->phyArrColSize+1)}));
         
-        at::Tensor refValue = out.index({Slice(), Slice(), Slice(pconf->phyArrColSize, pconf->phyArrColSize+1 ) });
+        at::Tensor refValue = out.index({Slice(), Slice(), Slice(conf->phyArrColSize, conf->phyArrColSize+1 ) });
         at::Tensor tmp = refValue;
 
-        refValue = refValue.__lshift__(pconf->unitBits).subtract(tmp);
+        refValue = refValue.__lshift__(conf->unitBits).subtract(tmp);
 
-        out = out.index({Slice(), Slice(), Slice(0, pconf->phyArrColSize)});
+        out = out.index({Slice(), Slice(), Slice(0, conf->phyArrColSize)});
 
-        at::Tensor output = torch::empty({mat.size(0), nums, unitNumPerPhyRow});
-        at::Tensor unitScalar = torch::ones({nums, usedCellsPerRow}, TensorOptions(mat.device()).dtype(torch::kI32));
+        at::Tensor output = torch::empty({mat.size(0), conf->inPluses, conf->unitsPerPhyRow});
+        // at::Tensor unitScalar = torch::ones({nums, conf->usedCellsPerPhyRow}, TensorOptions(mat.device()).dtype(torch::kI32));
 
-        at::parallel_for(0, cellsPerUnit, 0, [&](int st, int ed) -> void {
-            for (int i = st; i < ed; ++i)
-            {
-                unitScalar.index({Slice(), Slice(i, usedCellsPerRow, cellsPerUnit)}).__ilshift__(i*pconf->cellBits);
-            }
-        });
+        // at::parallel_for(0, conf->cellsPerUnit, 0, [&](int st, int ed) -> void {
+        //     for (int i = st; i < ed; ++i)
+        //     {
+        //         unitScalar.index({Slice(), Slice(i, conf->usedCellsPerPhyRow, conf->cellsPerUnit)}).__ilshift__(i*conf->cellBits);
+        //     }
+        // });
 
         
-        out *= unitScalar;
+        out *= conf->unitScalar.to(mat.device());
         
-        at::parallel_for(0, unitNumPerPhyRow, 0, [&](int st, int ed) -> void {
+        at::parallel_for(0, conf->unitsPerPhyRow, 0, [&](int st, int ed) -> void {
             for (int i = st; i < ed; ++i)
             {
 
-                output.index_put_({Slice(), Slice(), Slice(i, i+1)}, out.index({Slice(), Slice(), Slice(i*cellsPerUnit, (i+1)*cellsPerUnit)}).sum(2, true));
+                output.index_put_({Slice(), Slice(), Slice(i, i+1)}, out.index({Slice(), Slice(), Slice(i*conf->cellsPerUnit, (i+1)*conf->cellsPerUnit)}).sum(2, true));
             }
         });
 
         output = output.__lshift__(1)-refValue;
 
-        at::Tensor inScalar = torch::ones({nums, 1}, TensorOptions(mat.device()).dtype(torch::kF64));
+        // at::Tensor inScalar = torch::ones({nums, 1}, TensorOptions(mat.device()).dtype(torch::kF64));
         
-        at::parallel_for(0, nums, 0, [&](int st, int ed) -> void {
-            for (int i = st; i < ed; ++i)
-            {
-                inScalar.index_put_({Slice(i, i + 1)}, 1 << (i*pconf->inVBits));
-            }
-        });
-        if (pconf->inVBits==1 && pconf->has_negative_input)
-            inScalar.index_put_({Slice(pconf->inBits-1)}, (1 << (pconf->inBits-1))*-1);
+        // at::parallel_for(0, nums, 0, [&](int st, int ed) -> void {
+        //     for (int i = st; i < ed; ++i)
+        //     {
+        //         inScalar.index_put_({Slice(i, i + 1)}, 1 << (i*conf->inVBits));
+        //     }
+        // });
+        // if (conf->inVBits==1 && conf->has_negative_input)
+        //     inScalar.index_put_({Slice(conf->inBits-1)}, (1 << (conf->inBits-1))*-1);
 
         
-        out = (output* inScalar).sum(1).mul(scalar_value);  //{batch_size, unitNumPerPhyRow}
+        out = (output* conf->inScalar).sum(1).mul(scalar_value);  //{batch_size, unitNumPerPhyRow}
         return out;
     }
     else // postive & negative array mode,  in this single array, normal calculation.
     {
 
-        out = mat.mul(outLevels - 1).round(); //let out range from 0 -- outLevels -1, double
+        out = mat.mul(conf->outLevels - 1).round(); //let out range from 0 -- outLevels -1, double
+        at::Tensor output = torch::empty({mat.size(0), conf->inPluses, conf->unitsPerPhyRow});
+        // at::Tensor unitScalar = torch::ones({nums, conf->usedCellsPerPhyRow}, TensorOptions(mat.device()).dtype(torch::kI32));
 
-        at::Tensor output = torch::empty({mat.size(0), nums, unitNumPerPhyRow});
-        at::Tensor unitScalar = torch::ones({nums, usedCellsPerRow}, TensorOptions(mat.device()).dtype(torch::kI32));
+        // at::parallel_for(0, conf->cellsPerUnit, 0, [&](int st, int ed) -> void {
+        //     for (int i = st; i < ed; ++i)
+        //     {
+        //         unitScalar.index({Slice(), Slice(i, conf->usedCellsPerPhyRow, conf->cellsPerUnit)}).__ilshift__(i*conf->cellBits);
+        //     }
+        // });
 
-        at::parallel_for(0, cellsPerUnit, 0, [&](int st, int ed) -> void {
-            for (int i = st; i < ed; ++i)
-            {
-                unitScalar.index({Slice(), Slice(i, usedCellsPerRow, cellsPerUnit)}).__ilshift__(i*pconf->cellBits);
-            }
-        });
-
-        out *= unitScalar;
+        out *= conf->unitScalar;
         
-        at::parallel_for(0, unitNumPerPhyRow, 0, [&](int st, int ed) -> void {
+        at::parallel_for(0, conf->unitsPerPhyRow, 0, [&](int st, int ed) -> void {
             for (int i = st; i < ed; ++i)
             {
-                output.index_put_({Slice(), Slice(), Slice(i, i+1)}, out.index({Slice(), Slice(), Slice(i*cellsPerUnit, (i+1)*cellsPerUnit)}).sum(2, true));
+                output.index_put_({Slice(), Slice(), Slice(i, i+1)}, out.index({Slice(), Slice(), Slice(i*conf->cellsPerUnit, (i+1)*conf->cellsPerUnit)}).sum(2, true));
             }
         });
 
-        at::Tensor inScalar = torch::ones({nums, 1}, TensorOptions(mat.device()).dtype(torch::kF64));
+        // at::Tensor inScalar = torch::ones({nums, 1}, TensorOptions(mat.device()).dtype(torch::kF64));
 
-        at::parallel_for(0, nums, 0, [&](int st, int ed) -> void {
-            for (int i = st; i < ed; ++i)
-            {
-                inScalar.index_put_({Slice(i, i + 1)}, 1 << (i*pconf->inVBits));
-            }
-        });
+        // at::parallel_for(0, nums, 0, [&](int st, int ed) -> void {
+        //     for (int i = st; i < ed; ++i)
+        //     {
+        //         inScalar.index_put_({Slice(i, i + 1)}, 1 << (i*conf->inVBits));
+        //     }
+        // });
 
-        out = (output * inScalar).sum(1).mul(scalar_value); //{batch_size, unitNumPerPhyRow}
+        out = (output * conf->inScalar).sum(1).mul(scalar_value); //{batch_size, unitNumPerPhyRow}
         return out;
     }
     return out;
@@ -482,14 +470,14 @@ void phyArrayPro::print(std::ostream &os)
     using std::endl;
     os << "data = " << endl;
     os << data << endl;
-    if (conf.energy_cal_en)
+    if (conf->energy_cal_en)
     {
         os << " total energy = " << readEnergy + writeEnergy
            << ", write energy = " << writeEnergy
            << ", read energy = " << readEnergy << endl;
     }
     os << " total write cnt = " << totalWrCnt << endl;
-    if (conf.write_cnt_en)
+    if (conf->write_cnt_en)
     {
         os << " total cmp write cnt = " << totalCmpWrCnt << endl;
         os << "cell write cnt = " << endl;

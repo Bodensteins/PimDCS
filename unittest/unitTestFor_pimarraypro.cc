@@ -1,6 +1,6 @@
 #include <torch/torch.h>
-#include "../pim_array_example.h"
-#include "../pim_array_config.h"
+#include "pim_array_example.h"
+#include "pim_array_config.h"
 #include <ctime>
 #include <omp.h>
 
@@ -33,7 +33,7 @@ void writeTest()
 {
     pim_array_config cf;
     auto op = torch::TensorOptions(dev).dtype(torch::kFloat64);
-    pimArrayPro pim(M+1, N+1, op, cf);
+    pimArrayPro pim(M+1, N+1, op);
     SimpleLogicArray simple(M, N, op);
     srand(time(NULL));
     // for (int i = 0; i < M; ++i)
@@ -66,22 +66,19 @@ void writeTest()
 
 void preWorkTest()
 {
-    pim_array_config cf;
-    phy_array_config phycf;
+    pim_array_pro_config cf;
     double max_one;
     at::Tensor mat = torch::tensor({{1, 3}, {-5, 7}});
-    cout << phyArrayPro::preWorkForMM(mat, &cf, &phycf, max_one) << endl;
+    cout << phyArrayPro::preWorkForMM(mat, &cf, max_one) << endl;
 }
 
 void mmTest()
 {
-    pim_array_config cf;
-    phy_array_config phycf;
-    
+    pim_array_pro_config cf;    
     at::Tensor mat = torch::rand({2, 2}, torch::kF64)*-4;
 
     pimArrayPro test(2, 2);
-    auto data = torch::rand({2, 2}, torch::kF64);
+    auto data = torch::rand({2, 2}, torch::kF64)*-1;
     cout << "true=" << matmul(mat, data) << endl;
     test.write_mat(data);
     cout << test.read_mat() << endl;

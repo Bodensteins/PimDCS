@@ -799,21 +799,13 @@ std::mutex phyArrayManagerPro::mu;
 class pimArrayPro : public LogicArrayInterface
 {
 public:
-    pimArrayPro(int rowSizeIn, int colSizeIn, const torch::TensorOptions &op = {}, pim_array_config cf = decf) : LogicArrayInterface(rowSizeIn, colSizeIn)
-    {
-        cf.rowSize = rowSizeIn;
-        cf.colSize = colSizeIn;
-        conf = cf;
-        init(cf, op);
-    }
-
-    pimArrayPro(const pim_array_config &cf, const torch::TensorOptions &op = {}) : LogicArrayInterface(cf.rowSize, cf.colSize)
+    pimArrayPro(int rowSizeIn, int colSizeIn, const torch::TensorOptions &op = {}, const pim_array_pro_config *cf = &pro_decf) : LogicArrayInterface(rowSizeIn, colSizeIn)
     {
         conf = cf;
         init(cf, op);
     }
 
-    void init(const pim_array_config &cf, const torch::TensorOptions &op);
+    void init(const pim_array_pro_config *cf, const torch::TensorOptions &op);
 
     void write_cell(int64_t row, int64_t col, const torch::Scalar &value) override
     {
@@ -882,7 +874,7 @@ public:
 
     std::ostream &print(std::ostream &os) const override
     {
-        if (conf.mode==1)
+        if (conf->mode==1)
         {
             for (int i = 0; i < arrX_size; ++i)
                 for (int j = 0; j < arrY_size; ++j)
@@ -906,81 +898,74 @@ public:
 
 protected:
     std::vector<int64_t> sizes_vec;
-    pim_array_config conf;
-    int arrX_size, arrY_size, phyArrRowSize, phyArrColSize;
+    const pim_array_pro_config *conf;
+    int arrX_size, arrY_size;
     static phyArrayManagerPro phyArrManPro;
     std::vector<std::vector<int>> arr, narr;
     torch::TensorOptions op;
-    int numCellPerUnit, unitNumPerPhyRow, usedcellsPerPhyRow, phyAllRowSize;
+    
 };
 
 phyArrayManagerPro pimArrayPro::phyArrManPro;
 
-void pimArrayPro::init(const pim_array_config &cf, const torch::TensorOptions &op)
+void pimArrayPro::init(const pim_array_pro_config *cf, const torch::TensorOptions &op)
 {
-    phyArrRowSize = cf.phyArrRowSize;
-    phyArrColSize = cf.phyArrColSize;
-
-    if (cf.unitBits % cf.cellBits != 0)
+    if (cf->unitBits % cf->cellBits != 0)
     {
         throw "unitBits mod cellBits != 0";
     }
 
-    if (cf.inBits % cf.inVBits != 0)
+    if (cf->inBits % cf->inVBits != 0)
     {
         throw "inBitsm mod inVBits!=0";
     }
 
-    numCellPerUnit = cf.unitBits / cf.cellBits;
+    
     // one phy array row can store how many units
-
-    unitNumPerPhyRow = phyArrColSize / numCellPerUnit;
-    if (unitNumPerPhyRow <= 0)
+    if (cf->unitsPerPhyRow <= 0)
     {
-        throw "unitNumPerPhyRow<=0";
+        throw "unitsPerPhyRow<=0";
     }
 
-    usedcellsPerPhyRow = unitNumPerPhyRow * numCellPerUnit;
-    arrX_size = trunc_ceil((int)rowSize, phyArrRowSize);
-    arrY_size = trunc_ceil((int)colSize, unitNumPerPhyRow);
+    
+    arrX_size = trunc_ceil((int)rowSize, cf->phyArrRowSize);
+    arrY_size = trunc_ceil((int)colSize, cf->unitsPerPhyRow);
 
     this->op = op;
 
     arr = std::vector<std::vector<int>>(arrX_size, std::vector<int>(arrY_size));
 
-    if (cf.mode == 0)
+    if (cf->mode == 0)
         narr = arr;
     at::Tensor initMat;
-    auto type = cf.cellBits <= 8 ? torch::kUInt8 : torch::kInt32;
+    auto type = cf->cellBits <= 8 ? torch::kUInt8 : torch::kInt32;
 
-    if (cf.mode == 1) // last col is 0, ref colum is set different from pimArrayExample, be careful
-        initMat = torch::cat({torch::zeros({phyArrRowSize, phyArrColSize}, op.dtype(type)), torch::ones({phyArrRowSize, 1}, op.dtype(type)),
-                              torch::zeros({phyArrRowSize, 1}, op.dtype(type))},
+    if (cf->mode == 1) // last col is 0, ref colum is set different from pimArrayExample, be careful
+        initMat = torch::cat({torch::zeros({cf->phyArrRowSize, cf->phyArrColSize}, op.dtype(type)), torch::ones({cf->phyArrRowSize, 1}, op.dtype(type)),
+                              torch::zeros({cf->phyArrRowSize, 1}, op.dtype(type))},
                              1);
     else
-        initMat = torch::zeros({phyArrRowSize, phyArrColSize}, op.dtype(type));
+        initMat = torch::zeros({cf->phyArrRowSize, cf->phyArrColSize}, op.dtype(type));
 
     for (int i = 0; i < arrX_size; ++i)
         for (int j = 0; j < arrY_size; ++j)
         {
-            if (cf.mode == 1) // ref  col mode
+            if (cf->mode == 1) // ref  col mode
             {
-                int k = phyArrManPro.allocPhyArray(phyArrRowSize, phyArrColSize + 2, op);
+                int k = phyArrManPro.allocPhyArray(cf->phyArrRowSize, cf->phyArrColSize + 2, op);
                 arr[i][j] = k;
                 phyArrManPro.synaccess(k).writeMat(initMat);
             }
             else // postive & negative array mode
             {
-                int k = phyArrManPro.allocPhyArray(phyArrRowSize, phyArrColSize, op);
+                int k = phyArrManPro.allocPhyArray(cf->phyArrRowSize, cf->phyArrColSize, op);
                 arr[i][j] = k;
                 phyArrManPro.synaccess(k).writeMat(initMat);
 
-                narr[i][j] = k = phyArrManPro.allocPhyArray(phyArrRowSize, phyArrColSize, op);
+                narr[i][j] = k = phyArrManPro.allocPhyArray(cf->phyArrRowSize, cf->phyArrColSize, op);
                 phyArrManPro.synaccess(k).writeMat(initMat);
             }
         }
-
-    phyAllRowSize = phyArrRowSize * arrX_size;
 
     sizes_vec = std::vector<int64_t>({rowSize, colSize});
 
@@ -995,19 +980,18 @@ at::Tensor pimArrayPro::read_mat(int row, int col, int m, int n)
 
     m = ed_row - row;
     n = ed_col - col;
-    int unitLevels = 1 << conf.unitBits;
 
     auto getColPos = [&](int col, int &Y, int &arrCol) -> void {
-        Y = col / unitNumPerPhyRow;
-        arrCol = col % unitNumPerPhyRow * numCellPerUnit;
+        Y = col / conf->unitsPerPhyRow;
+        arrCol = col % conf->unitsPerPhyRow * conf->cellsPerUnit;
     };
 
     auto getRowPos = [&](int row, int &X, int &arrRow) -> void {
-        X = row / phyArrRowSize;
-        arrRow = row % phyArrRowSize;
+        X = row / conf->phyArrRowSize;
+        arrRow = row % conf->phyArrRowSize;
     };
 
-    if (conf.mode == 0) // positive array & negative array
+    if (conf->mode == 0) // positive array & negative array
     {
         int ed_arrY, ed_arrColId;
         int ed_arrX, ed_arrRowId;
@@ -1015,9 +999,9 @@ at::Tensor pimArrayPro::read_mat(int row, int col, int m, int n)
         int st_arrY, st_arrColId;
         int lenx, leny;
 
-        at::Tensor pos_cell = torch::empty({m, numCellPerUnit * n}, op.dtype(torch::kI32));
+        at::Tensor pos_cell = torch::empty({m, conf->cellsPerUnit * n}, op.dtype(torch::kI32));
 
-        at::Tensor neg_cell = torch::empty({m, numCellPerUnit * n}, op.dtype(torch::kI32));
+        at::Tensor neg_cell = torch::empty({m, conf->cellsPerUnit * n}, op.dtype(torch::kI32));
 
         getRowPos(row, st_arrX, st_arrRowId);
         getRowPos(ed_row, ed_arrX, ed_arrRowId);
@@ -1035,18 +1019,18 @@ at::Tensor pimArrayPro::read_mat(int row, int col, int m, int n)
                 int X, Y, x, y, m, n;
 
                 if (i == 0)
-                    X = 0, x = st_arrRowId, m = lenx==1? ed_arrRowId-st_arrRowId : phyArrRowSize - st_arrRowId;
+                    X = 0, x = st_arrRowId, m = lenx==1? ed_arrRowId-st_arrRowId : conf->phyArrRowSize - st_arrRowId;
                 else if (i == lenx - 1)
-                    X = i * phyArrRowSize - st_arrRowId, x = 0, m = ed_arrRowId;
+                    X = i * conf->phyArrRowSize - st_arrRowId, x = 0, m = ed_arrRowId;
                 else
-                    X = i * phyArrRowSize - st_arrRowId, x = 0, m = phyArrRowSize;
+                    X = i * conf->phyArrRowSize - st_arrRowId, x = 0, m = conf->phyArrRowSize;
 
                 if (j == 0)
-                    Y = 0, y = st_arrColId, n = leny==1? ed_arrColId-st_arrColId : usedcellsPerPhyRow - st_arrColId;
+                    Y = 0, y = st_arrColId, n = leny==1? ed_arrColId-st_arrColId : conf->usedCellsPerPhyRow - st_arrColId;
                 else if (j == leny - 1)
-                    Y = j * usedcellsPerPhyRow - st_arrColId, y = 0, n = ed_arrColId;
+                    Y = j * conf->usedCellsPerPhyRow - st_arrColId, y = 0, n = ed_arrColId;
                 else
-                    Y = j * usedcellsPerPhyRow - st_arrColId, y = 0, n = usedcellsPerPhyRow;
+                    Y = j * conf->usedCellsPerPhyRow - st_arrColId, y = 0, n = conf->usedCellsPerPhyRow;
                 if (m==0 || n==0) continue;
                 pos_cell.index({Slice(X, X + m), Slice(Y, Y + n)}) =
                     phyArrManPro[arr[st_arrX + i][st_arrY + j]].readMat(x, y, m, n);
@@ -1057,16 +1041,16 @@ at::Tensor pimArrayPro::read_mat(int row, int col, int m, int n)
         auto cell2digit = [&](at::Tensor &in) -> at::Tensor {
             at::Tensor data = torch::zeros({m, n}, op.dtype(torch::kI32));
 
-            for (int i = 0; i < numCellPerUnit; ++i)
+            for (int i = 0; i < conf->cellsPerUnit; ++i)
             {
-                data.add_( in.index({Slice(), Slice(i, n*numCellPerUnit, numCellPerUnit)}).__lshift__(i * conf.cellBits) );
+                data.add_( in.index({Slice(), Slice(i, n*conf->cellsPerUnit, conf->cellsPerUnit)}).__lshift__(i * conf->cellBits) );
             }
 
             return data;
         };
 
         auto digit2unit = [&](const at::Tensor &in) -> at::Tensor {
-            return in.to(torch::kFloat64).mul(conf.max_weight_value / (unitLevels - 1));
+            return in.to(torch::kFloat64).mul(conf->max_weight_value / (conf->unitLevels - 1));
         };
 
         return digit2unit(cell2digit(pos_cell)) - digit2unit(cell2digit(neg_cell));
@@ -1086,7 +1070,7 @@ at::Tensor pimArrayPro::read_mat(int row, int col, int m, int n)
 
     leny = ed_arrY - st_arrY + 1;
     lenx = ed_arrX - st_arrX + 1;
-    at::Tensor data_cell = torch::empty({m, numCellPerUnit * n}, op.dtype(torch::kI32));
+    at::Tensor data_cell = torch::empty({m, conf->cellsPerUnit * n}, op.dtype(torch::kI32));
     at::parallel_for(0, leny * lenx, 0, [&](int st, int ed) -> void {
         for (int k = st; k < ed; ++k)
         {
@@ -1095,18 +1079,18 @@ at::Tensor pimArrayPro::read_mat(int row, int col, int m, int n)
             int X, Y, x, y, m, n;
 
             if (i == 0)
-                X = 0, x = st_arrRowId, m = lenx==1? ed_arrRowId-st_arrRowId : phyArrRowSize - st_arrRowId;
+                X = 0, x = st_arrRowId, m = lenx==1? ed_arrRowId-st_arrRowId : conf->phyArrRowSize - st_arrRowId;
             else if (i == lenx - 1)
-                X = i * phyArrRowSize - st_arrRowId, x = 0, m = ed_arrRowId;
+                X = i * conf->phyArrRowSize - st_arrRowId, x = 0, m = ed_arrRowId;
             else
-                X = i * phyArrRowSize - st_arrRowId, x = 0, m = phyArrRowSize;
+                X = i * conf->phyArrRowSize - st_arrRowId, x = 0, m = conf->phyArrRowSize;
 
             if (j == 0)
-                Y = 0, y = st_arrColId, n = leny==1? ed_arrColId-st_arrColId : usedcellsPerPhyRow - st_arrColId;
+                Y = 0, y = st_arrColId, n = leny==1? ed_arrColId-st_arrColId : conf->usedCellsPerPhyRow - st_arrColId;
             else if (j == leny - 1)
-                Y = j * usedcellsPerPhyRow - st_arrColId, y = 0, n = ed_arrColId;
+                Y = j * conf->usedCellsPerPhyRow - st_arrColId, y = 0, n = ed_arrColId;
             else
-                Y = j * usedcellsPerPhyRow - st_arrColId, y = 0, n = usedcellsPerPhyRow;
+                Y = j * conf->usedCellsPerPhyRow - st_arrColId, y = 0, n = conf->usedCellsPerPhyRow;
             if (m==0 || n==0) continue;
             data_cell.index({Slice(X, X + m), Slice(Y, Y + n)}) =
                 phyArrManPro[arr[st_arrX + i][st_arrY + j]].readMat(x, y, m, n);
@@ -1116,16 +1100,16 @@ at::Tensor pimArrayPro::read_mat(int row, int col, int m, int n)
     auto cell2digit = [&](const at::Tensor &in) -> at::Tensor {
         at::Tensor data = torch::zeros({m, n}, op.dtype(torch::kI32));
 
-        for (int i = 0; i < numCellPerUnit; ++i)
+        for (int i = 0; i < conf->cellsPerUnit; ++i)
         {
-            data.add_( in.index({Slice(), Slice(i, n*numCellPerUnit, numCellPerUnit)}).__lshift__(i * conf.cellBits) );
+            data.add_( in.index({Slice(), Slice(i, n*conf->cellsPerUnit, conf->cellsPerUnit)}).__lshift__(i * conf->cellBits) );
         }
 
         return data;
     };
 
     auto digit2unit = [&](const at::Tensor &in) -> at::Tensor {
-        return in.to(torch::kFloat64).div((unitLevels - 1) / 2.0).subtract(1).mul(conf.max_weight_value);
+        return in.to(torch::kFloat64).div((conf->unitLevels - 1) / 2.0).subtract(1).mul(conf->max_weight_value);
     };
     return digit2unit(cell2digit(data_cell));
 }
@@ -1141,27 +1125,25 @@ void pimArrayPro::write_mat(const at::Tensor &matin, int row, int col)
     int64_t m = mat.size(0), n = mat.size(1);
     int ed_row = std::min(row + m, rowSize);
     int ed_col = std::min(col + n, colSize);
-    int unitLevels = 1 << conf.unitBits;
-
     
     auto getColPos = [&](int col, int &Y, int &arrCol) -> void {
-        Y = col / unitNumPerPhyRow;
-        arrCol = col % unitNumPerPhyRow * numCellPerUnit;
+        Y = col / conf->unitsPerPhyRow;
+        arrCol = col % conf->unitsPerPhyRow * conf->cellsPerUnit;
     };
 
     auto getRowPos = [&](int row, int &X, int &arrRow) -> void {
-        X = row / phyArrRowSize;
-        arrRow = row % phyArrRowSize;
+        X = row / conf->phyArrRowSize;
+        arrRow = row % conf->phyArrRowSize;
     };
     // getRowPos(ed_row, ed_arrX, ed_arrRowId);
-    if (conf.mode == 0) // positive array & negative array
+    if (conf->mode == 0) // positive array & negative array
     {
         auto unit2digit = [&](const at::Tensor &x, at::Tensor &pos, at::Tensor &neg) -> void {
-            pos = x.div(conf.max_weight_value);
+            pos = x.div(conf->max_weight_value);
             pos.index_put_({pos > 1}, 1.0);
             pos.index_put_({pos < -1}, -1.0); // -1~~1
 
-            pos = pos.mul(unitLevels - 1).to(torch::kI32); // -(unitLevels -1 ) ~~~~ (unitLevels -1 )
+            pos = pos.mul(conf->unitLevels - 1).to(torch::kI32); // -(unitLevels -1 ) ~~~~ (unitLevels -1 )
             neg = pos.clone();
 
             pos.index_put_({pos < 0}, 0); // 0 ~ unitLevels-1
@@ -1169,13 +1151,13 @@ void pimArrayPro::write_mat(const at::Tensor &matin, int row, int col)
             neg.abs_(); // 0 ~ unitLevels-1
         };
 
-        int mask = (1 << conf.cellBits) - 1;
+        int mask = (conf->cellLevels) - 1;
         auto digit2cell = [&](at::Tensor &in, at::Tensor &out) -> void {
-            out = torch::empty({m, numCellPerUnit*n}, op.dtype(torch::kI32));
-            at::parallel_for(0, numCellPerUnit, 0, [&](int st, int ed) -> void {
+            out = torch::empty({m, conf->cellsPerUnit*n}, op.dtype(torch::kI32));
+            at::parallel_for(0, conf->cellsPerUnit, 0, [&](int st, int ed) -> void {
                 for (int i = st; i < ed; ++i)
                 {
-                    out.index({Slice(), Slice(i, numCellPerUnit * n, numCellPerUnit)}) = in.__rshift__(i * conf.cellBits).bitwise_and(mask);
+                    out.index({Slice(), Slice(i, conf->cellsPerUnit * n, conf->cellsPerUnit)}) = in.__rshift__(i * conf->cellBits).bitwise_and(mask);
                 }
             });
         };
@@ -1207,18 +1189,18 @@ void pimArrayPro::write_mat(const at::Tensor &matin, int row, int col)
                 int X, Y, x, y, m, n;
 
                 if (i == 0)
-                    X = 0, x = st_arrRowId, m = lenx==1? ed_arrRowId-st_arrRowId : phyArrRowSize - st_arrRowId;
+                    X = 0, x = st_arrRowId, m = lenx==1? ed_arrRowId-st_arrRowId : conf->phyArrRowSize - st_arrRowId;
                 else if (i == lenx - 1)
-                    X = i * phyArrRowSize - st_arrRowId, x = 0, m = ed_arrRowId;
+                    X = i * conf->phyArrRowSize - st_arrRowId, x = 0, m = ed_arrRowId;
                 else
-                    X = i * phyArrRowSize - st_arrRowId, x = 0, m = phyArrRowSize;
+                    X = i * conf->phyArrRowSize - st_arrRowId, x = 0, m = conf->phyArrRowSize;
 
                 if (j == 0)
-                    Y = 0, y = st_arrColId, n = leny==1? ed_arrColId-st_arrColId : usedcellsPerPhyRow - st_arrColId;
+                    Y = 0, y = st_arrColId, n = leny==1? ed_arrColId-st_arrColId : conf->usedCellsPerPhyRow - st_arrColId;
                 else if (j == leny - 1)
-                    Y = j * usedcellsPerPhyRow - st_arrColId, y = 0, n = ed_arrColId;
+                    Y = j * conf->usedCellsPerPhyRow - st_arrColId, y = 0, n = ed_arrColId;
                 else
-                    Y = j * usedcellsPerPhyRow - st_arrColId, y = 0, n = usedcellsPerPhyRow;
+                    Y = j * conf->usedCellsPerPhyRow - st_arrColId, y = 0, n = conf->usedCellsPerPhyRow;
                 if (m==0 || n==0) continue;
                 phyArrManPro[arr[st_arrX + i][st_arrY + j]].writeMat(pos_cell.index({Slice(X, X + m), Slice(Y, Y + n)}), x, y);
                 phyArrManPro[narr[st_arrX + i][st_arrY + j]].writeMat(neg_cell.index({Slice(X, X + m), Slice(Y, Y + n)}), x, y);
@@ -1230,19 +1212,19 @@ void pimArrayPro::write_mat(const at::Tensor &matin, int row, int col)
 
     //ref column mode
     auto unit2digit = [&](const at::Tensor &x) -> at::Tensor {
-        auto y = x.div(conf.max_weight_value);
+        auto y = x.div(conf->max_weight_value);
         y.index_put_({y > 1}, 1.0);
         y.index_put_({y < -1}, -1.0);
-        return y.add(1).div(2.0).mul(unitLevels - 1).add(0.5).to(torch::kInt32);
+        return y.add(1).div(2.0).mul(conf->unitLevels - 1).add(0.5).to(torch::kInt32);
     };
 
-    int mask = (1 << conf.cellBits) - 1;
+    int mask = (conf->cellLevels) - 1;
     auto digit2cell = [&](at::Tensor &in, at::Tensor &out) -> void {
-        out = torch::empty({m, numCellPerUnit * n}, op.dtype(torch::kI32));
-        at::parallel_for(0, numCellPerUnit, 0, [&](int st, int ed) -> void {
+        out = torch::empty({m, conf->cellsPerUnit * n}, op.dtype(torch::kI32));
+        at::parallel_for(0, conf->cellsPerUnit, 0, [&](int st, int ed) -> void {
             for (int i = st; i < ed; ++i)
             {
-                out.index({Slice(), Slice(i, numCellPerUnit * n, numCellPerUnit)}) = in.__rshift__(i * conf.cellBits).bitwise_and(mask);
+                out.index({Slice(), Slice(i, conf->cellsPerUnit * n, conf->cellsPerUnit)}) = in.__rshift__(i * conf->cellBits).bitwise_and(mask);
             }
         });
     };
@@ -1273,18 +1255,18 @@ void pimArrayPro::write_mat(const at::Tensor &matin, int row, int col)
             int X, Y, x, y, m, n;
 
             if (i == 0)
-                X = 0, x = st_arrRowId, m = lenx==1? ed_arrRowId-st_arrRowId : phyArrRowSize - st_arrRowId;
+                X = 0, x = st_arrRowId, m = lenx==1? ed_arrRowId-st_arrRowId : conf->phyArrRowSize - st_arrRowId;
             else if (i == lenx - 1)
-                X = i * phyArrRowSize - st_arrRowId, x = 0, m = ed_arrRowId;
+                X = i * conf->phyArrRowSize - st_arrRowId, x = 0, m = ed_arrRowId;
             else
-                X = i * phyArrRowSize - st_arrRowId, x = 0, m = phyArrRowSize;
+                X = i * conf->phyArrRowSize - st_arrRowId, x = 0, m = conf->phyArrRowSize;
 
             if (j == 0)
-                Y = 0, y = st_arrColId, n = leny==1? ed_arrColId-st_arrColId : usedcellsPerPhyRow - st_arrColId;
+                Y = 0, y = st_arrColId, n = leny==1? ed_arrColId-st_arrColId : conf->usedCellsPerPhyRow - st_arrColId;
             else if (j == leny - 1)
-                Y = j * usedcellsPerPhyRow - st_arrColId, y = 0, n = ed_arrColId;
+                Y = j * conf->usedCellsPerPhyRow - st_arrColId, y = 0, n = ed_arrColId;
             else
-                Y = j * usedcellsPerPhyRow - st_arrColId, y = 0, n = usedcellsPerPhyRow;
+                Y = j * conf->usedCellsPerPhyRow - st_arrColId, y = 0, n = conf->usedCellsPerPhyRow;
             if (m==0 || n==0) continue;
             phyArrManPro[arr[st_arrX + i][st_arrY + j]].writeMat(data_cell.index({Slice(X, X + m), Slice(Y, Y + n)}), x, y);
         }
@@ -1301,23 +1283,23 @@ at::Tensor pimArrayPro::mm(const at::Tensor &matin)
     at::Tensor mat = matin.detach();
     int batch_size = mat.size(0);
     double max_one;
-    at::Tensor input = phyArrayPro::preWorkForMM(mat, &conf, &phyArrManPro[arr[0][0]].conf, std::ref(max_one)); // input should be tensor of size {batch_size, inBits/inVBits, rowSize}
+    at::Tensor input = phyArrayPro::preWorkForMM(mat, conf, std::ref(max_one)); // input should be tensor of size {batch_size, inBits/inVBits, rowSize}
     
-    at::Tensor out = torch::empty({arrX_size, batch_size, arrY_size * unitNumPerPhyRow}, op.dtype(torch::kF64));
+    at::Tensor out = torch::empty({arrX_size, batch_size, arrY_size * conf->unitsPerPhyRow}, op.dtype(torch::kF64));
 
     // postive & negative array mode
-    if (conf.mode == 0)
+    if (conf->mode == 0)
     {
-        at::Tensor nout = torch::empty({arrX_size, batch_size, arrY_size * unitNumPerPhyRow}, op.dtype(torch::kF64));
+        at::Tensor nout = torch::empty({arrX_size, batch_size, arrY_size * conf->unitsPerPhyRow}, op.dtype(torch::kF64));
         at::parallel_for(0, arrX_size * arrY_size, 0, [&](int st, int ed) {
             for (int k = st; k < ed; ++k)
             {
                 int i = k / arrY_size;
                 int j = k % arrY_size;
 
-                out[i].index({Slice(), Slice(j * unitNumPerPhyRow, (j + 1) * unitNumPerPhyRow)}) = phyArrManPro[arr[i][j]].mm(input.index({Slice(), Slice(), Slice(i * phyArrRowSize, (i + 1) * phyArrRowSize)}), &conf, max_one, phyArrayPro::postWorkForMM);
+                out[i].index({Slice(), Slice(j * conf->unitsPerPhyRow, (j + 1) * conf->unitsPerPhyRow)}) = phyArrManPro[arr[i][j]].mm(input.index({Slice(), Slice(), Slice(i * conf->phyArrRowSize, (i + 1) * conf->phyArrRowSize)}), conf, max_one, phyArrayPro::postWorkForMM);
 
-                nout[i].index({Slice(), Slice(j * unitNumPerPhyRow, (j + 1) * unitNumPerPhyRow)}) = phyArrManPro[narr[i][j]].mm(input.index({Slice(), Slice(), Slice(i * phyArrRowSize, (i + 1) * phyArrRowSize)}), &conf, max_one, phyArrayPro::postWorkForMM);
+                nout[i].index({Slice(), Slice(j * conf->unitsPerPhyRow, (j + 1) * conf->unitsPerPhyRow)}) = phyArrManPro[narr[i][j]].mm(input.index({Slice(), Slice(), Slice(i * conf->phyArrRowSize, (i + 1) * conf->phyArrRowSize)}), conf, max_one, phyArrayPro::postWorkForMM);
             }
         });
         out.subtract_(nout);
@@ -1330,7 +1312,7 @@ at::Tensor pimArrayPro::mm(const at::Tensor &matin)
                 int i = k / arrY_size;
                 int j = k % arrY_size;
 
-                out[i].index({Slice(), Slice(j * unitNumPerPhyRow, (j + 1) * unitNumPerPhyRow)}) = phyArrManPro[arr[i][j]].mm(input.index({Slice(), Slice(), Slice(i * phyArrRowSize, (i + 1) * phyArrRowSize)}), &conf, max_one, phyArrayPro::postWorkForMM);
+                out[i].index({Slice(), Slice(j * conf->unitsPerPhyRow, (j + 1) * conf->unitsPerPhyRow)}) = phyArrManPro[arr[i][j]].mm(input.index({Slice(), Slice(), Slice(i * conf->phyArrRowSize, (i + 1) * conf->phyArrRowSize)}), conf, max_one, phyArrayPro::postWorkForMM);
             }
        // });
     }

@@ -1,6 +1,6 @@
-#include "../pure_array.h"
-#include "../pim_conv.h"
-#include "../pim_linear.h"
+#include "pure_array.h"
+#include "pim_conv.h"
+#include "pim_linear.h"
 #include <iostream>
 #include <string>
 #include <ctime>

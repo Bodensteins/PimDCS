@@ -5,7 +5,7 @@
 #include <iostream>
 #include <string>
 #include <chrono>
-#include "../pim_linear.h"
+#include "pim_linear.h"
 #include "omp.h"
 
 using namespace std::chrono;

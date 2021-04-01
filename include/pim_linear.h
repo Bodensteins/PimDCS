@@ -50,14 +50,14 @@ namespace PIM {
         const Tensor &input, const Tensor &weight, const c10::optional<Tensor> &bias, bool is_training) {
       ctx->save_for_backward({input, weight, bias.has_value() ? bias.value() : Tensor()});
 
-      ctx->saved_data["wb_ptr"] = c10::make_intrusive<PimArrayPtr>(wb);
+//      ctx->saved_data["wb_ptr"] = c10::make_intrusive<PimArrayPtr>(wb);
       ctx->saved_data["wb_t_ptr"] = c10::make_intrusive<PimArrayPtr>(wb_t);
       ctx->saved_data["prev_ptr"] = c10::make_intrusive<PimArrayPtr>(prev);
 
-      Tensor output = input.mm(weight.t());
-      if (bias.has_value()) {
-        output += bias.value().unsqueeze(0).expand_as(output);
-      }
+//      Tensor output = input.mm(weight.t());
+//      if (bias.has_value()) {
+//        output += bias.value().unsqueeze(0).expand_as(output);
+//      }
 
       // write parameters to PIM if is trainable
       if (is_training && weight.requires_grad()) {
@@ -80,9 +80,9 @@ namespace PIM {
 
       Tensor pim_output = wb.ptr->mm(pim_input);   // shape of wb_ptr: (in_features, out_features)
 
-      if (!torch::allclose(output, pim_output, 1e-05, 1e-06)) {
-        TORCH_INTERNAL_ASSERT(false, "calculation error");
-      }
+//      if (!torch::allclose(output, pim_output, 1e-05, 1e-06)) {
+//        TORCH_INTERNAL_ASSERT(false, "calculation error");
+//      }
 
       return pim_output;
     }
@@ -120,13 +120,13 @@ namespace PIM {
       Tensor pim_grad_input = ctx->saved_data["wb_t_ptr"].toCustomClass<PimArrayPtr>()->ptr->mm(grad_output);
       Tensor pim_grad_weight = ctx->saved_data["prev_ptr"].toCustomClass<PimArrayPtr>()->ptr->mm(grad_output.t());
 
-      if (!torch::allclose(grad_input, pim_grad_input, 1e-05, 1e-06)) {
-        TORCH_INTERNAL_ASSERT(false, "calculation error");
-      }
-
-      if (!torch::allclose(grad_weight, pim_grad_weight, 1e-05, 1e-06)) {
-        TORCH_INTERNAL_ASSERT(false, "calculation error");
-      }
+//      if (!torch::allclose(grad_input, pim_grad_input, 1e-05, 1e-06)) {
+//        TORCH_INTERNAL_ASSERT(false, "calculation error");
+//      }
+//
+//      if (!torch::allclose(grad_weight, pim_grad_weight, 1e-05, 1e-06)) {
+//        TORCH_INTERNAL_ASSERT(false, "calculation error");
+//      }
 
 //      std::cout << pim_grad_weight.max() - pim_grad_weight.mean() << std::endl;
 

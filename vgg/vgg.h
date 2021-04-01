@@ -8,8 +8,8 @@
 #include <torch/torch.h>
 #include <array>
 #include <vector>
-#include "pim_conv.h"
-#include "pim_linear.h"
+#include "../include/pim_conv.h"
+#include "../include/pim_linear.h"
 
 torch::nn::Sequential vgg_block(const int kNumConvs, int in_channels, int out_channels, bool use_pim,
     std::vector<ExpandingArray<4>>& in_shapes ) {
@@ -56,28 +56,18 @@ private:
 VGG::VGG(const std::vector<std::array<int, 2>> &conv_arch, bool use_pim, int64_t batch_size,
     std::vector<std::vector<ExpandingArray<4>>>& in_shapes)
     : conv_arch_(conv_arch),
-      classifier_(
-          /*The fully connected layer part*/
-          torch::nn::Flatten(),
-          torch::nn::Linear(/*in_features=*/2304, /*out_features=*/4096),
-          torch::nn::ReLU(),
-          torch::nn::Dropout(/*p=*/0.4),
-          torch::nn::Linear(/*in_features=*/4096, /*out_features=*/4096),
-          torch::nn::ReLU(),
-          torch::nn::Dropout(/*p=*/0.4),
-          torch::nn::Linear(/*in_features=*/4096, /*out_features=*/10)
-      ),
       use_pim(use_pim),
       batch_size(batch_size)
 {
   const int kModuleSize = conv_arch.size();
-  int in_channels = 1;
+  int in_channels = 3;
 
   if (use_pim) {
     classifier_ = torch::nn::Sequential(
         /*The fully connected layer part*/
         torch::nn::Flatten(),
-        PIM::PimLinear(2304, 4096, batch_size, PIM::PimArrayType::simple_logic_array),
+        // original: 512, 3 block: 2304
+        PIM::PimLinear(512, 4096, batch_size, PIM::PimArrayType::simple_logic_array),
         torch::nn::ReLU(),
         torch::nn::Dropout(/*p=*/0.4),
         PIM::PimLinear(4096, 4096, batch_size, PIM::PimArrayType::simple_logic_array),
@@ -96,7 +86,8 @@ VGG::VGG(const std::vector<std::array<int, 2>> &conv_arch, bool use_pim, int64_t
     classifier_ = torch::nn::Sequential(
         /*The fully connected layer part*/
         torch::nn::Flatten(),
-        torch::nn::Linear(/*in_features=*/2304, /*out_features=*/4096),
+        // original: 512, 3 block: 2304
+        torch::nn::Linear(/*in_features=*/512, /*out_features=*/4096),
         torch::nn::ReLU(),
         torch::nn::Dropout(/*p=*/0.4),
         torch::nn::Linear(/*in_features=*/4096, /*out_features=*/4096),

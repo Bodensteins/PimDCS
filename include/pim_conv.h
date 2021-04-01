@@ -177,7 +177,7 @@ namespace PIM {
       ctx->save_for_backward({input, weight, bias.has_value() ? bias.value() : Tensor()});
       ctx->saved_data["stride"] = std::vector<int64_t>(stride.vec());
       ctx->saved_data["padding"] = std::vector<int64_t>(padding.vec());
-      ctx->saved_data["wb_ptr"] = c10::make_intrusive<PimArrayPtr>(wb);
+//      ctx->saved_data["wb_ptr"] = c10::make_intrusive<PimArrayPtr>(wb);
       ctx->saved_data["wb_t_ptr"] = c10::make_intrusive<PimArrayPtr>(wb_t);;
       ctx->saved_data["prev_ptrs"] = c10::make_intrusive<PimArrayPtrList>(prevs);;
 
@@ -201,14 +201,14 @@ namespace PIM {
       }
 
       // gold result
-      Tensor output;
-      if (bias.has_value()) {
-        output = functional::conv2d(
-            input, weight, F::Conv2dFuncOptions().bias(bias.value()).stride(stride).padding(padding));
-      } else {
-        output = functional::conv2d(
-            input, weight, F::Conv2dFuncOptions().stride(stride).padding(padding));
-      }
+//      Tensor output;
+//      if (bias.has_value()) {
+//        output = functional::conv2d(
+//            input, weight, F::Conv2dFuncOptions().bias(bias.value()).stride(stride).padding(padding));
+//      } else {
+//        output = functional::conv2d(
+//            input, weight, F::Conv2dFuncOptions().stride(stride).padding(padding));
+//      }
 
       auto pim_input = F::unfold(input,
           UnfoldOptions(kernel_size).padding(padding).stride(stride)).transpose(1, 2);
@@ -227,9 +227,9 @@ namespace PIM {
       pim_output.transpose_(1, 2);
       pim_output = F::fold(pim_output, FoldOptions({output_width, output_height}, {1, 1}));
 
-      if (!torch::allclose(output, pim_output, 1e-05, 1e-08)) {
-        TORCH_INTERNAL_ASSERT(false, "calculation error");
-      }
+//      if (!torch::allclose(output, pim_output, 1e-05, 1e-08)) {
+//        TORCH_INTERNAL_ASSERT(false, "calculation error");
+//      }
 //      std::cout << "forward output" << std::endl;
 //      Tensor err = output - pim_output;
 //      std::cout << err << std::endl;
@@ -250,7 +250,7 @@ namespace PIM {
       auto stride = ctx->saved_data["stride"].toIntVector();
       auto padding = ctx->saved_data["padding"].toIntVector();
 
-      c10::intrusive_ptr<PimArrayPtr> wb_ptr = ctx->saved_data["wb_ptr"].toCustomClass<PimArrayPtr>();
+//      c10::intrusive_ptr<PimArrayPtr> wb_ptr = ctx->saved_data["wb_ptr"].toCustomClass<PimArrayPtr>();
       c10::intrusive_ptr<PimArrayPtr> wb_t_ptr = ctx->saved_data["wb_t_ptr"].toCustomClass<PimArrayPtr>();
       c10::intrusive_ptr<PimArrayPtrList> prev_ptrs = ctx->saved_data["prev_ptrs"].toCustomClass<PimArrayPtrList>();
 

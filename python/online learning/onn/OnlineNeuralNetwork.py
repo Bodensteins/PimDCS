@@ -11,7 +11,7 @@ from mab import algs
 
 class ONN(nn.Module):
   def __init__(self, features_size, max_num_hidden_layers, qtd_neuron_per_hidden_layer, n_classes, batch_size=1,
-               b=0.99, n=0.01, s=0.2, use_cuda=False, vis=None):
+               b=0.99, n=0.01, s=0.2, freeze_threshold=0.005, use_cuda=False, vis=None):
     super(ONN, self).__init__()
 
     self.device = torch.device(
@@ -50,7 +50,10 @@ class ONN(nn.Module):
                            requires_grad=False).to(self.device)
 
     self.criterion = nn.CrossEntropyLoss().to(self.device)
-    self.correct = 0
+    self.freeze_threshold = self.s / self.max_num_hidden_layers + freeze_threshold
+    self.freeze_steps = [0] * self.max_num_hidden_layers
+
+    self.cumulative_error = 0
     # self.tb_writer = tb_writer
     self.vis = vis
     # self.alpha_history = [self.alpha.data.cpu().numpy()]
@@ -58,10 +61,12 @@ class ONN(nn.Module):
 
   def zero_grad(self):
     for i in range(self.max_num_hidden_layers):
-      self.output_layers[i].weight.grad.data.fill_(0)
-      self.output_layers[i].bias.grad.data.fill_(0)
-      self.hidden_layers[i].weight.grad.data.fill_(0)
-      self.hidden_layers[i].bias.grad.data.fill_(0)
+      self.output_layers[i].zero_grad()
+      self.hidden_layers[i].zero_grad()
+      # self.output_layers[i].weight.grad.data.fill_(0)
+      # self.output_layers[i].bias.grad.data.fill_(0)
+      # self.hidden_layers[i].weight.grad.data.fill_(0)
+      # self.hidden_layers[i].bias.grad.data.fill_(0)
 
   def update_weights(self, X, Y, batch_idx, show_loss):
 
@@ -93,30 +98,31 @@ class ONN(nn.Module):
         self.zero_grad()
 
       for i in range(len(losses_per_layer)):
-        self.hidden_layers[i].weight.data -= self.n * w[i]
-        self.hidden_layers[i].bias.data -= self.n * b[i]
+        if self.alpha[i].item() >= self.freeze_threshold or batch_idx % 2 == 0:
+          self.hidden_layers[i].weight.data -= self.n * w[i]
+          self.hidden_layers[i].bias.data -= self.n * b[i]
+        else:
+          self.freeze_steps[i] += 1
 
       for i in range(len(losses_per_layer)):
         self.alpha[i] *= torch.pow(self.b, losses_per_layer[i])
         self.alpha[i] = torch.max(self.alpha[i], self.s / self.max_num_hidden_layers)
 
     z_t = torch.sum(self.alpha)
-
-    # self.alpha = Parameter(self.alpha.data / z_t, requires_grad=False).to(self.device)
     self.alpha.data = self.alpha.data / z_t
 
     real_output = torch.sum(torch.mul(
       self.alpha.view(self.max_num_hidden_layers, 1).repeat(1, self.batch_size).view(
         self.max_num_hidden_layers, self.batch_size, 1), predictions_per_layer), 0)
-    self.correct += torch.argmax(real_output, dim=1).eq(Y).sum().item()
+    self.cumulative_error += torch.argmax(real_output, dim=1).ne(Y).sum().item()
 
     if show_loss and batch_idx % 1000 == 0:
       loss = self.criterion(real_output, Y)
       self.vis.line(X=torch.Tensor([batch_idx]), Y=torch.Tensor([loss]), win='Final Loss of Train',
                     update='append', opts={'title': 'Final Loss of Train', 'xlabel': 'step', 'ylabel': 'loss'})
-      self.vis.line(X=torch.Tensor([batch_idx]), Y=torch.Tensor([self.correct / (batch_idx + 1) * self.batch_size]),
-                    win='Cumulative Accuracy', update='append',
-                    opts={'title': 'Cumulative Accuracy', 'xlabel': 'step', 'ylabel': 'accuracy'})
+      self.vis.line(X=torch.Tensor([batch_idx]), Y=torch.Tensor([self.cumulative_error / (batch_idx + 1) * self.batch_size]),
+                    win='Cumulative Error Rate', update='append',
+                    opts={'title': 'Cumulative Error Rate', 'xlabel': 'step', 'ylabel': 'error rate'})
       for i in range(len(losses_per_layer)):
         self.vis.line(X=torch.Tensor([batch_idx]), Y=torch.Tensor([losses_per_layer[i]]), win='Train Loss',
                       name='layer %d' % i, update='append',
@@ -130,41 +136,6 @@ class ONN(nn.Module):
                                              'ylabel': 'alpha',
                                              'showlegend': True})
 
-      # self.loss_array.append(loss)
-      # if (len(self.loss_array) % 1000) == 0:
-      #   print("WARNING: Set 'show_loss' to 'False' when not debugging. "
-      #         "It will deteriorate the fitting performance.")
-      #   loss = torch.Tensor(self.loss_array).mean()
-      #   print("Alpha:" + str(self.alpha.data.cpu().numpy()))
-      #   print("Training Loss: " + str(loss.cpu().numpy()))
-      #   if self.vis is not None:
-      #     # self.tb_writer.add_histogram('alpha', self.alpha.data.cpu().numpy(), batch_idx)
-      #     # self.tb_writer.add_scalar('loss/final_loss', loss, batch_idx)
-      #     # for i in range(len(losses_per_layer)):
-      #     #   self.tb_writer.add_scalar('loss/loss%d' % i, losses_per_layer[i], batch_idx)
-      #
-      #     # self.alpha_history.append(self.alpha.data.cpu().numpy())
-      #     # self.alpha_steps.append(str(batch_idx))
-      #
-      #     self.vis.line(X=torch.Tensor([batch_idx]), Y=torch.Tensor([loss]), win='Final Loss of Train',
-      #                   update='append', opts={'title': 'Final Loss of Train', 'xlabel': 'step', 'ylabel': 'loss'})
-      #
-      #     # self.vis.close(win='Alpha')
-      #     # self.vis.bar(X=np.stack(self.alpha_history), win='Alpha', opts=dict(
-      #     #   stacked=True,
-      #     #   legend=['layer %d' % i for i in range(len(losses_per_layer))],
-      #     #   rownames=self.alpha_steps
-      #     # ))
-      #
-      #     for i in range(len(losses_per_layer)):
-      #       self.vis.line(X=torch.Tensor([batch_idx]), Y=torch.Tensor([losses_per_layer[i]]), win='Loss of Layer %d' % i,
-      #                   update='append', opts={'title': 'Loss of Layer %d' % i, 'xlabel': 'step', 'ylabel': 'loss'})
-      #       self.vis.line(X=torch.Tensor([batch_idx]), Y=torch.Tensor([self.alpha[i]]), win='Alpha', name='layer %d' % i,
-      #                   update='append', opts={'title': 'Alpha',
-      #                                          'xlabel': 'step',
-      #                                          'ylabel': 'alpha',
-      #                                          'showlegend': True})
-        # self.loss_array.clear()
 
   def forward(self, X):
     hidden_connections = []

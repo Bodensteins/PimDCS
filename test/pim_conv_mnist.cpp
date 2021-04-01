@@ -1,13 +1,13 @@
 #include <torch/torch.h>
+
 #include <cstddef>
 #include <cstdio>
 #include <iostream>
 #include <string>
 #include <chrono>
-#include "pim_linear.h"
+#include "../include/pim_conv.h"
 
 using namespace std::chrono;
-using namespace PIM;
 
 // Where to find the MNIST dataset.
 const char* kDataRoot = "../data";
@@ -24,56 +24,37 @@ const int64_t kNumberOfEpochs = 10;
 // After how many batches to log a new update with the loss value.
 const int64_t kLogInterval = 10;
 
-void print_range(torch::Tensor tensor, const std::string &name) {
-  std::cout << name + ", max: " << tensor.max().item() << ", "
-            << "min:" << tensor.min().item() << ", "
-            << "mean:" << tensor.mean().item() << ", "
-            << "range:" << (tensor.max() - tensor.min()).item() << std::endl;
-}
-
-// Define a new Module.
 struct Net : torch::nn::Module {
-  Net() {
-    // Construct and register two Linear submodules.
-//    fc1 = register_module("fc1", torch::nn::Linear(784, 64));
-//    fc2 = register_module("fc2", torch::nn::Linear(64, 32));
-//    fc3 = register_module("fc3", torch::nn::Linear(32, 10));
-    fc1 = register_module("fc1", PimLinear(784, 64, kTrainBatchSize, PimArrayType::simple_logic_array));
-    fc2 = register_module("fc2", PimLinear(64, 32, kTrainBatchSize, PimArrayType::simple_logic_array));
-    fc3 = register_module("fc3", PimLinear(32, 10, kTrainBatchSize, PimArrayType::simple_logic_array));
-//    fc1 = register_module("fc1", PimLinear(kTrainBatchSize, PimArrayType::simple_logic_array,
-//        LinearOptions(784, 64).bias(false)));
-//    fc2 = register_module("fc2", PimLinear(kTrainBatchSize, PimArrayType::simple_logic_array,
-//        LinearOptions(64, 32).bias(false)));
-//    fc3 = register_module("fc3", PimLinear(kTrainBatchSize, PimArrayType::simple_logic_array,
-//        LinearOptions(32, 10).bias(false)));
+  Net()
+      : conv1(ExpandingArray<4>({kTrainBatchSize, 1, 28, 28}),
+              PIM::PimArrayType::simple_logic_array,
+              Conv2dOptions(1, 10, {5, 5})),
+        conv2(ExpandingArray<4>({kTrainBatchSize, 10, 24, 24}),
+              PIM::PimArrayType::simple_logic_array,
+              Conv2dOptions(10, 10, {5, 5})),
+        fc1(4000, 10) {
+    register_module("conv1", conv1);
+    register_module("conv2", conv2);
+    register_module("fc1", fc1);
   }
 
-  // Implement the Net's algorithm.
   torch::Tensor forward(torch::Tensor x) {
-    // Use one of many tensor manipulation functions.
-//    print_range(x, "input");
-    x = fc1->forward(x.reshape({x.size(0), 784}));
-    x = torch::relu(x);
-//    x = torch::sigmoid(x);
-    print_range(fc1->weight, "fc1.weight");
-//    x = torch::dropout(x, /*p=*/0.5, /*train=*/is_training());
-    x = fc2->forward(x);
-    x = torch::relu(x);
-//    x = torch::sigmoid(x);
-    print_range(fc2->weight, "fc2.weight");
-    x = torch::log_softmax(fc3->forward(x), /*dim=*/1);
-    return x;
+    x = torch::relu(conv1->forward(x));
+    x = torch::relu(conv2->forward(x));
+    x = x.view({-1, 4000});
+    x = torch::relu(fc1->forward(x));
+    return torch::log_softmax(x, /*dim=*/1);
   }
 
-  // Use one of many "standard library" modules.
-//  torch::nn::Linear fc1{nullptr}, fc2{nullptr}, fc3{nullptr};
-  PimLinear fc1{nullptr}, fc2{nullptr}, fc3{nullptr};
+  PIM::PimConv2d conv1;
+  PIM::PimConv2d conv2;
+  torch::nn::Linear fc1;
 };
+
 
 template <typename DataLoader>
 void train(
-    int32_t epoch,
+    size_t epoch,
     Net& model,
     torch::Device device,
     DataLoader& data_loader,
@@ -166,7 +147,8 @@ auto main() -> int {
       torch::data::make_data_loader(std::move(test_dataset), kTestBatchSize);
 
   torch::optim::SGD optimizer(
-      model.parameters(), torch::optim::SGDOptions(0.01).momentum(0.5));
+      model.parameters(), torch::optim::SGDOptions(0.0035).momentum(0.3));
+//  torch::optim::Adam optimizer(model.parameters(), torch::optim::AdamOptions(1e-3));
 
   for (size_t epoch = 1; epoch <= kNumberOfEpochs; ++epoch) {
     train(epoch, model, device, *train_loader, optimizer, train_dataset_size);

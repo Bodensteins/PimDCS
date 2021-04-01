@@ -1282,21 +1282,22 @@ at::Tensor pimArrayPro::mm(const at::Tensor &matin)
 {
     at::Tensor mat = matin.detach();
     int batch_size = mat.size(0);
+    int siz = mat.size(1);
     double max_one;
     at::Tensor input = phyArrayPro::preWorkForMM(mat, conf, std::ref(max_one)); // input should be tensor of size {batch_size, inBits/inVBits, rowSize}
     
-    at::Tensor out = torch::empty({arrX_size, batch_size, arrY_size * conf->unitsPerPhyRow}, op.dtype(torch::kF64));
+    at::Tensor out = torch::zeros({arrX_size, batch_size, arrY_size * conf->unitsPerPhyRow}, op.dtype(torch::kF64));
 
     // postive & negative array mode
     if (conf->mode == 0)
     {
-        at::Tensor nout = torch::empty({arrX_size, batch_size, arrY_size * conf->unitsPerPhyRow}, op.dtype(torch::kF64));
+        at::Tensor nout = torch::zeros({arrX_size, batch_size, arrY_size * conf->unitsPerPhyRow}, op.dtype(torch::kF64));
         at::parallel_for(0, arrX_size * arrY_size, 0, [&](int st, int ed) {
             for (int k = st; k < ed; ++k)
             {
                 int i = k / arrY_size;
                 int j = k % arrY_size;
-
+                if (i*conf->phyArrRowSize>=siz) continue;
                 out[i].index({Slice(), Slice(j * conf->unitsPerPhyRow, (j + 1) * conf->unitsPerPhyRow)}) = phyArrManPro[arr[i][j]].mm(input.index({Slice(), Slice(), Slice(i * conf->phyArrRowSize, (i + 1) * conf->phyArrRowSize)}), conf, max_one, phyArrayPro::postWorkForMM);
 
                 nout[i].index({Slice(), Slice(j * conf->unitsPerPhyRow, (j + 1) * conf->unitsPerPhyRow)}) = phyArrManPro[narr[i][j]].mm(input.index({Slice(), Slice(), Slice(i * conf->phyArrRowSize, (i + 1) * conf->phyArrRowSize)}), conf, max_one, phyArrayPro::postWorkForMM);
@@ -1311,7 +1312,7 @@ at::Tensor pimArrayPro::mm(const at::Tensor &matin)
             {
                 int i = k / arrY_size;
                 int j = k % arrY_size;
-
+                if (i*conf->phyArrRowSize>=siz) continue;
                 out[i].index({Slice(), Slice(j * conf->unitsPerPhyRow, (j + 1) * conf->unitsPerPhyRow)}) = phyArrManPro[arr[i][j]].mm(input.index({Slice(), Slice(), Slice(i * conf->phyArrRowSize, (i + 1) * conf->phyArrRowSize)}), conf, max_one, phyArrayPro::postWorkForMM);
             }
        // });

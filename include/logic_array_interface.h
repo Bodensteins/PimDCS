@@ -18,7 +18,8 @@ namespace PIM {
    const std::string name[] = {
        "PIM::simple_logic_array",
        "PIM::pim_array",
-       "PIM::only_counters_pim_array"
+       "PIM::only_counters_pim_array",
+       "PIM::pim_array_pro"
    };
    return stream << name[(int)type];
  }

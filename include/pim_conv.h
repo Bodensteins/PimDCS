@@ -409,6 +409,11 @@ namespace PIM {
               wb_ptr, wb_t_ptr, prev_ptrs,
               input, weight, options.bias() ? bias : c10::optional<Tensor>(),
               options.stride(), options.padding(), is_training_);
+        case PimArrayType::pim_array_pro:
+          return PimConv2dFunction<pimArrayPro>::apply(
+              wb_ptr, wb_t_ptr, prev_ptrs,
+              input, weight, options.bias() ? bias : c10::optional<Tensor>(),
+              options.stride(), options.padding(), is_training_);
         default:
           TORCH_INTERNAL_ASSERT(false, "pim conv, forward type not supported!")
       }

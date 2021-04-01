@@ -3,7 +3,7 @@
 
 #pragma once
 #include <torch/torch.h>
-#include "pure_array.h"
+#include "pim_utils.h"
 
 using namespace torch;
 using namespace torch::autograd;
@@ -43,10 +43,10 @@ namespace PIM {
       ctx->saved_data["wb_t_ptr"] = c10::make_intrusive<PimArrayPtr>(wb_t);
       ctx->saved_data["prev_ptr"] = c10::make_intrusive<PimArrayPtr>(prev);
 
-      Tensor output = input.mm(weight.t());
-      if (bias.has_value()) {
-        output += bias.value().unsqueeze(0).expand_as(output);
-      }
+//      Tensor output = input.mm(weight.t());
+//      if (bias.has_value()) {
+//        output += bias.value().unsqueeze(0).expand_as(output);
+//      }
 
       // write parameters to PIM if is trainable
       if (is_training && weight.requires_grad()) {
@@ -66,8 +66,7 @@ namespace PIM {
         ConstantPad2d m(ConstantPad2dOptions({0, 1, 0, 0}, 1));
         pim_input = m(input);
       }
-
-      Tensor pim_output = wb.ptr->mm(pim_input);   // shape of wb_ptr: (in_features, out_features)
+      Tensor pim_output = wb.ptr->mm(pim_input.detach());   // shape of wb_ptr: (in_features, out_features)
 
       // if (!torch::allclose(output, pim_output, 1e-05, 1e-06)) {
       //   TORCH_INTERNAL_ASSERT(false, "calculation error");
@@ -94,8 +93,8 @@ namespace PIM {
 
       Tensor grad_output = grad_outputs[0];
 
-      Tensor grad_input = grad_output.mm(weight);
-      Tensor grad_weight = grad_output.t().mm(input);
+//      Tensor grad_input = grad_output.mm(weight);
+//      Tensor grad_weight = grad_output.t().mm(input);
 
       Tensor pim_grad_bias = Tensor();
       if (bias.defined()) {
@@ -103,8 +102,8 @@ namespace PIM {
       }
 
       // shape of wb_t_ptr: (out_features, in_features)
-      Tensor pim_grad_input = ctx->saved_data["wb_t_ptr"].toCustomClass<PimArrayPtr>()->ptr->mm(grad_output);
-      Tensor pim_grad_weight = ctx->saved_data["prev_ptr"].toCustomClass<PimArrayPtr>()->ptr->mm(grad_output.t());
+      Tensor pim_grad_input = ctx->saved_data["wb_t_ptr"].toCustomClass<PimArrayPtr>()->ptr->mm(grad_output.detach());
+      Tensor pim_grad_weight = ctx->saved_data["prev_ptr"].toCustomClass<PimArrayPtr>()->ptr->mm(grad_output.t().detach());
 
       // if (!torch::allclose(grad_input, pim_grad_input, 1e-05, 1e-06)) {
       //   TORCH_INTERNAL_ASSERT(false, "calculation error");
@@ -147,7 +146,6 @@ namespace PIM {
       } else {
         bias = register_parameter("bias", {}, /*requires_grad=*/false);
       }
-
       reset_parameters();
     }
 
@@ -191,9 +189,6 @@ namespace PIM {
               options.bias() ? bias : c10::optional<Tensor>(), is_training_);
         case PimArrayType::only_counters_pim_array:
           return PimLinearFunction<pimArrayExampleCounters>::apply(wb_ptr, wb_t_ptr, prev_ptr, input, weight,
-              options.bias() ? bias : c10::optional<Tensor>(), is_training_);
-        case PimArrayType::pim_array_pro:
-          return PimLinearFunction<pimArrayPro>::apply(wb_ptr, wb_t_ptr, prev_ptr, input, weight,
               options.bias() ? bias : c10::optional<Tensor>(), is_training_);
         default:
           TORCH_INTERNAL_ASSERT(false, "pimlinear, forward type not support!")

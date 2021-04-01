@@ -4,11 +4,9 @@ import torch
 import visdom
 import time
 import argparse
-import torchvision.transforms as transforms
 from torchvision.datasets import CIFAR10
-from torchvision.datasets import MNIST
 from progressbar import *
-from onn.OnlineConvolutionNeuralNetwork import OCNN, cfgs
+from onn.OnlineNeuralNetwork import ONN
 from torch.utils.data.dataset import Dataset
 
 class NumpyDataset(Dataset):
@@ -30,7 +28,7 @@ def train_onn(onn_network, device, train_loader):
   bar = ProgressBar(widgets=widgets, maxval=len(train_loader))
   bar.start()
   for batch_idx, (data, target) in enumerate(train_loader):
-    data, target = data.to(device=device, dtype=torch.float64), target.to(device)
+    data, target = data.to(device).flatten(start_dim=1), target.to(device)
     onn_network.partial_fit(data, target, batch_idx, True)
     bar.update(batch_idx + 1)
   bar.finish()
@@ -43,7 +41,7 @@ def test_onn(onn_network, device, test_loader, current_step, vis):
   bar.start()
   with torch.no_grad():
     for batch_idx, (data, target) in enumerate(test_loader):
-      data, target = data.to(device=device, dtype=torch.float64), target.to(device)
+      data, target = data.to(device).flatten(start_dim=1), target.to(device)
       predictions = onn_network.predict(data)
       correct += predictions.eq(target.view_as(predictions)).sum().item()
       bar.update(batch_idx+1)
@@ -91,29 +89,29 @@ if __name__ == '__main__':
     device = torch.device("cpu")
     print("Training on CPU.")
 
-  train_dataset = MNIST(root=args.data, train=True, transform=transforms.ToTensor(), download=True)
-  test_dataset = MNIST(root=args.data, train=False, transform=transforms.ToTensor())
+  dataset = NumpyDataset(args.data)
 
-  # vis_env = "%s_%s" % (args.dataset_name, time.strftime("%Y-%m-%d-%H:%M:%S", time.localtime()))
-  # vis = visdom.Visdom(env=vis_env)
-  # vis.close(env=vis_env)
+  vis_env = "%s_%s" % (args.dataset_name, time.strftime("%Y-%m-%d-%H:%M:%S", time.localtime()))
+  vis = visdom.Visdom(env=vis_env)
+  vis.close(env=vis_env)
 
-  # text_win = vis.text("Training arguments:")
-  # for arg_name in vars(args):
-  #   vis.text("%s: %s" % (arg_name, getattr(args, arg_name)), win=text_win, append=True)
-  # text_win = vis.text("freezed steps:", win=text_win, append=True)
+  text_win = vis.text("Training arguments:")
+  for arg_name in vars(args):
+    vis.text("%s: %s" % (arg_name, getattr(args, arg_name)), win=text_win, append=True)
+  text_win = vis.text("freezed steps:", win=text_win, append=True)
 
-  train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
+  train_loader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.workers)
 
-  # online learning
-  onn_network = OCNN(vgg_cfgs=cfgs, n_classes=args.classes, batch_size=args.batch_size,
-                    b=args.beta, n=args.lr, s=args.s, freeze_threshold=args.freeze_threshold, use_cuda=use_cuda, vis=None)
+  # online_learning
+  onn_network = ONN(features_size=args.feature_size, max_num_hidden_layers=args.hidden_layers,
+                    qtd_neuron_per_hidden_layer=args.hidden_width, n_classes=args.classes, batch_size=args.batch_size,
+                    b=args.beta, n=args.lr, s=args.s, freeze_threshold=args.freeze_threshold, use_cuda=use_cuda, vis=vis)
   onn_network.to(device, torch.double)
   train_onn(onn_network, device, train_loader)
-  # for i, steps in enumerate(onn_network.freeze_steps):
-  #   vis.text("freeze steps of layer %d: %d (%f%%)" % (i, steps, steps/len(train_loader)), win=text_win, append=True)
-  # vis.text("Total steps: %d" % len(train_loader), win=text_win, append=True)
-  #
-  # vis.save(envs=[vis_env])
+  for i, steps in enumerate(onn_network.freeze_steps):
+    vis.text("freeze steps of layer %d: %d (%f%%)" % (i, steps, steps/len(train_loader)), win=text_win, append=True)
+  vis.text("Total steps: %d" % len(train_loader), win=text_win, append=True)
+
+  vis.save(envs=[vis_env])
 
 

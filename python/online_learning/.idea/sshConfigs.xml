@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="SshConfigs">
+    <configs>
+      <sshConfig host="gpu01" id="7a31a57a-eb29-4307-8a07-2251ce312d7a" keyPath="$USER_HOME$/.ssh/id_rsa" port="22" nameFormat="DESCRIPTIVE" username="zhouheng" />
+      <sshConfig host="gpu01_" id="04e789bc-0626-4ef3-a203-e9ed10135078" keyPath="$USER_HOME$/.ssh/id_rsa" port="4615" nameFormat="DESCRIPTIVE" username="zhouheng" />
+    </configs>
+  </component>
+</project>

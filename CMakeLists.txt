@@ -75,10 +75,10 @@ set_property(TARGET unittestFor_pimPro PROPERTY CXX_STANDARD 14)
 
 
 # cifar-10
-add_executable(original_vgg vgg/original_vgg.cpp vgg/vgg.h)
+add_executable(original_vgg test/vgg/original_vgg.cpp)
 target_link_libraries(original_vgg "${TORCH_LIBRARIES}" yaml-cpp)
 
-add_executable(pim_vgg vgg/pim_vgg.cpp vgg/vgg.h)
+add_executable(pim_vgg test/vgg/pim_vgg.cpp)
 target_link_libraries(pim_vgg "${TORCH_LIBRARIES}" yaml-cpp)
 
 

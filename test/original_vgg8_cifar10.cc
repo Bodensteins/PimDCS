@@ -1,4 +1,4 @@
-#include "pure_array.h"
+#include "pim_utils.h"
 #include <iostream>
 #include <string>
 #include <ctime>

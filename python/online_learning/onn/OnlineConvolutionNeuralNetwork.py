@@ -9,11 +9,11 @@ from torch.nn.parameter import Parameter
 from mab import algs
 
 
-cfgs = [
-  {"in_channels": 1, "block_cfg": [64, 'M'], "output_size": 12544},
-  {"in_channels": 64, "block_cfg": [128, 'M'], "output_size": 6272},
-  {"in_channels": 128, "block_cfg": [256, 256, 'M'], "output_size": 2304},
-]
+# cfgs = [
+#   {"in_channels": 1, "block_cfg": [64, 'M'], "output_size": 12544},
+#   {"in_channels": 64, "block_cfg": [128, 'M'], "output_size": 6272},
+#   {"in_channels": 128, "block_cfg": [256, 256, 'M'], "output_size": 2304},
+# ]
 
 def make_vgg_block(in_channels, cfg):
   layers = []
@@ -59,7 +59,7 @@ class OCNN(nn.Module):
     self.vgg_blocks = []
     self.classifiers = []
 
-    for cfg in cfgs:
+    for cfg in vgg_cfgs:
       self.vgg_blocks.append(make_vgg_block(cfg["in_channels"], cfg["block_cfg"]))
       self.classifiers.append(make_classifier(cfg["output_size"], self.n_classes))
 
@@ -111,7 +111,8 @@ class OCNN(nn.Module):
 
     # w = [None] * len(losses_per_layer)
     # b = [None] * len(losses_per_layer)
-    grad_list = [None] * 2 * len(losses_per_layer)
+    # grad_list = [ [grad... * sublayer] * losses_per_layer ]
+    grad_list = [None] * len(losses_per_layer)
 
     with torch.no_grad():
       for i in range(len(losses_per_layer)):
@@ -121,20 +122,19 @@ class OCNN(nn.Module):
 
         for j in range(i + 1):
           if grad_list[j] is None:
+            grad_list[j] = []
             for param in self.vgg_blocks[j].parameters():
-              w[j] = self.alpha[i] * param.grad.data
-            w[j] = self.alpha[i] * self.vgg_blocks[j].weight.grad.data
-            b[j] = self.alpha[i] * self.vgg_blocks[j].bias.grad.data
+              grad_list[j].append(self.alpha[i] * param.grad.data)
           else:
-            w[j] += self.alpha[i] * self.vgg_blocks[j].weight.grad.data
-            b[j] += self.alpha[i] * self.vgg_blocks[j].bias.grad.data
+            for idx, param in enumerate(self.vgg_blocks[j].parameters()):
+              grad_list[j][idx] += self.alpha[i] * param.grad.data
 
         self.zero_grad()
 
       for i in range(len(losses_per_layer)):
         if self.alpha[i].item() >= self.freeze_threshold or batch_idx % 2 == 0:
-          self.vgg_blocks[i].weight.data -= self.n * w[i]
-          self.vgg_blocks[i].bias.data -= self.n * b[i]
+          for param, grad in zip(self.vgg_blocks[i].parameters(), grad_list[i]):
+            param.data -= self.n * grad
         else:
           self.freeze_steps[i] += 1
 
@@ -152,23 +152,24 @@ class OCNN(nn.Module):
 
     if show_loss and batch_idx % 1000 == 0:
       loss = self.criterion(real_output, Y)
-      # self.vis.line(X=torch.Tensor([batch_idx]), Y=torch.Tensor([loss]), win='Final Loss of Train',
-      #               update='append', opts={'title': 'Final Loss of Train', 'xlabel': 'step', 'ylabel': 'loss'})
-      # self.vis.line(X=torch.Tensor([batch_idx]), Y=torch.Tensor([self.cumulative_error / (batch_idx + 1) * self.batch_size]),
-      #               win='Cumulative Error Rate', update='append',
-      #               opts={'title': 'Cumulative Error Rate', 'xlabel': 'step', 'ylabel': 'error rate'})
-      # for i in range(len(losses_per_layer)):
-      #   self.vis.line(X=torch.Tensor([batch_idx]), Y=torch.Tensor([losses_per_layer[i]]), win='Train Loss',
-      #                 name='layer %d' % i, update='append',
-      #                 opts={'title': 'Train Loss',
-      #                       'xlabel': 'step',
-      #                       'ylabel': 'loss',
-      #                       'showlegend': True})
-      #   self.vis.line(X=torch.Tensor([batch_idx]), Y=torch.Tensor([self.alpha[i]]), win='Alpha', name='layer %d' % i,
-      #                 update='append', opts={'title': 'Alpha',
-      #                                        'xlabel': 'step',
-      #                                        'ylabel': 'alpha',
-      #                                        'showlegend': True})
+      if self.vis is not None:
+        self.vis.line(X=torch.Tensor([batch_idx]), Y=torch.Tensor([loss]), win='Final Loss of Train',
+                      update='append', opts={'title': 'Final Loss of Train', 'xlabel': 'step', 'ylabel': 'loss'})
+        self.vis.line(X=torch.Tensor([batch_idx]), Y=torch.Tensor([self.cumulative_error / (batch_idx + 1) * self.batch_size]),
+                      win='Cumulative Error Rate', update='append',
+                      opts={'title': 'Cumulative Error Rate', 'xlabel': 'step', 'ylabel': 'error rate'})
+        for i in range(len(losses_per_layer)):
+          self.vis.line(X=torch.Tensor([batch_idx]), Y=torch.Tensor([losses_per_layer[i]]), win='Train Loss',
+                        name='layer %d' % i, update='append',
+                        opts={'title': 'Train Loss',
+                              'xlabel': 'step',
+                              'ylabel': 'loss',
+                              'showlegend': True})
+          self.vis.line(X=torch.Tensor([batch_idx]), Y=torch.Tensor([self.alpha[i]]), win='Alpha', name='layer %d' % i,
+                        update='append', opts={'title': 'Alpha',
+                                               'xlabel': 'step',
+                                               'ylabel': 'alpha',
+                                               'showlegend': True})
 
 
   def forward(self, X):

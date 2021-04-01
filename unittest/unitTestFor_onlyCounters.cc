@@ -1,5 +1,5 @@
 #include <torch/torch.h>
-#include "pure_array.h"
+#include "pim_utils.h"
 #include <ctime>
 #include <omp.h>
 

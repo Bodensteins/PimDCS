@@ -1,10 +1,6 @@
-//
-// Created by 周恒 on 2020/11/23.
-//
-
 #include <iostream>
 #include <torch/torch.h>
-#include "../include/pim_linear.h"
+#include "pim_linear.h"
 
 using namespace torch::nn;
 using namespace PIM;

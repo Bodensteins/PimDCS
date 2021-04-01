@@ -1,24 +1,13 @@
-//
-// Created by 周恒 on 2020/11/22.
-//
-
-#ifndef PIMTORCH_PIM_LINEAR_CPP
-#define PIMTORCH_PIM_LINEAR_CPP
+#ifndef PIMTORCH_PIM_LINEAR_H
+#define PIMTORCH_PIM_LINEAR_H
 
 #pragma once
 #include <torch/torch.h>
-#include "logic_array_interface.h"
+#include "pim_utils.h"
 
 using namespace torch;
 using namespace torch::autograd;
 using namespace torch::nn;
-
-//void print_range(torch::Tensor tensor, const std::string &name) {
-//  std::cout << name + ", max: " << tensor.max().item() << ", "
-//            << "min:" << tensor.min().item() << ", "
-//            << "mean:" << tensor.mean().item() << ", "
-//            << "range:" << (tensor.max() - tensor.min()).item() << std::endl;
-//}
 
 namespace PIM {
   template<typename PimType>
@@ -50,7 +39,7 @@ namespace PIM {
         const Tensor &input, const Tensor &weight, const c10::optional<Tensor> &bias, bool is_training) {
       ctx->save_for_backward({input, weight, bias.has_value() ? bias.value() : Tensor()});
 
-//      ctx->saved_data["wb_ptr"] = c10::make_intrusive<PimArrayPtr>(wb);
+      // ctx->saved_data["wb_ptr"] = c10::make_intrusive<PimArrayPtr>(wb);
       ctx->saved_data["wb_t_ptr"] = c10::make_intrusive<PimArrayPtr>(wb_t);
       ctx->saved_data["prev_ptr"] = c10::make_intrusive<PimArrayPtr>(prev);
 
@@ -77,12 +66,11 @@ namespace PIM {
         ConstantPad2d m(ConstantPad2dOptions({0, 1, 0, 0}, 1));
         pim_input = m(input);
       }
+      Tensor pim_output = wb.ptr->mm(pim_input.detach());   // shape of wb_ptr: (in_features, out_features)
 
-      Tensor pim_output = wb.ptr->mm(pim_input);   // shape of wb_ptr: (in_features, out_features)
-
-//      if (!torch::allclose(output, pim_output, 1e-05, 1e-06)) {
-//        TORCH_INTERNAL_ASSERT(false, "calculation error");
-//      }
+      // if (!torch::allclose(output, pim_output, 1e-05, 1e-06)) {
+      //   TORCH_INTERNAL_ASSERT(false, "calculation error");
+      // }
 
       return pim_output;
     }
@@ -104,12 +92,9 @@ namespace PIM {
       auto bias = saved[2];
 
       Tensor grad_output = grad_outputs[0];
-//      print_range(grad_output, "grad_output");
-//      print_range(weight, "weight");
-//      print_range(bias, "bias");
 
-      Tensor grad_input = grad_output.mm(weight);
-      Tensor grad_weight = grad_output.t().mm(input);
+//      Tensor grad_input = grad_output.mm(weight);
+//      Tensor grad_weight = grad_output.t().mm(input);
 
       Tensor pim_grad_bias = Tensor();
       if (bias.defined()) {
@@ -117,32 +102,40 @@ namespace PIM {
       }
 
       // shape of wb_t_ptr: (out_features, in_features)
-      Tensor pim_grad_input = ctx->saved_data["wb_t_ptr"].toCustomClass<PimArrayPtr>()->ptr->mm(grad_output);
-      Tensor pim_grad_weight = ctx->saved_data["prev_ptr"].toCustomClass<PimArrayPtr>()->ptr->mm(grad_output.t());
+      Tensor pim_grad_input = ctx->saved_data["wb_t_ptr"].toCustomClass<PimArrayPtr>()->ptr->mm(grad_output.detach());
+      Tensor pim_grad_weight = ctx->saved_data["prev_ptr"].toCustomClass<PimArrayPtr>()->ptr->mm(grad_output.t().detach());
 
-//      if (!torch::allclose(grad_input, pim_grad_input, 1e-05, 1e-06)) {
-//        TORCH_INTERNAL_ASSERT(false, "calculation error");
-//      }
-//
-//      if (!torch::allclose(grad_weight, pim_grad_weight, 1e-05, 1e-06)) {
-//        TORCH_INTERNAL_ASSERT(false, "calculation error");
-//      }
+      // if (!torch::allclose(grad_input, pim_grad_input, 1e-05, 1e-06)) {
+      //   TORCH_INTERNAL_ASSERT(false, "calculation error");
+      // }
 
-//      std::cout << pim_grad_weight.max() - pim_grad_weight.mean() << std::endl;
+      // if (!torch::allclose(grad_weight, pim_grad_weight, 1e-05, 1e-06)) {
+      //   TORCH_INTERNAL_ASSERT(false, "calculation error");
+      // }
 
       // number of returns should be equal to forward's args.
       return {Tensor(), Tensor(), Tensor(), pim_grad_input, pim_grad_weight, pim_grad_bias, Tensor()};
     }
   };
 
+
   class TORCH_API PimLinearImpl : public Cloneable<PimLinearImpl> {
   public:
-    PimLinearImpl(int64_t in_features, int64_t out_features, int64_t batch_size, PimArrayType pim_type)
-        : PimLinearImpl(batch_size, pim_type, LinearOptions(in_features, out_features)) {}
+    PimLinearImpl(int64_t in_features, int64_t out_features, int64_t batch_size, PimArrayType pim_type, const TensorOptions op = {})
+        : PimLinearImpl(batch_size, pim_type, LinearOptions(in_features, out_features), op) {}
 
-    explicit PimLinearImpl(int64_t batch_size, PimArrayType pim_type, const LinearOptions &options_)
+    explicit PimLinearImpl(int64_t batch_size, PimArrayType pim_type, const LinearOptions &options_, const TensorOptions op = {})
         : options(options_), batch_size(batch_size), pim_type(pim_type) {
       reset();
+      if (op.device()==torch::kCUDA)
+      {
+        this->to(torch::kCUDA);
+      }
+      create_pim_array(wb_ptr, {
+          options_.bias() ? options_.in_features() + 1 : options_.in_features(), options_.out_features()
+        }, pim_type, weight.options());
+      create_pim_array(wb_t_ptr, {options_.out_features(), options_.in_features()}, pim_type, weight.options());
+      create_pim_array(prev_ptr, {batch_size, options_.in_features()}, pim_type, weight.options());
     }
 
     void reset() override {
@@ -153,15 +146,6 @@ namespace PIM {
       } else {
         bias = register_parameter("bias", {}, /*requires_grad=*/false);
       }
-
-      create_pim_array(wb_ptr, {
-          options.bias() ? options.in_features() + 1 : options.in_features(), options.out_features()}, pim_type,
-              "wb", *this);
-      create_pim_array(wb_t_ptr, {options.out_features(), options.in_features()}, pim_type,
-          "wb_t", *this);
-      create_pim_array(prev_ptr, {batch_size, options.in_features()}, pim_type,
-          "prev", *this);
-
       reset_parameters();
     }
 
@@ -182,6 +166,15 @@ namespace PIM {
              << "PIM::PimLinear(in_features=" << options.in_features()
              << ", out_features=" << options.out_features()
              << ", bias=" << options.bias() << ")";
+      if (pim_type != PimArrayType::simple_logic_array)
+      {
+        stream << "array" << std::endl;
+        wb_ptr.ptr->print(stream);
+        stream << "array_t" << std::endl;
+        wb_t_ptr.ptr->print(stream);
+        stream << "prev" << std::endl;
+        prev_ptr.ptr->print(stream);
+      }
     }
 
     /// Transforms the `input` tensor by multiplying with the `weight` and
@@ -191,8 +184,14 @@ namespace PIM {
         case PimArrayType::simple_logic_array:
           return PimLinearFunction<SimpleLogicArray>::apply(wb_ptr, wb_t_ptr, prev_ptr, input, weight,
               options.bias() ? bias : c10::optional<Tensor>(), is_training_);
-        case PimArrayType::wb_logic_array:
-          C10_THROW_ERROR(Error, "This PIM type is not implemented!");
+        case PimArrayType::pim_array:
+          return PimLinearFunction<pimArrayExample>::apply(wb_ptr, wb_t_ptr, prev_ptr, input, weight,
+              options.bias() ? bias : c10::optional<Tensor>(), is_training_);
+        case PimArrayType::only_counters_pim_array:
+          return PimLinearFunction<pimArrayExampleCounters>::apply(wb_ptr, wb_t_ptr, prev_ptr, input, weight,
+              options.bias() ? bias : c10::optional<Tensor>(), is_training_);
+        default:
+          TORCH_INTERNAL_ASSERT(false, "pimlinear, forward type not support!")
       }
     }
 
@@ -209,10 +208,6 @@ namespace PIM {
         sync_weight();
       }
       is_training_ = on;
-    }
-
-    void print_pim_weight() {
-      std::cout << *(wb_ptr.ptr) << std::endl;
     }
 
     /// The options used to configure this module.
@@ -241,34 +236,5 @@ namespace PIM {
 /// See the documentation for `ModuleHolder` to learn about PyTorch's
 /// module storage semantics.
   TORCH_MODULE(PimLinear);
-
-
 }
-//template<typename PimType>
-//void declare_pim_linear_func(pybind11::module &m, const std::string &typestr) {
-//  using Class = PIM::PimLinearFunction<PimType>;
-//  std::string pyclass_name = typestr + std::string("PimLinearFunction");
-//  pybind11::class_<Class>(m, pyclass_name.c_str())
-//      .def("forward", &Class::forward)
-//      .def("backward", &Class::backward);
-//}
-//
-//void declare_pim_linear(pybind11::module &m) {
-//  auto pim_linear = pybind11::class_<PIM::PimLinearImpl, std::shared_ptr<PIM::PimLinearImpl>>(m, "PimLinear");
-//  pybind11::enum_<PIM::PimArrayType>(m, "PimArrayType")
-//      .value("SimpleLogicArray", PIM::PimArrayType::simple_logic_array)
-//      .value("WbLogicArray", PIM::PimArrayType::wb_logic_array);
-//  pim_linear.def(pybind11::init<int64_t, int64_t, int64_t, PIM::PimArrayType>())
-//            .def("reset", &PIM::PimLinearImpl::reset)
-//            .def("reset_parameters", &PIM::PimLinearImpl::reset_parameters)
-//            .def("pretty_print", &PIM::PimLinearImpl::pretty_print)
-//            .def("forward", &PIM::PimLinearImpl::forward)
-//            .def("sync_weight", &PIM::PimLinearImpl::sync_weight)
-//            .def("train", &PIM::PimLinearImpl::train);
-//}
-//
-//PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-//  declare_pim_linear_func<PIM::SimpleLogicArray>(m, "Simple");
-//  declare_pim_linear(m);
-//}
-#endif //PIMTORCH_PIM_LINEAR_CPP
+#endif //PIMTORCH_PIM_LINEAR_H

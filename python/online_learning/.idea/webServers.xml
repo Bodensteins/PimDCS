@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="e1f953a8-7f8e-420e-8a0d-bbb2b559c4dc" name="gpu01">
+        <fileTransfer rootFolder="/mnt/SSD/real_home/home/zhouheng" accessType="SFTP" host="gpu01" port="22" sshConfigId="9b1db67b-03f8-4f73-8ae3-3cfbdaf439ff" sshConfig="zhouheng@gpu01:22 key" keyPair="true">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>

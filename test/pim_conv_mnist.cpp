@@ -5,7 +5,8 @@
 #include <iostream>
 #include <string>
 #include <chrono>
-#include "../include/pim_conv.h"
+#include "pim_conv.h"
+#include "pim_linear.h"
 
 using namespace std::chrono;
 
@@ -24,31 +25,46 @@ const int64_t kNumberOfEpochs = 10;
 // After how many batches to log a new update with the loss value.
 const int64_t kLogInterval = 10;
 
+auto runDev = torch::kCPU;
+auto type = PIM::PimArrayType::pim_array;
+
 struct Net : torch::nn::Module {
   Net()
       : conv1(ExpandingArray<4>({kTrainBatchSize, 1, 28, 28}),
-              PIM::PimArrayType::simple_logic_array,
-              Conv2dOptions(1, 10, {5, 5})),
+              type,
+              Conv2dOptions(1, 10, {5, 5}), runDev),
         conv2(ExpandingArray<4>({kTrainBatchSize, 10, 24, 24}),
-              PIM::PimArrayType::simple_logic_array,
-              Conv2dOptions(10, 10, {5, 5})),
-        fc1(4000, 10) {
+              type,
+              Conv2dOptions(10, 20, {5, 5}), runDev),
+        pim_fc1(320, 10, kTrainBatchSize, type, runDev)
+       // fc2(50, 10) 
+        {
     register_module("conv1", conv1);
     register_module("conv2", conv2);
-    register_module("fc1", fc1);
+    // register_module("conv2_drop", conv2_drop);
+    register_module("pim_fc1", pim_fc1);
+    //register_module("fc2", fc2);
   }
 
   torch::Tensor forward(torch::Tensor x) {
-    x = torch::relu(conv1->forward(x));
-    x = torch::relu(conv2->forward(x));
-    x = x.view({-1, 4000});
-    x = torch::relu(fc1->forward(x));
+    namespace F = torch::nn::functional;
+    x = F::max_pool2d( torch::relu( conv1(x).clone() ), F::MaxPool2dFuncOptions(2).stride(2));
+
+    x = F::max_pool2d( torch::relu( conv2(x).clone() ), F::MaxPool2dFuncOptions(2).stride(2));
+
+    x = x.view({x.size(0), -1});
+    x = pim_fc1(x);
+    //x = torch::dropout(x, /*p=*/0.5, /*training=*/is_training());
+    //x = fc2->forward(x);
     return torch::log_softmax(x, /*dim=*/1);
   }
 
   PIM::PimConv2d conv1;
   PIM::PimConv2d conv2;
-  torch::nn::Linear fc1;
+  PIM::PimLinear pim_fc1;
+  // torch::nn::Dropout2d conv2_drop;
+  //torch::nn::Linear fc1;
+  //torch::nn::Linear fc2;
 };
 
 
@@ -73,12 +89,13 @@ void train(
 
     if (batch_idx++ % kLogInterval == 0) {
       std::printf(
-          "\rTrain Epoch: %ld [%5ld/%5ld] Loss: %.4f",
+          "Train Epoch: %ld [%5ld/%5ld] Loss: %.4f\n",
           epoch,
           batch_idx * batch.data.size(0),
           dataset_size,
           loss.template item<float>());
     }
+    std::fflush(stdout);
   }
 }
 
@@ -116,7 +133,7 @@ auto main() -> int {
   torch::manual_seed(1);
 
   torch::DeviceType device_type;
-  if (torch::cuda::is_available()) {
+  if (torch::cuda::is_available() && runDev == torch::kCUDA) {
     std::cout << "CUDA available! Training on GPU." << std::endl;
     device_type = torch::kCUDA;
   } else {
@@ -147,7 +164,7 @@ auto main() -> int {
       torch::data::make_data_loader(std::move(test_dataset), kTestBatchSize);
 
   torch::optim::SGD optimizer(
-      model.parameters(), torch::optim::SGDOptions(0.0035).momentum(0.3));
+      model.parameters(), torch::optim::SGDOptions(0.01).momentum(0.5));
 //  torch::optim::Adam optimizer(model.parameters(), torch::optim::AdamOptions(1e-3));
 
   for (size_t epoch = 1; epoch <= kNumberOfEpochs; ++epoch) {

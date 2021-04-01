@@ -1,0 +1,13 @@
+rowSize: 256
+colSize: 256
+phyArrRowSize: 2
+phyArrColSize: 8
+inBits: 4
+outBits: 10
+unitBits: 8
+cellBits: 2
+has_negative_input: true
+max_phy_input_value: 4
+max_weight_value: 1
+trunc_input: true
+dynamic_max_input: true

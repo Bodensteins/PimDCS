@@ -1,7 +1,3 @@
-//
-// Created by 周恒 on 2020/12/11.
-//
-
 #include <torch/torch.h>
 #include <iostream>
 

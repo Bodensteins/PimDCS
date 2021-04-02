@@ -183,7 +183,7 @@ namespace PIM {
 //      l.push_back(mv(mat.select(0, i)));
 //    }
 //    return torch::stack(l, 0);
-      return torch::mm(mat, arr);
+      return torch::matmul(mat, arr);
     }
 
     at::Tensor mv(const at::Tensor &vec) override {

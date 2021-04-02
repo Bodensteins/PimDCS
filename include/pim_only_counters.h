@@ -758,10 +758,21 @@ torch::Tensor pimArrayExampleCounters::mm(const torch::Tensor &matin)
     auto index_smaller = tmp<-max_one;
     tmp.index_put_({index_larger}, max_one);
     tmp.index_put_({index_smaller}, -max_one);
-    if (tmp.size(1)<realMat.size(0))
-        return torch::matmul(tmp, realMat.slice(0, 0, mat.size(1)));
+
+    if (tmp.sizes().size()==2)
+    {
+        if (tmp.size(1)<realMat.size(0))
+            return torch::matmul(tmp, realMat.slice(0, 0, mat.size(1)));
+        else
+            return torch::matmul(tmp, realMat);
+    }
     else
-        return torch::matmul(tmp, realMat);
+    {
+        if (tmp.size(2)<realMat.size(0))
+            return torch::matmul(tmp, realMat.slice(0, 0, mat.size(2)));
+        else
+            return torch::matmul(tmp, realMat);
+    }
 }
 
 /*

@@ -387,7 +387,7 @@ at::Tensor phyArrayPro::postWorkForMM(const at::Tensor &mat, const pim_array_pro
 
         refValue = refValue.__lshift__(conf->unitBits).subtract(tmp);
 
-        out = out.index({Slice(), Slice(), Slice(0, conf->phyArrColSize)});
+        out = out.index({Slice(), Slice(), Slice(0, conf->usedCellsPerPhyRow)});
 
         at::Tensor output = torch::empty({mat.size(0), conf->inPluses, conf->unitsPerPhyRow});
         // at::Tensor unitScalar = torch::ones({nums, conf->usedCellsPerPhyRow}, TensorOptions(mat.device()).dtype(torch::kI32));
@@ -430,7 +430,7 @@ at::Tensor phyArrayPro::postWorkForMM(const at::Tensor &mat, const pim_array_pro
     else // postive & negative array mode,  in this single array, normal calculation.
     {
 
-        out = mat.mul(conf->outLevels - 1).round(); //let out range from 0 -- outLevels -1, double
+        out = mat.mul(conf->outLevels - 1).round().index({Slice(), Slice(), Slice(0, conf->usedCellsPerPhyRow)}); //let out range from 0 -- outLevels -1, double
         at::Tensor output = torch::empty({mat.size(0), conf->inPluses, conf->unitsPerPhyRow});
         // at::Tensor unitScalar = torch::ones({nums, conf->usedCellsPerPhyRow}, TensorOptions(mat.device()).dtype(torch::kI32));
 

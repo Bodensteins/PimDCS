@@ -389,7 +389,7 @@ at::Tensor phyArrayPro::postWorkForMM(const at::Tensor &mat, const pim_array_pro
 
         out = out.index({Slice(), Slice(), Slice(0, conf->usedCellsPerPhyRow)});
 
-        at::Tensor output = torch::empty({mat.size(0), conf->inPluses, conf->unitsPerPhyRow});
+        at::Tensor output = torch::empty({mat.size(0), conf->inPluses, conf->unitsPerPhyRow}, mat.device());
         // at::Tensor unitScalar = torch::ones({nums, conf->usedCellsPerPhyRow}, TensorOptions(mat.device()).dtype(torch::kI32));
 
         // at::parallel_for(0, conf->cellsPerUnit, 0, [&](int st, int ed) -> void {
@@ -424,14 +424,14 @@ at::Tensor phyArrayPro::postWorkForMM(const at::Tensor &mat, const pim_array_pro
         //     inScalar.index_put_({Slice(conf->inBits-1)}, (1 << (conf->inBits-1))*-1);
 
         
-        out = (output* conf->inScalar).sum(1).mul(scalar_value);  //{batch_size, unitNumPerPhyRow}
+        out = (output* conf->inScalar.to(mat.device())).sum(1).mul(scalar_value);  //{batch_size, unitNumPerPhyRow}
         return out;
     }
     else // postive & negative array mode,  in this single array, normal calculation.
     {
 
         out = mat.mul(conf->outLevels - 1).round().index({Slice(), Slice(), Slice(0, conf->usedCellsPerPhyRow)}); //let out range from 0 -- outLevels -1, double
-        at::Tensor output = torch::empty({mat.size(0), conf->inPluses, conf->unitsPerPhyRow});
+        at::Tensor output = torch::empty({mat.size(0), conf->inPluses, conf->unitsPerPhyRow}, mat.device());
         // at::Tensor unitScalar = torch::ones({nums, conf->usedCellsPerPhyRow}, TensorOptions(mat.device()).dtype(torch::kI32));
 
         // at::parallel_for(0, conf->cellsPerUnit, 0, [&](int st, int ed) -> void {
@@ -441,7 +441,7 @@ at::Tensor phyArrayPro::postWorkForMM(const at::Tensor &mat, const pim_array_pro
         //     }
         // });
 
-        out *= conf->unitScalar;
+        out *= conf->unitScalar.to(mat.device());
         
         at::parallel_for(0, conf->unitsPerPhyRow, 0, [&](int st, int ed) -> void {
             for (int i = st; i < ed; ++i)
@@ -459,7 +459,7 @@ at::Tensor phyArrayPro::postWorkForMM(const at::Tensor &mat, const pim_array_pro
         //     }
         // });
 
-        out = (output * conf->inScalar).sum(1).mul(scalar_value); //{batch_size, unitNumPerPhyRow}
+        out = (output * conf->inScalar.to(mat.device())).sum(1).mul(scalar_value); //{batch_size, unitNumPerPhyRow}
         return out;
     }
     return out;

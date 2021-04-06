@@ -8,8 +8,8 @@
 *
 *******************************************************************************/
 #include "Darknet.h"
-#include "../include/pim_conv.h"
-#include "../include/pim_linear.h"
+#include "pim_conv.h"
+#include "pim_linear.h"
 #include <stdio.h>
 #include <iostream>
 #include <typeinfo>
@@ -344,8 +344,8 @@ void Darknet::create_modules() {
       auto in_shape = config["conv_in_shapes"][conv_index++].as<std::vector<int64_t>>();
       PIM::PimConv2d pim_conv = PIM::PimConv2d(
           ExpandingArray<4>(in_shape),
-          PIM::PimArrayType::simple_logic_array,
-          Conv2dOptions(in_shape[1], filters, kernel_size).stride(stride).padding(pad).bias(with_bias));
+          PIM::PimArrayType::pim_array_pro,
+          Conv2dOptions(in_shape[1], filters, kernel_size).stride(stride).padding(pad).bias(with_bias), runDev);
       module->push_back(pim_conv);
 
       if (batch_normalize > 0) {

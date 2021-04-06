@@ -22,6 +22,7 @@ public:
 
   Darknet(YAML::Node &config, torch::Device &device);
 
+  static const torch::DeviceType runDev = torch::kCUDA;
   map<string, string> *get_net_info();
 
   void load_weights();

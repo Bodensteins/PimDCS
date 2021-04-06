@@ -19,7 +19,7 @@ int main(int argc, const char *argv[]) {
 
   torch::DeviceType device_type;
 
-  if (torch::cuda::is_available()) {
+  if (torch::cuda::is_available() && Darknet::runDev == torch::kCUDA) {
     device_type = torch::kCUDA;
   } else {
     device_type = torch::kCPU;

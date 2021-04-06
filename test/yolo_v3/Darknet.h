@@ -7,7 +7,8 @@
 * It's fast, easy to be integrated to your production, and supports CPU and GPU computation. Enjoy ~
 *
 *******************************************************************************/
-
+#ifndef __darknet__
+#define __darknet__
 #include <torch/torch.h>
 #include <string>
 #include <vector>
@@ -16,11 +17,20 @@
 
 using namespace std;
 
+constexpr torch::DeviceType getRunDev()
+{
+  return torch::kCUDA;
+}
+
+constexpr torch::DeviceType runDev = getRunDev();
+
 struct Darknet : torch::nn::Module {
 
 public:
 
   Darknet(YAML::Node &config, torch::Device &device);
+
+ // static constexpr torch::DeviceType runDev = torch::kCUDA;
 
   map<string, string> *get_net_info();
 
@@ -54,3 +64,6 @@ private:
 
   string get_string_from_cfg(map<string, string> block, string key, string default_value);
 };
+
+// constexpr torch::DeviceType Darknet::runDev = torch::kCUDA;
+#endif

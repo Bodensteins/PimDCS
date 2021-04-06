@@ -10,6 +10,7 @@
 using namespace std;
 using namespace std::chrono;
 
+
 int main(int argc, const char *argv[]) {
   if (argc != 2) {
     std::cerr << "usage: yolo_v3 <yaml config path>\n";
@@ -19,7 +20,8 @@ int main(int argc, const char *argv[]) {
 
   torch::DeviceType device_type;
 
-  if (torch::cuda::is_available() && Darknet::runDev == torch::kCUDA) {
+  constexpr torch::DeviceType runDev = getRunDev();
+  if (torch::cuda::is_available() && runDev == torch::kCUDA) {
     device_type = torch::kCUDA;
   } else {
     device_type = torch::kCPU;
@@ -39,6 +41,7 @@ int main(int argc, const char *argv[]) {
   net.load_weights();
   std::cout << "weight loaded ..." << endl;
 
+  net.to(torch::kF64);
   net.to(device);
 
   torch::NoGradGuard no_grad;
@@ -92,7 +95,7 @@ int main(int argc, const char *argv[]) {
     result.select(1, 4).mul_(h_scale);
 
     std::cout << result << std::endl;
-    auto result_data = result.accessor<float, 2>();
+    auto result_data = result.accessor<double, 2>();
 
     for (int i = 0; i < result.size(0); i++) {
       cv::rectangle(origin_image, cv::Point(result_data[i][1], result_data[i][2]),

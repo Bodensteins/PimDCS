@@ -42,14 +42,8 @@ if(OPENMP_FOUND)
 endif()
 
 # Dependency
-find_package (yaml-cpp QUIET)
-
-if (NOT ${yaml-cpp_FOUND})
-    message("*** YAML-CPP NOT FOUND, ADDING IT AS AN EXTERNAL PROJECT")
-    include(yaml-cpp.cmake)
-endif()
+include(yaml-cpp.cmake)
 include_directories(${YAML_CPP_INCLUDE_DIR})
-
 
 add_executable(pim_conv_mnist test/pim_conv_mnist.cpp)
 if (NOT ${yaml-cpp_FOUND})

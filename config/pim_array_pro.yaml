@@ -6,7 +6,7 @@ computeV: 1
 C2C_en: false
 D2D_en: false
 nonLinearIV_en: false
-write_cnt_en: true
+write_cnt_en: false
 energy_cal_en: false
 
 phyArrRowSize: 64
@@ -15,14 +15,14 @@ phyArrColSize: 64
 minConduct: 1e-6
 maxConduct: 1e-3
 
-inVBits: 2
-inBits: 8
+inVBits: 1
+inBits: 12
 outBits: 12
-unitBits: 8
-cellBits: 4
+unitBits: 10
+cellBits: 2
 has_negative_input: true
 max_phy_input_value: 16
-max_weight_value: 5
+max_weight_value: 2
 trunc_input: true
 dynamic_max_input: true
 mode: 0

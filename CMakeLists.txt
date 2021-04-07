@@ -1,15 +1,12 @@
 cmake_minimum_required(VERSION 3.0 FATAL_ERROR)
 project(pimtorch)
 
-set(CMAKE_PREFIX_PATH /etc/libtorch/)
 find_package(Torch REQUIRED)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 
 include_directories(include)
 
 #添加OpenCV头文件
-set(CMAKE_PREFIX_PATH /mnt/HDD/softwares)
-set(OpenCV_DIR /mnt/HDD/softwares)
 find_package(OpenCV REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})
 

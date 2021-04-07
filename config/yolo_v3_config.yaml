@@ -1,11 +1,14 @@
 %YAML 1.2
 ---
+
 cfg_path:
   '../test/yolo_v3/models/yolov3.cfg'
 weights_path:
   '../test/yolo_v3/models/yolov3.weights'
 img_path:
   '../test/yolo_v3/imgs/test-0013.png'
+img_dir:
+  '../test/yolo_v3/imgs/video2img'
 pim_config_path:
   '../test/yolo_v3/models/pim_array_config.yaml'
 conv_in_shapes:

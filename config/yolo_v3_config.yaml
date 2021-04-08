@@ -2,9 +2,9 @@
 ---
 
 cfg_path:
-  '../yolo_v3/models/yolov3.cfg'
+  '../test/yolo_v3/models/yolov3.cfg'
 weights_path:
-  '../yolo_v3/models/yolov3.weights'
+  '../test/yolo_v3/models/yolov3.weights'
 
 single_image:
   false

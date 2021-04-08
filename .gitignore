@@ -1,7 +1,0 @@
-# CLion
-.idea/*
-
-# CMake
-cmake-build-*/
-
-/test/yolo_v3/models/yolov3.weights

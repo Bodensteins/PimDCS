@@ -166,7 +166,7 @@ namespace PIM {
              << "PIM::PimLinear(in_features=" << options.in_features()
              << ", out_features=" << options.out_features()
              << ", bias=" << options.bias() << ")";
-      if (pim_type != PimArrayType::simple_logic_array)
+      if (print_detail_)
       {
         stream << "array" << std::endl;
         wb_ptr.ptr->print(stream);
@@ -213,6 +213,10 @@ namespace PIM {
       is_training_ = on;
     }
 
+    void print_detail(bool on = true) {
+      print_detail_ = on;
+    }
+
     /// The options used to configure this module.
     LinearOptions options;
 
@@ -225,6 +229,9 @@ namespace PIM {
 
     /// Whether the module is in training mode.
     bool is_training_{true};
+
+    /// Whether the physical array is be printed.
+    bool print_detail_{false};
 
     PimArrayPtr wb_ptr;
     PimArrayPtr wb_t_ptr;

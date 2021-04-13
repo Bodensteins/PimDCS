@@ -378,7 +378,7 @@ namespace PIM {
         stream << ", padding_mode=" << enumtype::get_enum_name(options.padding_mode());
       }
       stream << ")" << std::endl;
-      if (pim_type != PimArrayType::simple_logic_array) {
+      if (print_detail_) {
         wb_ptr.ptr->print(stream);
         stream << "array_t" << std::endl;
         wb_t_ptr.ptr->print(stream);
@@ -436,6 +436,10 @@ namespace PIM {
       is_training_ = on;
     }
 
+    void print_detail(bool on = true) {
+      print_detail_ = on;
+    }
+
     /// The options used to configure this module.
     Conv2dOptions options;
 
@@ -448,6 +452,9 @@ namespace PIM {
 
     /// Whether the module is in training mode.
     bool is_training_{true};
+
+    /// Whether the physical array is be printed.
+    bool print_detail_{false};
 
     PimArrayPtr wb_ptr;
     PimArrayPtr wb_t_ptr;

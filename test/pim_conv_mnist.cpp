@@ -11,7 +11,7 @@
 using namespace std::chrono;
 
 // Where to find the MNIST dataset.
-const char* kDataRoot = "../data";
+const char* kDataRoot = "../data/MNIST/raw";
 
 // The batch size for training.
 const int64_t kTrainBatchSize = 64;
@@ -20,13 +20,13 @@ const int64_t kTrainBatchSize = 64;
 const int64_t kTestBatchSize = 1000;
 
 // The number of epochs to train.
-const int64_t kNumberOfEpochs = 10;
+const int64_t kNumberOfEpochs = 1;
 
 // After how many batches to log a new update with the loss value.
 const int64_t kLogInterval = 10;
 
 auto runDev = torch::kCPU;
-auto type = PIM::PimArrayType::pim_array;
+auto type = PIM::PimArrayType::pim_array_pro;
 
 struct Net : torch::nn::Module {
   Net()
@@ -144,6 +144,7 @@ auto main() -> int {
 
   Net model;
   model.to(device, torch::kFloat64);
+  std::cout << model << std::endl;
 
   auto start = high_resolution_clock::now();
 

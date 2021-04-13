@@ -109,10 +109,15 @@ endif()
 target_link_libraries(pim_vgg8 "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
 set_property(TARGET pim_vgg8 PROPERTY CXX_STANDARD 14)
 
+add_executable(pim_fc_xor test/pim_fc_xor.cpp)
+if (NOT ${yaml-cpp_FOUND})
+    add_dependencies(pim_fc_xor YAML_CPP_EXTERNAL_PROJECT)
+endif()
+target_link_libraries(pim_fc_xor "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
+set_property(TARGET pim_fc_xor PROPERTY CXX_STANDARD 14)
+
 
 # Test
-
-
 add_executable(logic_array_interface_test unittest/logic_array_interface_test.cpp )
 if (NOT ${yaml-cpp_FOUND})
     add_dependencies(logic_array_interface_test YAML_CPP_EXTERNAL_PROJECT)

@@ -4,6 +4,7 @@
 #include "yaml-cpp/yaml.h"
 #include <torch/torch.h>
 #include <torch/custom_class.h>
+#include <cmath>
 using torch::indexing::Slice;
 
 struct pim_array_config
@@ -90,6 +91,21 @@ struct pim_array_pro_config
     int mode;   
     int cellsPerUnit, unitsPerPhyRow, usedCellsPerPhyRow;
     int inLevels, inVLevels, outLevels, unitLevels, cellLevels, inPluses;
+
+    struct latency_params
+    {
+        bool enable;
+        int parMMPhyNum;
+        int parWrPhyNum;
+        int parPhyWrSize;
+        double phyWrLatency;
+        double phyMMLatency;
+        double addLatency;
+        int addTreeWideSize;
+        double latencyWrSinglePhyArr;
+        double addTreeLatency;
+        int addTreeSharedNum;
+    }latency;
     at::Tensor inScalar, unitScalar;
     pim_array_pro_config(std::string filename = "../config/pim_array_pro.yaml")
     {
@@ -159,6 +175,30 @@ struct pim_array_pro_config
         });
         if (inVBits==1 && has_negative_input)
             inScalar.index_put_({Slice(inBits-1)}, (1 << (inBits-1))*-1);
+        
+
+        //-----latency params setting----
+        latency.enable = config["latency_cal"]["enable"].as<bool>();
+        if (latency.enable)
+        {
+            latency.parMMPhyNum = config["latency_cal"]["parMMPhyNum"].as<int>();
+            latency.parWrPhyNum = config["latency_cal"]["parWrPhyNum"].as<int>();
+
+            latency.parPhyWrSize = config["latency_cal"]["parPhyWrSize"].as<int>();
+            
+            latency.phyWrLatency = config["latency_cal"]["phyWrLatency"].as<double>();
+            latency.phyMMLatency = config["latency_cal"]["phyMMLatency"].as<double>();
+            
+            latency.addLatency = config["latency_cal"]["addLatency"].as<double>();
+            latency.addTreeWideSize  = config["latency_cal"]["addTreeWideSize"].as<int>();
+            
+            if (latency.parPhyWrSize <=0 || latency.parPhyWrSize>phyArrRowSize)
+                latency.parPhyWrSize = phyArrRowSize;
+            
+            latency.latencyWrSinglePhyArr = phyArrRowSize*phyArrColSize/latency.parPhyWrSize * latency.phyWrLatency;
+            latency.addTreeLatency = latency.addLatency*std::log2(1.0*latency.addTreeWideSize);
+            latency.addTreeSharedNum = config["latency_cal"]["addTreeSharedNum"].as<int>();
+        }
     }
 };
 

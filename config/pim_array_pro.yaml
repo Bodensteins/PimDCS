@@ -8,6 +8,17 @@ D2D_en: false
 nonLinearIV_en: false
 write_cnt_en: false
 energy_cal_en: false
+latency_cal:  #all latency is xx ns 
+    enable: true
+    parMMPhyNum: 256
+    parWrPhyNum:  -1
+    parPhyWrSize: 64
+    phyWrLatency: 2000
+    phyMMLatency: 100
+    addLatency: 5
+    addTreeWideSize: 128
+    addTreeSharedNum: 8
+    
 
 phyArrRowSize: 64
 phyArrColSize: 64
@@ -15,14 +26,14 @@ phyArrColSize: 64
 minConduct: 1e-6
 maxConduct: 1e-3
 
-inVBits: 1
-inBits: 12
-outBits: 12
+inVBits: 2
+inBits: 8
+outBits: 14
 unitBits: 10
 cellBits: 2
 has_negative_input: true
 max_phy_input_value: 16
-max_weight_value: 2
+max_weight_value: 4
 trunc_input: true
 dynamic_max_input: true
 mode: 0

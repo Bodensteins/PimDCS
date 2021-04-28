@@ -3,7 +3,10 @@ phy_array_writeMode: 0
 writeV: 3
 readV: 1
 computeV: 1
-C2C_en: false
+# C2C variation, r = Rtarget * exp(q);  q ~ N(0, theta)   
+C2C_en: 
+    enable: true
+    theta: 0.1
 D2D_en: false
 nonLinearIV_en: false
 write_cnt_en: false

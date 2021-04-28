@@ -76,6 +76,7 @@ struct pim_array_pro_config
     phy_array_writeMode wm;
     double writeV, readV, computeV;
     bool C2C_en, D2D_en, nonLinearIV_en, write_cnt_en, energy_cal_en;
+    double C2C_theta;
     double minConduct, maxConduct;
     int32_t phyArrRowSize, phyArrColSize;           //  phy array size, a logic array is formed by one or multiple phy arrays.
     int32_t inBits, inVBits, outBits, unitBits, cellBits;    /*  input/output data bits.  unit bits means precision of data in array. cell bits means one memory cell's precision
@@ -118,7 +119,9 @@ struct pim_array_pro_config
         readV = config["readV"].as<double>();
         computeV = config["computeV"].as<double>();
 
-        C2C_en = config["C2C_en"].as<bool>();
+        C2C_en = config["C2C_en"]["enable"].as<bool>();
+        if (C2C_en)
+            C2C_theta = config["C2C_en"]["theta"].as<double>(); 
         D2D_en = config["D2D_en"].as<bool>();
         nonLinearIV_en = config["nonLinearIV_en"].as<bool>();
         write_cnt_en = config["write_cnt_en"].as<bool>();

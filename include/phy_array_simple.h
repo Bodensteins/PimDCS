@@ -144,15 +144,21 @@ struct phyArrayPro
         readEnergy = writeEnergy = 0;
         deltaConduct = (conf->maxConduct - conf->minConduct) / (conf->cellLevels-1);
         this->op = op;
-        if (conf->cellBits <= 8)
-            data = torch::zeros({rowSize, colSize}, op.dtype(torch::kUInt8));
-        else if (conf->cellBits < 32)
-            data = torch::zeros({rowSize, colSize}, op.dtype(torch::kInt32));
+        if (!conf->C2C_en)
+        {
+            if (conf->cellBits <= 8)
+                data = torch::zeros({rowSize, colSize}, op.dtype(torch::kUInt8));
+            else if (conf->cellBits < 32)
+                data = torch::zeros({rowSize, colSize}, op.dtype(torch::kInt32));
+            else
+            {
+                throw "too big cellBits, in phyArrayPro";
+            }
+        }
         else
         {
-            throw "too big cellBits, in phyArrayPro";
+            data = torch::zeros({rowSize, colSize}, op.dtype(torch::kF32));
         }
-
         
     
         totalWrCnt = 0;
@@ -227,6 +233,16 @@ void phyArrayPro::writeMat(const at::Tensor &mat, int row, int col)
     {
     }
 
+    if (conf->C2C_en)
+    {
+        //1/(delta*data + minConduct) = Rtarget * exp(q);  q ~ N(0, theta)   
+        // data = (exp(-q) * Ctarget - minConduct)/deltaConduct;   
+        at::Tensor nol = torch::normal(0, conf->C2C_theta, {m, n}, {}, op.dtype(torch::kF32)).mul(-1).exp(); 
+        at::Tensor wr = ((mat.to(torch::kF32)*deltaConduct+conf->minConduct)*nol-conf->minConduct)/deltaConduct;
+
+        data.index_put_({Slice(row, row + m), Slice(col, col + n)}, wr);
+        return;
+    }
     data.index_put_({Slice(row, row + m), Slice(col, col + n)}, mat);
 }
 
@@ -245,6 +261,8 @@ at::Tensor phyArrayPro::readMat(int row, int col, int m, int n)
     if (conf->energy_cal_en)
     {
     }
+    if (conf->C2C_en)
+        return data.round().to(torch::kInt32).index({Slice(row, row + m), Slice(col, col + n)});
     return data.index({Slice(row, row + m), Slice(col, col + n)});
 }
 

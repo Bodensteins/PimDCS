@@ -91,6 +91,18 @@ struct pim_array_pro_config
     int cellsPerUnit, unitsPerPhyRow, usedCellsPerPhyRow;
     int inLevels, inVLevels, outLevels, unitLevels, cellLevels, inPluses;
     at::Tensor inScalar, unitScalar;
+
+    /* area config */
+    double F;
+    double share_peripheral;
+    double array_peripheral;
+    double DAC_area;
+    double ADC_area;
+    int share_inf_row_size;
+    int share_inf_col_size;
+    int row_share_subarray;
+    int col_share_subarray;
+
     pim_array_pro_config(std::string filename = "../config/pim_array_pro.yaml")
     {
         YAML::Node config = YAML::LoadFile(filename);
@@ -159,6 +171,17 @@ struct pim_array_pro_config
         });
         if (inVBits==1 && has_negative_input)
             inScalar.index_put_({Slice(inBits-1)}, (1 << (inBits-1))*-1);
+
+        // area config
+        F = config["area"]["F"].as<double>();
+        share_peripheral = config["area"]["share_peripheral"].as<double>();
+        array_peripheral = config["area"]["array_peripheral"].as<double>();
+        DAC_area = config["area"]["DAC_area"].as<double>();
+        ADC_area = config["area"]["ADC_area"].as<double>();
+        share_inf_row_size = config["area"]["share_inf_row_size"].as<int>();
+        share_inf_col_size = config["area"]["share_inf_col_size"].as<int>();
+        row_share_subarray = config["area"]["row_share_subarray"].as<int>();
+        col_share_subarray = config["area"]["col_share_subarray"].as<int>();
     }
 };
 

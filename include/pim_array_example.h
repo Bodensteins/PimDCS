@@ -816,9 +816,33 @@ public:
         }
     }
 
+    phyArrayManagerPro()
+    {
+        run_latency_s = run_latency_us = 0;
+    }
+
+    void latency_add(double time_ns)
+    {
+        std::lock_guard<std::mutex> lk(mu);
+
+        run_latency_us += time_ns / 1000.0;
+        if (run_latency_us >= 1e6)
+        {
+            run_latency_s += 1;
+            run_latency_us -= 1e6;
+        }
+    }
+
+    void print_latency(std::ostream &os)
+    {
+        os << "model running latency = " << run_latency_s << " (s) " << run_latency_us << " (us)" << std::endl;
+    }
+
 private:
     std::vector<phyArrayPro *> arrList;
     static std::mutex mu;
+    double run_latency_us; 
+    double run_latency_s;
 };
 
 std::mutex phyArrayManagerPro::mu;
@@ -925,7 +949,6 @@ public:
     template <typename F>
     void locate(int row, int col, int ed_row, int ed_col, F fun);
     static phyArrayManagerPro phyArrManPro;
-
 protected:
     std::vector<int64_t> sizes_vec;
     const pim_array_pro_config *conf;
@@ -1209,6 +1232,13 @@ void pimArrayPro::write_mat(const at::Tensor &matin, int row, int col)
 
         leny = ed_arrY - st_arrY + 1;
         lenx = ed_arrX - st_arrX + 1;
+        if (conf->latency.enable)
+        {
+            int64_t Wr_num = 2*(int64_t)leny*lenx;
+            double ti = conf->latency.parWrPhyNum <= 0 ? 1 : ceil(1.0*Wr_num / conf->latency.parWrPhyNum);
+            phyArrManPro.latency_add(ti * conf->latency.latencyWrSinglePhyArr);
+        }
+
         at::parallel_for(0, leny * lenx, 0, [&](int st, int ed) -> void {
             for (int k = st; k < ed; ++k)
             {
@@ -1276,6 +1306,12 @@ void pimArrayPro::write_mat(const at::Tensor &matin, int row, int col)
 
     leny = ed_arrY - st_arrY + 1;
     lenx = ed_arrX - st_arrX + 1;
+    if (conf->latency.enable)
+    {
+        int64_t Wr_num = (int64_t)leny*lenx;
+        double ti = conf->latency.parWrPhyNum<=0? 1 : ceil(1.0*Wr_num/conf->latency.parWrPhyNum);
+        phyArrManPro.latency_add(ti*conf->latency.latencyWrSinglePhyArr);
+    }
     at::parallel_for(0, leny * lenx, 0, [&](int st, int ed) -> void {
         for (int k = st; k < ed; ++k)
         {
@@ -1355,14 +1391,27 @@ at::Tensor pimArrayPro::mm(const at::Tensor &matin)
     };
 
     if (mat.sizes().size() == 2)
+    {
+        if (conf->latency.enable)
+        {
+            double ti = conf->latency.phyMMLatency* (conf->latency.parMMPhyNum<=0? 1 : ceil(1.0*arrX_size*arrY_size/conf->latency.parMMPhyNum));
+            phyArrManPro.latency_add(conf->inPluses*ti + ceil(1.0*(arrX_size-1)/(conf->latency.addTreeWideSize-1))*conf->latency.addTreeLatency*ceil(1.0*arrY_size/conf->latency.addTreeSharedNum));
+        }
         return mm2d(mat);
+    }
     else
     {            
         int batch_size, row_size, col_size;
         batch_size = mat.size(0);
         row_size = mat.size(1);
         col_size = mat.size(2);
+        if (conf->latency.enable)
+        {
+            double ti = conf->latency.phyMMLatency* (conf->latency.parMMPhyNum<=0? 1 : ceil(1.0*arrX_size*arrY_size/conf->latency.parMMPhyNum));
+            phyArrManPro.latency_add(batch_size*(conf->inPluses*ti + ceil(1.0*(arrX_size-1)/(conf->latency.addTreeWideSize-1))*conf->latency.addTreeLatency*ceil(1.0*arrY_size/conf->latency.addTreeSharedNum)));
+        }
         return mm2d(mat.reshape({-1, col_size})).reshape({batch_size, row_size, -1});
     }
 }
+
 #endif

@@ -4,6 +4,7 @@
 #include "yaml-cpp/yaml.h"
 #include <torch/torch.h>
 #include <torch/custom_class.h>
+#include <cmath>
 using torch::indexing::Slice;
 
 struct pim_array_config
@@ -75,6 +76,7 @@ struct pim_array_pro_config
     phy_array_writeMode wm;
     double writeV, readV, computeV;
     bool C2C_en, D2D_en, nonLinearIV_en, write_cnt_en, energy_cal_en;
+    double C2C_theta;
     double minConduct, maxConduct;
     int32_t phyArrRowSize, phyArrColSize;           //  phy array size, a logic array is formed by one or multiple phy arrays.
     int32_t inBits, inVBits, outBits, unitBits, cellBits;    /*  input/output data bits.  unit bits means precision of data in array. cell bits means one memory cell's precision
@@ -90,6 +92,21 @@ struct pim_array_pro_config
     int mode;   
     int cellsPerUnit, unitsPerPhyRow, usedCellsPerPhyRow;
     int inLevels, inVLevels, outLevels, unitLevels, cellLevels, inPluses;
+
+    struct latency_params
+    {
+        bool enable;
+        int parMMPhyNum;
+        int parWrPhyNum;
+        int parPhyWrSize;
+        double phyWrLatency;
+        double phyMMLatency;
+        double addLatency;
+        int addTreeWideSize;
+        double latencyWrSinglePhyArr;
+        double addTreeLatency;
+        int addTreeSharedNum;
+    }latency;
     at::Tensor inScalar, unitScalar;
 
     /* area config */
@@ -114,7 +131,9 @@ struct pim_array_pro_config
         readV = config["readV"].as<double>();
         computeV = config["computeV"].as<double>();
 
-        C2C_en = config["C2C_en"].as<bool>();
+        C2C_en = config["C2C_en"]["enable"].as<bool>();
+        if (C2C_en)
+            C2C_theta = config["C2C_en"]["theta"].as<double>(); 
         D2D_en = config["D2D_en"].as<bool>();
         nonLinearIV_en = config["nonLinearIV_en"].as<bool>();
         write_cnt_en = config["write_cnt_en"].as<bool>();
@@ -171,6 +190,30 @@ struct pim_array_pro_config
         });
         if (inVBits==1 && has_negative_input)
             inScalar.index_put_({Slice(inBits-1)}, (1 << (inBits-1))*-1);
+        
+
+        //-----latency params setting----
+        latency.enable = config["latency_cal"]["enable"].as<bool>();
+        if (latency.enable)
+        {
+            latency.parMMPhyNum = config["latency_cal"]["parMMPhyNum"].as<int>();
+            latency.parWrPhyNum = config["latency_cal"]["parWrPhyNum"].as<int>();
+
+            latency.parPhyWrSize = config["latency_cal"]["parPhyWrSize"].as<int>();
+            
+            latency.phyWrLatency = config["latency_cal"]["phyWrLatency"].as<double>();
+            latency.phyMMLatency = config["latency_cal"]["phyMMLatency"].as<double>();
+            
+            latency.addLatency = config["latency_cal"]["addLatency"].as<double>();
+            latency.addTreeWideSize  = config["latency_cal"]["addTreeWideSize"].as<int>();
+            
+            if (latency.parPhyWrSize <=0 || latency.parPhyWrSize>phyArrRowSize)
+                latency.parPhyWrSize = phyArrRowSize;
+            
+            latency.latencyWrSinglePhyArr = phyArrRowSize*phyArrColSize/latency.parPhyWrSize * latency.phyWrLatency;
+            latency.addTreeLatency = latency.addLatency*std::log2(1.0*latency.addTreeWideSize);
+            latency.addTreeSharedNum = config["latency_cal"]["addTreeSharedNum"].as<int>();
+        }
 
         // area config
         F = config["area"]["F"].as<double>();

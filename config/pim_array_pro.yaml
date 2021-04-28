@@ -3,11 +3,25 @@ phy_array_writeMode: 0
 writeV: 3
 readV: 1
 computeV: 1
-C2C_en: false
+# C2C variation, r = Rtarget * exp(q);  q ~ N(0, theta)   
+C2C_en: 
+    enable: true
+    theta: 0.1
 D2D_en: false
 nonLinearIV_en: false
 write_cnt_en: false
 energy_cal_en: false
+latency_cal:  #all latency is xx ns 
+    enable: true
+    parMMPhyNum: 256
+    parWrPhyNum:  -1
+    parPhyWrSize: 64
+    phyWrLatency: 2000
+    phyMMLatency: 100
+    addLatency: 5
+    addTreeWideSize: 128
+    addTreeSharedNum: 8
+    
 
 phyArrRowSize: 64
 phyArrColSize: 64

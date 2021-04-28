@@ -795,6 +795,19 @@ public:
             i->print(os);
     }
 
+    void printArea() {
+      double total_phy_arrays_area = (4 * pro_decf.F * pro_decf.F * 1e-6 * pro_decf.phyArrRowSize *
+          pro_decf.phyArrColSize + pro_decf.array_peripheral) * arrList.size();
+      double total_row_inf_area = (ceil(arrList.size() / pro_decf.row_share_subarray)) * pro_decf.DAC_area * 1e-6;
+      double total_col_inf_area = (ceil(arrList.size() / pro_decf.col_share_subarray)) * pro_decf.ADC_area * 1e-6;
+      double total_area = total_phy_arrays_area + total_row_inf_area + total_col_inf_area + (pro_decf.share_peripheral * 1e-6);
+      std::cout << "Area info:\n"
+                << "Physical array area: " << total_phy_arrays_area << " mm^2\n"
+                << "DAC area: " << total_row_inf_area << " mm^2\n"
+                << "ADC area: " << total_col_inf_area << " mm^2\n"
+                << "Total area: " << total_area << " mm^2\n";
+    }
+
     ~phyArrayManagerPro()
     {
         for (auto &i : arrList)
@@ -813,7 +826,8 @@ std::mutex phyArrayManagerPro::mu;
 class pimArrayPro : public LogicArrayInterface
 {
 public:
-    pimArrayPro(int rowSizeIn, int colSizeIn, const torch::TensorOptions &op = {}, const pim_array_pro_config *cf = &pro_decf) : LogicArrayInterface(rowSizeIn, colSizeIn)
+    pimArrayPro(int rowSizeIn, int colSizeIn, const torch::TensorOptions &op = {}, const pim_array_pro_config *cf = &pro_decf)
+      : LogicArrayInterface(rowSizeIn, colSizeIn)
     {
         conf = cf;
         init(cf, op);
@@ -907,14 +921,15 @@ public:
         return os;
     }
 
+
     template <typename F>
     void locate(int row, int col, int ed_row, int ed_col, F fun);
+    static phyArrayManagerPro phyArrManPro;
 
 protected:
     std::vector<int64_t> sizes_vec;
     const pim_array_pro_config *conf;
     int arrX_size, arrY_size;
-    static phyArrayManagerPro phyArrManPro;
     std::vector<std::vector<int>> arr, narr;
     torch::TensorOptions op;
 };

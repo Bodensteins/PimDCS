@@ -18,11 +18,23 @@ maxConduct: 1e-3
 inVBits: 1
 inBits: 12
 outBits: 12
-unitBits: 10
-cellBits: 2
+unitBits: 12
+cellBits: 1
 has_negative_input: true
 max_phy_input_value: 16
-max_weight_value: 2
+max_weight_value: 4
 trunc_input: true
 dynamic_max_input: true
 mode: 0
+
+# area config (μm)
+area:
+  F: 0.045
+  share_peripheral: 500
+  array_peripheral: 0
+  DAC_area: 10.62  # 8 bit DAC, 3096T, T = 3 * F^2
+  ADC_area: 2.733750   # 8 bit ADC, 450T
+  share_inf_row_size: 64
+  share_inf_col_size: 64
+  row_share_subarray: 8
+  col_share_subarray: 8

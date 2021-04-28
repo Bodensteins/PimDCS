@@ -108,6 +108,18 @@ struct pim_array_pro_config
         int addTreeSharedNum;
     }latency;
     at::Tensor inScalar, unitScalar;
+
+    /* area config */
+    double F;
+    double share_peripheral;
+    double array_peripheral;
+    double DAC_area;
+    double ADC_area;
+    int share_inf_row_size;
+    int share_inf_col_size;
+    int row_share_subarray;
+    int col_share_subarray;
+
     pim_array_pro_config(std::string filename = "../config/pim_array_pro.yaml")
     {
         YAML::Node config = YAML::LoadFile(filename);
@@ -202,6 +214,17 @@ struct pim_array_pro_config
             latency.addTreeLatency = latency.addLatency*std::log2(1.0*latency.addTreeWideSize);
             latency.addTreeSharedNum = config["latency_cal"]["addTreeSharedNum"].as<int>();
         }
+
+        // area config
+        F = config["area"]["F"].as<double>();
+        share_peripheral = config["area"]["share_peripheral"].as<double>();
+        array_peripheral = config["area"]["array_peripheral"].as<double>();
+        DAC_area = config["area"]["DAC_area"].as<double>();
+        ADC_area = config["area"]["ADC_area"].as<double>();
+        share_inf_row_size = config["area"]["share_inf_row_size"].as<int>();
+        share_inf_col_size = config["area"]["share_inf_col_size"].as<int>();
+        row_share_subarray = config["area"]["row_share_subarray"].as<int>();
+        col_share_subarray = config["area"]["col_share_subarray"].as<int>();
     }
 };
 

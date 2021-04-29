@@ -75,7 +75,7 @@ struct pim_array_pro_config
     phy_array_readMode rm;
     phy_array_writeMode wm;
     double writeV, readV, computeV;
-    bool C2C_en, D2D_en, nonLinearIV_en, write_cnt_en, energy_cal_en;
+    bool C2C_en, D2D_en, nonLinearIV_en, write_cnt_en;/*, energy_cal_en;*/
     double C2C_theta;
     double minConduct, maxConduct;
     int32_t phyArrRowSize, phyArrColSize;           //  phy array size, a logic array is formed by one or multiple phy arrays.
@@ -101,12 +101,19 @@ struct pim_array_pro_config
         int parPhyWrSize;
         double phyWrLatency;
         double phyMMLatency;
+        double phyReLatency;
         double addLatency;
         int addTreeWideSize;
         double latencyWrSinglePhyArr;
         double addTreeLatency;
         int addTreeSharedNum;
     }latency;
+
+    struct energy_params
+    {
+        bool enable;
+    }energy;
+
     at::Tensor inScalar, unitScalar;
 
     /* area config */
@@ -137,7 +144,7 @@ struct pim_array_pro_config
         D2D_en = config["D2D_en"].as<bool>();
         nonLinearIV_en = config["nonLinearIV_en"].as<bool>();
         write_cnt_en = config["write_cnt_en"].as<bool>();
-        energy_cal_en = config["energy_cal_en"].as<bool>();
+        //energy_cal_en = config["energy_cal_en"].as<bool>();
 
         cellBits = config["cellBits"].as<int>();
         minConduct = config["minConduct"].as<double>();
@@ -166,8 +173,8 @@ struct pim_array_pro_config
         unitLevels = 1 << unitBits;
         cellLevels = 1 << cellBits;
         // to calculate energy, we need write cnt
-        if (energy_cal_en)
-            write_cnt_en = true;
+//        if (energy_cal_en)
+//            write_cnt_en = true;
 
         inPluses = inBits/inVBits;
 
@@ -203,6 +210,7 @@ struct pim_array_pro_config
             
             latency.phyWrLatency = config["latency_cal"]["phyWrLatency"].as<double>();
             latency.phyMMLatency = config["latency_cal"]["phyMMLatency"].as<double>();
+            latency.phyReLatency = config["latency_cal"]["phyReLatency"].as<double>();
             
             latency.addLatency = config["latency_cal"]["addLatency"].as<double>();
             latency.addTreeWideSize  = config["latency_cal"]["addTreeWideSize"].as<int>();
@@ -213,6 +221,13 @@ struct pim_array_pro_config
             latency.latencyWrSinglePhyArr = phyArrRowSize*phyArrColSize/latency.parPhyWrSize * latency.phyWrLatency;
             latency.addTreeLatency = latency.addLatency*std::log2(1.0*latency.addTreeWideSize);
             latency.addTreeSharedNum = config["latency_cal"]["addTreeSharedNum"].as<int>();
+        }
+
+        //energy params setting
+        energy.enable = latency.enable && config["energy_cal"]["enable"].as<bool>();//must support latency
+        if (energy.enable)
+        {
+            //todo:
         }
 
         // area config

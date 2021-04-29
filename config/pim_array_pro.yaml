@@ -10,7 +10,6 @@ C2C_en:
 D2D_en: false
 nonLinearIV_en: false
 write_cnt_en: false
-energy_cal_en: false
 latency_cal:  #all latency is xx ns 
     enable: true
     parMMPhyNum: 256
@@ -18,10 +17,18 @@ latency_cal:  #all latency is xx ns
     parPhyWrSize: 64
     phyWrLatency: 2000
     phyMMLatency: 100
+    phyReLatency: 80
     addLatency: 5
     addTreeWideSize: 128
     addTreeSharedNum: 8
-    
+energy_cal:  #all energy is J
+    enable: true
+    readPeripheryEnergy: 0
+    writePeripheryEnergy: 0
+    DACEnergy: 0
+    ADCEnergy: 0
+    computePeripheryEnergy: 0 #sample&hold shift&add etc
+    adderEnergy: 0  #add vertical out
 
 phyArrRowSize: 64
 phyArrColSize: 64

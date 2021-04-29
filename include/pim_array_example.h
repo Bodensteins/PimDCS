@@ -819,6 +819,8 @@ public:
     phyArrayManagerPro()
     {
         run_latency_s = run_latency_us = 0;
+        array_energy = periphery_circuit_energy = 0;
+        read_energy = write_energy = compute_energy = 0;
     }
 
     void latency_add(double time_ns)
@@ -838,11 +840,85 @@ public:
         os << "model running latency = " << run_latency_s << " (s) " << run_latency_us << " (us)" << std::endl;
     }
 
+    double get_total_energy()
+    {
+        double E1 = array_energy + periphery_circuit_energy;
+        double E2 = write_energy + read_energy + compute_energy;
+        assert(E1 == E2);
+        return E1;
+    }
+
+    double get_array_energy()
+    {
+        return array_energy;
+    }
+
+    void add_array_energy(double deltaE)
+    {
+        std::lock_guard<std::mutex> lk(mu);
+
+        array_energy += deltaE;
+    }
+
+    double get_periphery_circuit_energy()
+    {
+        return periphery_circuit_energy;
+    }
+
+    void add_periphery_circuit_energy(double deltaE)
+    {
+        std::lock_guard<std::mutex> lk(mu);
+
+        periphery_circuit_energy += deltaE;
+    }
+
+    double get_read_energy()
+    {
+        return read_energy;
+    }
+
+    void add_read_energy(double deltaE)
+    {
+        std::lock_guard<std::mutex> lk(mu);
+
+        read_energy += deltaE;
+    }
+
+    double get_write_energy()
+    {
+        return write_energy;
+    }
+
+    void add_write_energy(double deltaE)
+    {
+        std::lock_guard<std::mutex> lk(mu);
+
+        write_energy += deltaE;
+    }
+
+    double get_compute_energy()
+    {
+        return compute_energy;
+    }
+
+    void add_compute_energy(double deltaE)
+    {
+        std::lock_guard<std::mutex> lk(mu);
+
+        compute_energy += deltaE;
+    }
+
 private:
     std::vector<phyArrayPro *> arrList;
     static std::mutex mu;
     double run_latency_us; 
     double run_latency_s;
+    //energy info
+    double array_energy;
+    double periphery_circuit_energy;
+    double read_energy;
+    double write_energy;
+    double compute_energy;
 };
 
 std::mutex phyArrayManagerPro::mu;

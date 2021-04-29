@@ -141,7 +141,7 @@ struct phyArrayPro
     {
         this->rowSize = rowSize;
         this->colSize = colSize;
-        readEnergy = writeEnergy = 0;
+        readEnergy = writeEnergy = computeEnergy = 0;
         deltaConduct = (conf->maxConduct - conf->minConduct) / (conf->cellLevels-1);
         this->op = op;
         if (!conf->C2C_en)
@@ -197,7 +197,7 @@ struct phyArrayPro
     const pim_array_pro_config *const conf;
     int rowSize, colSize;
     double deltaConduct;
-    double readEnergy, writeEnergy;
+    double readEnergy, writeEnergy, computeEnergy;
     // double area; not support area now
     // int64_t latency; not support latency now
 
@@ -217,7 +217,6 @@ struct phyArrayPro
 */
 void phyArrayPro::writeMat(const at::Tensor &mat, int row, int col)
 {
-
     int64_t m = mat.size(0), n = mat.size(1);
     totalWrCnt += m * n;
     if (conf->write_cnt_en)
@@ -229,8 +228,9 @@ void phyArrayPro::writeMat(const at::Tensor &mat, int row, int col)
     }
 
     // remains future works
-    if (conf->energy_cal_en)
+    if (conf->energy.enable)
     {
+        //todo:
     }
 
     if (conf->C2C_en)
@@ -257,9 +257,14 @@ void phyArrayPro::writeMat(const at::Tensor &mat, int row, int col)
 */
 at::Tensor phyArrayPro::readMat(int row, int col, int m, int n)
 {
-    // remains future works
-    if (conf->energy_cal_en)
+    if (conf->energy.enable)
     {
+        double array_energy = conf->readV * conf->readV * conf->latency.phyReLatency;
+        int elementNum = m * colSize;
+        double conductance = data.index({Slice(row, row + m)}).sum().item<double>() * deltaConduct;
+        conductance += elementNum * conf->minConduct;
+        array_energy *= conductance;
+        //todo:
     }
     if (conf->C2C_en)
         return data.round().to(torch::kInt32).index({Slice(row, row + m), Slice(col, col + n)});
@@ -274,8 +279,9 @@ at::Tensor phyArrayPro::readMat(int row, int col, int m, int n)
 at::Tensor phyArrayPro::mm(const at::Tensor &mat)
 {
     // remains future works
-    if (conf->energy_cal_en)
+    if (conf->energy.enable)
     {
+        //todo:
     }
     return torch::matmul(mat, data.index({Slice(0, mat.size(2))}).to(torch::kF64) * deltaConduct + conf->minConduct).div(rowSize*conf->maxConduct);
 }
@@ -488,11 +494,12 @@ void phyArrayPro::print(std::ostream &os)
     using std::endl;
     os << "data = " << endl;
     os << data << endl;
-    if (conf->energy_cal_en)
+    if (conf->energy.enable)
     {
-        os << " total energy = " << readEnergy + writeEnergy
-           << ", write energy = " << writeEnergy
-           << ", read energy = " << readEnergy << endl;
+        //todo:
+//        os << " total energy = " << readEnergy + writeEnergy
+//           << ", write energy = " << writeEnergy
+//           << ", read energy = " << readEnergy << endl;
     }
     os << " total write cnt = " << totalWrCnt << endl;
     if (conf->write_cnt_en)

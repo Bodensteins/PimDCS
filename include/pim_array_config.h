@@ -112,6 +112,17 @@ struct pim_array_pro_config
     struct energy_params
     {
         bool enable;
+        double readRowPeripheryEnergy;
+        double readColPeripheryEnergy;
+        double writeRowPeripheryEnergy;
+        double writeColPeripheryEnergy;
+        double DACEnergy;
+        double ADCEnergy;
+        double computeRowPeripheryEnergy;
+        double computeColPeripheryEnergy;
+        double adderEnergy;
+        bool readUseProbability;
+        std::vector<double> readPD;
     }energy;
 
     at::Tensor inScalar, unitScalar;
@@ -227,7 +238,22 @@ struct pim_array_pro_config
         energy.enable = latency.enable && config["energy_cal"]["enable"].as<bool>();//must support latency
         if (energy.enable)
         {
-            //todo:
+            //todo:may modify
+            energy.readRowPeripheryEnergy = config["energy_cal"]["readRowPeripheryEnergy"].as<double>();
+            energy.readColPeripheryEnergy = config["energy_cal"]["readColPeripheryEnergy"].as<double>();
+            energy.writeRowPeripheryEnergy = config["energy_cal"]["writeRowPeripheryEnergy"].as<double>();
+            energy.writeColPeripheryEnergy = config["energy_cal"]["writeColPeripheryEnergy"].as<double>();
+            energy.DACEnergy = config["energy_cal"]["DACEnergy"].as<double>();
+            energy.ADCEnergy = config["energy_cal"]["ADCEnergy"].as<double>();
+            energy.computeRowPeripheryEnergy = config["energy_cal"]["computeRowPeripheryEnergy"].as<double>();
+            energy.computeColPeripheryEnergy = config["energy_cal"]["computeColPeripheryEnergy"].as<double>();
+            energy.readUseProbability = config["energy_cal"]["readUseProbability"].as<bool>();
+            if (energy.readUseProbability)
+            {
+                energy.readPD = config["energy_cal"]["readPD"].as<std::vector<double>>();
+
+
+            }
         }
 
         // area config

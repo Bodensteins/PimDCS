@@ -4,6 +4,7 @@
 #include <torch/torch.h>
 #include <torch/custom_class.h>
 #include <iostream>
+#include "pim_array_example.h"
 
 using std::cout;
 using std::endl;
@@ -259,12 +260,14 @@ at::Tensor phyArrayPro::readMat(int row, int col, int m, int n)
 {
     if (conf->energy.enable)
     {
-        double array_energy = conf->readV * conf->readV * conf->latency.phyReLatency;
+        double energy = conf->readV * conf->readV * conf->latency.phyReLatency;
         int elementNum = m * colSize;
         double conductance = data.index({Slice(row, row + m)}).sum().item<double>() * deltaConduct;
         conductance += elementNum * conf->minConduct;
-        array_energy *= conductance;
-        //todo:
+        energy *= conductance;//array energy
+        //add circuit energy
+        energy += m * conf->energy.readRowPeripheryEnergy + colSize * conf->energy.readColPeripheryEnergy;
+        readEnergy += energy;
     }
     if (conf->C2C_en)
         return data.round().to(torch::kInt32).index({Slice(row, row + m), Slice(col, col + n)});

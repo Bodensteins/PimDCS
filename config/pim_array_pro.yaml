@@ -23,12 +23,21 @@ latency_cal:  #all latency is xx ns
     addTreeSharedNum: 8
 energy_cal:  #all energy is J
     enable: true
-    readPeripheryEnergy: 0
-    writePeripheryEnergy: 0
+    readRowPeripheryEnergy: 0
+    readColPeripheryEnergy: 0
+    writeRowPeripheryEnergy: 0
+    writeColPeripheryEnergy: 0
     DACEnergy: 0
     ADCEnergy: 0
-    computePeripheryEnergy: 0 #sample&hold shift&add etc
+    computeRowPeripheryEnergy: 0
+    computeColPeripheryEnergy: 0
     adderEnergy: 0  #add vertical out
+    readUseProbability: true #use probability to calculate or not
+    readPD: #read probability distribution, if not illegal, use equal probability
+      - 0.25
+      - 0.3
+      - 0.14
+      - 0.31
 
 phyArrRowSize: 64
 phyArrColSize: 64
@@ -40,7 +49,7 @@ inVBits: 1
 inBits: 12
 outBits: 12
 unitBits: 12
-cellBits: 1
+cellBits: 2
 has_negative_input: true
 max_phy_input_value: 16
 max_weight_value: 4

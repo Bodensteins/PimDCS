@@ -18,7 +18,7 @@ using std::endl;
 //     bool dynamic_max_input;
 // };
 
-pim_array_config cf;
+pim_array_config cf("../config/pim_onlyCounter.yaml");
 
 
 const int N = 5;  // array of N x M

@@ -251,8 +251,16 @@ struct pim_array_pro_config
             if (energy.readUseProbability)
             {
                 energy.readPD = config["energy_cal"]["readPD"].as<std::vector<double>>();
-
-
+                double sum = 0;
+                for (auto x:energy.readPD)
+                {
+                    sum += x;
+                }
+                double epsilon = 1e-5;
+                if (fabs(sum - 1.0) > epsilon || energy.readPD.size() != cellLevels)
+                {
+                    energy.readPD = std::vector<double>(cellLevels, 1.0/cellLevels);
+                }
             }
         }
 

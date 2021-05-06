@@ -9,15 +9,29 @@ using torch::indexing::Slice;
 
 int main()
 {
-    torch::Tensor a = torch::tensor({{1.0, 2.0}, {3., 4.}}, torch::requires_grad());
-    torch::Tensor b = torch::tensor({{1.0, 2.0}});
-    
-    cout << a-b << endl;
-    auto c = a.detach();
+    double minconduct = 0.5;
+    double delta = 15;
+    std::vector<int> vec = std::vector<int>({-1, 2, 3, -3, 0, 0, 1, -2});
+    std::vector<int> mat = std::vector<int>({0, 2, 3, 1});
+    Tensor data = torch::from_blob(vec.data(), {2, 2, 2}, torch::kInt);
+    Tensor target = torch::from_blob(mat.data(), {2, 2}, torch::kInt);
+    cout << data << endl <<target << endl;
+    auto data2 = data.pow(2);
+    auto ans = data2.matmul(target);
 
-    cout << c.data_ptr() << endl;
-    cout << a.data_ptr() << endl;
-    cout << c.requires_grad() << endl;
+    cout << data2 << endl << ans << endl;
+
+    auto result = ans.sum(0);
+    cout << result
+//    torch::Tensor a = torch::tensor({{1.0, 2.0}, {3., 4.}}, torch::requires_grad());
+//    torch::Tensor b = torch::tensor({{1.0, 2.0}});
+//
+//    cout << a-b << endl;
+//    auto c = a.detach();
+//
+//    cout << c.data_ptr() << endl;
+//    cout << a.data_ptr() << endl;
+//    cout << c.requires_grad() << endl;
     // Tensor k = torch::tensor({{2.0, 3.0}, {1.4, 0.7}}).to(torch::kI32);
     // //cout << k << endl;
     // Tensor myindex = k > 1;

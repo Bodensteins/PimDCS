@@ -35,6 +35,8 @@ energy_cal:  #all energy is J
     readUseProbability: true #use probability to calculate or not
     writeUseProbability: true
     computeUseProbability: true
+    readMode: 2 #2: G-G , now we just support it
+    writeMode: 0 #
     CellPD: #read probability distribution, if not illegal, throw exception
       - 0.1
       - 0.86

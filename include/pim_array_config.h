@@ -238,7 +238,7 @@ struct pim_array_pro_config
         energy.enable = latency.enable && config["energy_cal"]["enable"].as<bool>();//must support latency
         if (energy.enable)
         {
-            //todo:may modify
+            //todo:may modify or add sth
             energy.readRowPeripheryEnergy = config["energy_cal"]["readRowPeripheryEnergy"].as<double>();
             energy.readColPeripheryEnergy = config["energy_cal"]["readColPeripheryEnergy"].as<double>();
             energy.writeRowPeripheryEnergy = config["energy_cal"]["writeRowPeripheryEnergy"].as<double>();

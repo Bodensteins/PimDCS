@@ -262,7 +262,24 @@ at::Tensor phyArrayPro::readMat(int row, int col, int m, int n)
     {
         double energy = conf->readV * conf->readV * conf->latency.phyReLatency;
         int elementNum = m * colSize;
-        double conductance = data.index({Slice(row, row + m)}).sum().item<double>() * deltaConduct;
+        double conductance;
+
+        if (conf->energy.readUseProbability)
+        {
+            double average = 0;
+
+            for (int i = 0; i < conf->energy.readPD.size(); ++i)
+            {
+                average += i * conf->energy.readPD[i];
+            }
+
+            conductance = elementNum * average * deltaConduct;
+        }
+        else
+        {
+            conductance = data.index({Slice(row, row + m)}).sum().item<double>() * deltaConduct;
+        }
+
         conductance += elementNum * conf->minConduct;
         energy *= conductance;//array energy
         //add circuit energy

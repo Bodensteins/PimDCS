@@ -873,7 +873,14 @@ public:
     double get_read_energy()
     {
         //todo:
-        return 0;
+        double readEnergy = 0;
+
+        for (auto &i : arrList)
+        {
+            readEnergy += i->readEnergy;
+        }
+
+        return readEnergy;
     }
 
 //    void add_read_energy(double deltaE)

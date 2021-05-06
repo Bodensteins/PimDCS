@@ -33,11 +33,14 @@ energy_cal:  #all energy is J
     computeColPeripheryEnergy: 0
     adderEnergy: 0  #add vertical out
     readUseProbability: true #use probability to calculate or not
-    readPD: #read probability distribution, if not illegal, use equal probability
-      - 0.25
-      - 0.3
-      - 0.14
-      - 0.31
+    writeUseProbability: true
+    computeUseProbability: true
+    CellPD: #read probability distribution, if not illegal, throw exception
+      - 0.1
+      - 0.86
+      - 0.03
+      - 0.01
+    CellPDDefault: 2 #0:equal probabilty 1:100% max value
 
 phyArrRowSize: 64
 phyArrColSize: 64

@@ -268,9 +268,9 @@ at::Tensor phyArrayPro::readMat(int row, int col, int m, int n)
         {
             double average = 0;
 
-            for (int i = 0; i < conf->energy.readPD.size(); ++i)
+            for (int i = 0; i < conf->energy.CellPD.size(); ++i)
             {
-                average += i * conf->energy.readPD[i];
+                average += i * conf->energy.CellPD[i];
             }
 
             conductance = elementNum * average * deltaConduct;

@@ -122,7 +122,10 @@ struct pim_array_pro_config
         double computeColPeripheryEnergy;
         double adderEnergy;
         bool readUseProbability;
-        std::vector<double> readPD;
+        bool writeUseProbability;
+        bool computeUseProbability;
+        std::vector<double> CellPD;
+        int CellPDDefault;
     }energy;
 
     at::Tensor inScalar, unitScalar;
@@ -248,19 +251,49 @@ struct pim_array_pro_config
             energy.computeRowPeripheryEnergy = config["energy_cal"]["computeRowPeripheryEnergy"].as<double>();
             energy.computeColPeripheryEnergy = config["energy_cal"]["computeColPeripheryEnergy"].as<double>();
             energy.readUseProbability = config["energy_cal"]["readUseProbability"].as<bool>();
-            if (energy.readUseProbability)
+            if (energy.readUseProbability || energy.writeUseProbability || energy.computeUseProbability)
             {
-                energy.readPD = config["energy_cal"]["readPD"].as<std::vector<double>>();
-                double sum = 0;
-                for (auto x:energy.readPD)
+                if (config["energy_cal"]["CellPD"])
                 {
-                    sum += x;
+                    energy.CellPD = config["energy_cal"]["CellPD"].as<std::vector<double>>();
+                    double sum = 0;
+                    for (auto x:energy.CellPD)
+                    {
+                        sum += x;
+                    }
+
+                    double epsilon = 1e-5;
+                    if (energy.CellPD.size() != cellLevels)
+                    {
+                        std::cerr << "CellPD illegal: the number of probabilities is not cellLevels" << std::endl;
+                        exit(-1);
+                    }
+                    else if (fabs(sum - 1.0) > epsilon)
+                    {
+                        std::cerr << "CellPD illegal: the sum of probabilities is not 1" << std::endl;
+                        exit(-1);
+                    }
                 }
-                double epsilon = 1e-5;
-                if (fabs(sum - 1.0) > epsilon || energy.readPD.size() != cellLevels)
+                else
                 {
-                    energy.readPD = std::vector<double>(cellLevels, 1.0/cellLevels);
+                    energy.CellPDDefault = config["energy_cal"]["CellPDDefault"].as<int>();
+                    if (energy.CellPDDefault == 0)
+                    {
+                        energy.CellPD = std::vector<double>(cellLevels, 1.0/cellLevels);
+                    }
+                    else if (energy.CellPDDefault == 1)
+                    {
+                        energy.CellPD = std::vector<double>(cellLevels, 0);
+                        energy.CellPD[cellLevels - 1] = 1.0;
+                    }
+                    else
+                    {
+                        std::cerr << "undefined CellPDDefault" << std::endl;
+                        exit(-1);
+                    }
                 }
+
+                //std::cout << energy.CellPD << std::endl;
             }
         }
 

@@ -93,7 +93,7 @@ struct pim_array_pro_config
     at::Tensor inScalar, unitScalar;
 
     /* area config */
-    double F;
+    double cell_area;
     double share_peripheral;
     double array_peripheral;
     double DAC_area;
@@ -173,7 +173,7 @@ struct pim_array_pro_config
             inScalar.index_put_({Slice(inBits-1)}, (1 << (inBits-1))*-1);
 
         // area config
-        F = config["area"]["F"].as<double>();
+        cell_area = config["area"]["cell_area"].as<double>();
         share_peripheral = config["area"]["share_peripheral"].as<double>();
         array_peripheral = config["area"]["array_peripheral"].as<double>();
         DAC_area = config["area"]["DAC_area"].as<double>();

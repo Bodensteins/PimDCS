@@ -22,7 +22,7 @@ int main()
     cout << data2 << endl << ans << endl;
 
     auto result = ans.sum(0);
-    cout << result
+    cout << result << endl;
 //    torch::Tensor a = torch::tensor({{1.0, 2.0}, {3., 4.}}, torch::requires_grad());
 //    torch::Tensor b = torch::tensor({{1.0, 2.0}});
 //

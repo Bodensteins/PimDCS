@@ -126,6 +126,8 @@ struct pim_array_pro_config
         bool computeUseProbability;
         std::vector<double> CellPD;
         int CellPDDefault;
+        std::vector<double> inVPD;
+        int inVPDDefault;
     }energy;
 
     at::Tensor inScalar, unitScalar;
@@ -251,6 +253,7 @@ struct pim_array_pro_config
             energy.computeRowPeripheryEnergy = config["energy_cal"]["computeRowPeripheryEnergy"].as<double>();
             energy.computeColPeripheryEnergy = config["energy_cal"]["computeColPeripheryEnergy"].as<double>();
             energy.readUseProbability = config["energy_cal"]["readUseProbability"].as<bool>();
+            energy.computeUseProbability = config["energy_cal"]["computeUseProbability"].as<bool>();
             if (energy.readUseProbability || energy.writeUseProbability || energy.computeUseProbability)
             {
                 if (config["energy_cal"]["CellPD"])
@@ -294,6 +297,51 @@ struct pim_array_pro_config
                 }
 
                 //std::cout << energy.CellPD << std::endl;
+            }
+
+            if (energy.computeUseProbability)
+            {
+                if (config["energy_cal"]["inVPD"])
+                {
+                    energy.inVPD = config["energy_cal"]["inVPD"].as<std::vector<double>>();
+                    double sum = 0;
+                    for (auto x:energy.inVPD)
+                    {
+                        sum += x;
+                    }
+
+                    double epsilon = 1e-5;
+                    if (energy.inVPD.size() != inVLevels)
+                    {
+                        std::cerr << "inVPD illegal: the number of probabilities is not inVLevels" << std::endl;
+                        exit(-1);
+                    }
+                    else if (fabs(sum - 1.0) > epsilon)
+                    {
+                        std::cerr << "inVPD illegal: the sum of probabilities is not 1" << std::endl;
+                        exit(-1);
+                    }
+                }
+                else
+                {
+                    energy.inVPDDefault = config["energy_cal"]["inVPDDefault"].as<int>();
+                    if (energy.inVPDDefault == 0)
+                    {
+                        energy.inVPD = std::vector<double>(inVLevels, 1.0/inVLevels);
+                    }
+                    else if (energy.inVPDDefault == 1)
+                    {
+                        energy.inVPD = std::vector<double>(inVLevels, 0);
+                        energy.inVPD[inVLevels - 1] = 1.0;
+                    }
+                    else
+                    {
+                        std::cerr << "undefined inVPDDefault" << std::endl;
+                        exit(-1);
+                    }
+                }
+
+                //std::cout << energy.inVPD << std::endl;
             }
         }
 

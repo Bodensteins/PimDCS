@@ -301,6 +301,40 @@ at::Tensor phyArrayPro::mm(const at::Tensor &mat)
     // remains future works
     if (conf->energy.enable)
     {
+        double energy = conf->computeV * conf->computeV * conf->latency.phyMMLatency;
+        if (conf->energy.computeUseProbability)
+        {
+            double average_conductance = 0, average_V_square = 0;
+
+            for (int i = 0; i < conf->energy.CellPD.size(); ++i)
+            {
+                average_conductance += i * conf->energy.CellPD[i];
+            }
+            average_conductance *= deltaConduct;
+            average_conductance += conf->minConduct;
+
+            for (int i = 0; i < conf->energy.inVPD.size(); ++i)
+            {
+                average_V_square += i * i * conf->energy.inVPD[i];
+            }
+            average_V_square /= conf->inVLevels * conf->inVLevels;
+
+            //array energy
+            energy *= average_V_square * average_conductance * mat.size(2) * colSize * mat.size(0) * mat.size(1);
+        }
+        else
+        {
+            //array energy
+           // cout << mat.sizes() << endl;
+            //cout << data.index({Slice(0, mat.size(2))}).sizes() << endl;
+            auto G_matrix = data.index({Slice(0, mat.size(2))}).to(torch::kF64)
+                    .mul(deltaConduct).add(conf->minConduct);
+            energy *= mat.pow(2).matmul(G_matrix).sum().item<double>();
+        }
+
+        //add circuit energy
+        energy += (mat.size(2) * conf->energy.readRowPeripheryEnergy + colSize * conf->energy.readColPeripheryEnergy)* mat.size(0) * mat.size(1);
+        computeEnergy += energy;
         //todo:
     }
     return torch::matmul(mat, data.index({Slice(0, mat.size(2))}).to(torch::kF64) * deltaConduct + conf->minConduct).div(rowSize*conf->maxConduct);

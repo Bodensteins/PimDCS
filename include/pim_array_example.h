@@ -906,7 +906,14 @@ public:
     double get_compute_energy()
     {
         //todo:
-        return 0;
+        double computeEnergy = adder_energy;
+
+        for (auto &i : arrList)
+        {
+            computeEnergy += i->computeEnergy;
+        }
+
+        return computeEnergy;
     }
 
 //    void add_compute_energy(double deltaE)
@@ -915,6 +922,13 @@ public:
 //
 //        compute_energy += deltaE;
 //    }
+
+    void add_adder_energy(double deltaE)
+    {
+        std::lock_guard<std::mutex> lk(mu);
+
+        adder_energy += deltaE;
+    }
 
 private:
     std::vector<phyArrayPro *> arrList;
@@ -1444,6 +1458,10 @@ at::Tensor pimArrayPro::mm(const at::Tensor &matin)
         // postive & negative array mode
         if (conf->mode == 0)
         {
+            if (conf->energy.enable)
+            {
+                phyArrManPro.add_adder_energy(2 * (arrY_size - 1) * arrY_size * phyArrManPro.access(0).colSize * conf->energy.adderEnergy);
+            }
             at::Tensor nout = torch::zeros({arrX_size, batch_size, arrY_size * conf->unitsPerPhyRow}, op.dtype(torch::kF64));
             at::parallel_for(0, arrX_size * arrY_size, 0, [&](int st, int ed) {
                 for (int k = st; k < ed; ++k)
@@ -1461,6 +1479,10 @@ at::Tensor pimArrayPro::mm(const at::Tensor &matin)
         }
         else // ref col mode
         {
+            if (conf->energy.enable)
+            {
+                phyArrManPro.add_adder_energy((arrY_size - 1) * arrY_size * phyArrManPro.access(0).colSize * conf->energy.adderEnergy);
+            }
             //at::parallel_for(0, arrX_size * arrY_size, 100, [&](int st, int ed) {
             for (int k = 0; k < arrX_size * arrY_size; ++k)
             {

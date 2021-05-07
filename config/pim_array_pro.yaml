@@ -5,14 +5,15 @@ readV: 1
 computeV: 1
 # C2C variation, r = Rtarget * exp(q);  q ~ N(0, theta)   
 C2C_en: 
-    enable: true
+    enable: false
     theta: 0.1
 D2D_en: false
+# I = k*sinh(a*v)
 nonLinearIV_en: false
 write_cnt_en: false
 energy_cal_en: false
 latency_cal:  #all latency is xx ns 
-    enable: true
+    enable: false
     parMMPhyNum: 256
     parWrPhyNum:  -1
     parPhyWrSize: 64
@@ -22,12 +23,26 @@ latency_cal:  #all latency is xx ns
     addTreeWideSize: 128
     addTreeSharedNum: 8
     
+ir_drop:
+    enable: false
+    fast_mode: true
+    times: 6
+    g_load: 0.5
+    g_wire: 0.5
+
+SAF:
+    enable: true
+    runtime_en: true
+    init_pSA0: 0.05
+    init_pSA1: 0.05
+    pSA0: 0.0005
+    pSA1: 0.0005
 
 phyArrRowSize: 64
 phyArrColSize: 64
 
-minConduct: 1e-6
-maxConduct: 1e-3
+minConduct: 1e-7
+maxConduct: 1e-4
 
 inVBits: 1
 inBits: 12

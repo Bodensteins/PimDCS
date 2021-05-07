@@ -107,6 +107,20 @@ struct pim_array_pro_config
         double addTreeLatency;
         int addTreeSharedNum;
     }latency;
+
+    struct SA_params
+    {
+        bool enable, runtime_en;
+        double init_pSA0, init_pSA1;
+        double pSA0, pSA1;
+    }sa;
+
+    struct ir_drop_params
+    {
+        bool enable, fast_mode;
+        int times;
+        double g_load, g_wire;
+    }ir_drop;
     at::Tensor inScalar, unitScalar;
 
     /* area config */
@@ -213,6 +227,30 @@ struct pim_array_pro_config
             latency.latencyWrSinglePhyArr = phyArrRowSize*phyArrColSize/latency.parPhyWrSize * latency.phyWrLatency;
             latency.addTreeLatency = latency.addLatency*std::log2(1.0*latency.addTreeWideSize);
             latency.addTreeSharedNum = config["latency_cal"]["addTreeSharedNum"].as<int>();
+        }
+
+        //ir_drop
+        ir_drop.enable = config["ir_drop"]["enable"].as<bool>();
+        if (ir_drop.enable)
+        {
+            ir_drop.g_wire = config["ir_drop"]["g_load"].as<double>();
+            ir_drop.g_load = config["ir_drop"]["g_wire"].as<double>();
+            ir_drop.fast_mode = config["ir_drop"]["fast_mode"].as<bool>();
+            ir_drop.times = config["ir_drop"]["times"].as<int>();
+            if (ir_drop.fast_mode && inVBits>1 && has_negative_input)
+            {
+                TORCH_CHECK(false, "ir drop fast mode don't support negative voltage inputs\r\n");
+            }
+        }
+        //stuck at fault
+        sa.enable = config["SAF"]["enable"].as<bool>();
+        if (sa.enable)
+        {
+            sa.init_pSA0 = config["SAF"]["init_pSA0"].as<double>();
+            sa.init_pSA1 = config["SAF"]["init_pSA1"].as<double>();
+            sa.runtime_en = config["SAF"]["runtime_en"].as<bool>();
+            sa.pSA0 = config["SAF"]["pSA0"].as<double>();
+            sa.pSA1 = config["SAF"]["pSA1"].as<double>();
         }
 
         // area config

@@ -5,7 +5,7 @@ phyArrColSize: 64
 inBits: 10
 outBits: 10
 unitBits: 8
-cellBits: 8
+cellBits: 1
 has_negative_input: true
 max_phy_input_value: 16
 max_weight_value: 16

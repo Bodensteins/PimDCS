@@ -4,6 +4,7 @@
 #include <torch/torch.h>
 #include <torch/custom_class.h>
 #include <iostream>
+#include "ir_drop_solve.h"
 
 using std::cout;
 using std::endl;
@@ -168,6 +169,14 @@ struct phyArrayPro
             cellWrCnt = torch::zeros({rowSize, colSize}, op.dtype(torch::kInt64));
             totalCmpWrCnt = 0;
         }
+        if (conf->sa.enable)
+        {
+            p_state = torch::empty({rowSize, colSize}, op.dtype(torch::kF32));
+            p_state.uniform_();
+            p_state_index_sa0 = p_state.le(conf->sa.init_pSA0);
+            p_state_index_sa1 = p_state.gt(1-conf->sa.init_pSA1);
+            data.index_put_({p_state_index_sa1}, conf->cellLevels-1);
+        }
     }
 
     void writeMat(const at::Tensor &mat, int row = 0, int col = 0);
@@ -206,6 +215,9 @@ struct phyArrayPro
 
     at::Tensor cellWrCnt;
     at::Tensor data;
+    at::Tensor p_state;
+    at::Tensor p_state_index_sa0;
+    at::Tensor p_state_index_sa1;
 };
 
 /**
@@ -215,11 +227,25 @@ struct phyArrayPro
 * @param col write matrix from [row, col] to [row+mat.size(0)-1, col+mat.size(1)-1]
 * @return void
 */
-void phyArrayPro::writeMat(const at::Tensor &mat, int row, int col)
+void phyArrayPro::writeMat(const at::Tensor &matin, int row, int col)
 {
-
+    auto mat = matin;
     int64_t m = mat.size(0), n = mat.size(1);
     totalWrCnt += m * n;
+    if (conf->sa.enable && conf->sa.runtime_en)
+    {
+        at::Tensor area = torch::zeros({rowSize, colSize}, op.dtype(torch::kBool)).index_put_({Slice(row, row+m), Slice(col, col+n)}, true);
+        p_state.uniform_();
+
+        p_state_index_sa0.logical_or_(p_state.le(conf->sa.pSA0).logical_and(p_state_index_sa1.logical_not()).logical_and(area));
+        p_state_index_sa1.logical_or_(p_state.gt(1-conf->sa.pSA1).logical_and(p_state_index_sa0.logical_not()).logical_and(area));
+
+    }
+    if (conf->sa.enable)
+    {
+        mat.index_put_({p_state_index_sa1.index({Slice(row, row+m), Slice(col, col+n)})}, conf->cellLevels-1);
+        mat.index_put_({p_state_index_sa0.index({Slice(row, row+m), Slice(col, col+n)})}, 0);
+    }
     if (conf->write_cnt_en)
     {
         //currently, cell write cnt is simply equal to whther it is wrriten or not, does not based on pluse number when cell bits >1
@@ -276,6 +302,22 @@ at::Tensor phyArrayPro::mm(const at::Tensor &mat)
     // remains future works
     if (conf->energy_cal_en)
     {
+    }
+    if (conf->ir_drop.enable)
+    {
+        auto matin = mat;
+        if (mat.size(2)<rowSize)
+        {
+            matin = torch::zeros({mat.size(0), mat.size(1), rowSize}, mat.options());
+            matin.index({Slice(), Slice(), Slice(0, mat.size(2))}) = mat;
+        }
+        if (conf->ir_drop.fast_mode)
+        {
+            return ir_drop_solve_fast(matin*conf->computeV, data.to(torch::kF64) * deltaConduct + conf->minConduct, rowSize, colSize, conf->ir_drop.times).div(rowSize*conf->maxConduct*conf->computeV);
+        }
+        else
+            return ir_drop_solve_acc(matin*conf->computeV, data.to(torch::kF64) * deltaConduct + conf->minConduct, rowSize, colSize).div(rowSize*conf->maxConduct*conf->computeV);
+
     }
     return torch::matmul(mat, data.index({Slice(0, mat.size(2))}).to(torch::kF64) * deltaConduct + conf->minConduct).div(rowSize*conf->maxConduct);
 }

@@ -25,15 +25,16 @@ energy_cal:  #all energy is J
     enable: true
     readRowPeripheryEnergy: 0
     readColPeripheryEnergy: 0
+    readUseProbability: false #use probability to calculate or not
     writeRowPeripheryEnergy: 0
     writeColPeripheryEnergy: 0
+    writeParallelism: 8
+    writeUseProbability: true
     DACEnergy: 0
     ADCEnergy: 0
     computeRowPeripheryEnergy: 0
     computeColPeripheryEnergy: 0
     adderEnergy: 0  #add vertical out
-    readUseProbability: false #use probability to calculate or not
-    writeUseProbability: true
     computeUseProbability: false
 #    readMode: 2 #2: G-G , now we just support it
 #    writeMode: 0 #

@@ -333,7 +333,7 @@ at::Tensor phyArrayPro::mm(const at::Tensor &mat)
         }
 
         //add circuit energy
-        energy += (mat.size(2) * (conf->energy.readRowPeripheryEnergy + conf->energy.DACEnergy) + colSize * (conf->energy.readColPeripheryEnergy + conf->energy.ADCEnergy))* mat.size(0) * mat.size(1);
+        energy += (mat.size(2) * (conf->energy.computeRowPeripheryEnergy + conf->energy.DACEnergy) + colSize * (conf->energy.computeColPeripheryEnergy + conf->energy.ADCEnergy))* mat.size(0) * mat.size(1);
         computeEnergy += energy;
         //todo:
     }

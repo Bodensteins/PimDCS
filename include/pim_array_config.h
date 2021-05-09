@@ -128,6 +128,7 @@ struct pim_array_pro_config
         int CellPDDefault;
         std::vector<double> inVPD;
         int inVPDDefault;
+        int writeParallelism;
     }energy;
 
     at::Tensor inScalar, unitScalar;
@@ -248,12 +249,16 @@ struct pim_array_pro_config
             energy.readColPeripheryEnergy = config["energy_cal"]["readColPeripheryEnergy"].as<double>();
             energy.writeRowPeripheryEnergy = config["energy_cal"]["writeRowPeripheryEnergy"].as<double>();
             energy.writeColPeripheryEnergy = config["energy_cal"]["writeColPeripheryEnergy"].as<double>();
+            energy.computeRowPeripheryEnergy = config["energy_cal"]["computeRowPeripheryEnergy"].as<double>();
+            energy.computeColPeripheryEnergy = config["energy_cal"]["computeColPeripheryEnergy"].as<double>();
             energy.DACEnergy = config["energy_cal"]["DACEnergy"].as<double>();
             energy.ADCEnergy = config["energy_cal"]["ADCEnergy"].as<double>();
             energy.computeRowPeripheryEnergy = config["energy_cal"]["computeRowPeripheryEnergy"].as<double>();
             energy.computeColPeripheryEnergy = config["energy_cal"]["computeColPeripheryEnergy"].as<double>();
             energy.readUseProbability = config["energy_cal"]["readUseProbability"].as<bool>();
+            energy.writeUseProbability = config["energy_cal"]["writeUseProbability"].as<bool>();
             energy.computeUseProbability = config["energy_cal"]["computeUseProbability"].as<bool>();
+            energy.writeParallelism = config["energy_cal"]["writeParallelism"].as<bool>();
             if (energy.readUseProbability || energy.writeUseProbability || energy.computeUseProbability)
             {
                 if (config["energy_cal"]["CellPD"])

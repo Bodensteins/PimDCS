@@ -9,6 +9,7 @@
 #include <cassert>
 #include <mutex>
 #include <algorithm>
+#include <map>
 #include <vector>
 
 using PIM::LogicArrayInterface;
@@ -763,6 +764,36 @@ at::Tensor pimArrayExample::read_mat()
     return out;
 }
 
+struct pim_latency
+{
+    std::mutex mu;
+    double run_latency_us; 
+    double run_latency_s;
+    pim_latency():run_latency_s(0), run_latency_us(0) {}
+    
+    void latency_add(double time_ns)
+    {
+        std::lock_guard<std::mutex> lk(mu);
+
+        run_latency_us += time_ns / 1000.0;
+        if (run_latency_us >= 1e6)
+        {
+            run_latency_s += 1;
+            run_latency_us -= 1e6;
+        }
+    }
+
+    void print_latency(std::ostream &os)
+    {
+        os << run_latency_s << " (s) " << run_latency_us << " (us)";
+    }
+
+    void latency_add(const pim_latency &other)
+    {
+        latency_add(other.run_latency_s*1e9+other.run_latency_us*1e3);
+    }
+};
+
 class phyArrayManagerPro
 {
 public:
@@ -771,6 +802,14 @@ public:
         std::lock_guard<std::mutex> lk(mu);
         arrList.push_back(new phyArrayPro(rowSize, colSize, op));
         return arrList.size() - 1;
+    }
+
+    std::pair<int, int> allocPhyArray(int n, int rowSize, int colSize, at::TensorOptions op = {})
+    {
+        std::lock_guard<std::mutex> lk(mu);
+        for (int i=0; i<n; ++i)
+            arrList.push_back(new phyArrayPro(rowSize, colSize, op));
+        return std::make_pair((int)arrList.size() - n, (int)arrList.size() - 1);
     }
 
     phyArrayPro &synaccess(int x)
@@ -816,29 +855,28 @@ public:
         }
     }
 
-    phyArrayManagerPro()
+/**
+ *  @param time_ns: latency_add in unit of nano second
+ *  @param type: 0 --> mm latency added,  1 --> write latency added, 2 --> read latency added
+ */
+    void latency_add(double time_ns, int type)
     {
-        run_latency_s = run_latency_us = 0;
-        adder_energy = 0;
-//        array_energy = periphery_circuit_energy = 0;
-//        read_energy = write_energy = compute_energy = 0;
-    }
-
-    void latency_add(double time_ns)
-    {
-        std::lock_guard<std::mutex> lk(mu);
-
-        run_latency_us += time_ns / 1000.0;
-        if (run_latency_us >= 1e6)
-        {
-            run_latency_s += 1;
-            run_latency_us -= 1e6;
-        }
+        lat[type].latency_add(time_ns);
     }
 
     void print_latency(std::ostream &os)
     {
-        os << "model running latency = " << run_latency_s << " (s) " << run_latency_us << " (us)" << std::endl;
+        pim_latency all;
+        //currently, read latency is not calculated
+        for (int i=0; i<2; ++i)
+            all.latency_add(lat[i]);
+        os << "model write latency = ";
+        lat[1].print_latency(os);
+        os << "\r\nmodel mm latency = ";
+        lat[0].print_latency(os);
+        os << "\r\nmodel running (all) latency = ";
+        all.print_latency(os);
+        os << std::endl;
     }
 
     double get_total_energy()
@@ -939,8 +977,7 @@ public:
 private:
     std::vector<phyArrayPro *> arrList;
     static std::mutex mu;
-    double run_latency_us; 
-    double run_latency_s;
+    pim_latency lat[3]; //0-> mm_latency, 1->wr_latency, 2->rd_latency
     //energy info
     double adder_energy;
 //    double array_energy;
@@ -1341,7 +1378,7 @@ void pimArrayPro::write_mat(const at::Tensor &matin, int row, int col)
         {
             int64_t Wr_num = 2*(int64_t)leny*lenx;
             double ti = conf->latency.parWrPhyNum <= 0 ? 1 : ceil(1.0*Wr_num / conf->latency.parWrPhyNum);
-            phyArrManPro.latency_add(ti * conf->latency.latencyWrSinglePhyArr);
+            phyArrManPro.latency_add(ti * conf->latency.latencyWrSinglePhyArr, 1);
         }
 
         at::parallel_for(0, leny * lenx, 0, [&](int st, int ed) -> void {
@@ -1415,7 +1452,7 @@ void pimArrayPro::write_mat(const at::Tensor &matin, int row, int col)
     {
         int64_t Wr_num = (int64_t)leny*lenx;
         double ti = conf->latency.parWrPhyNum<=0? 1 : ceil(1.0*Wr_num/conf->latency.parWrPhyNum);
-        phyArrManPro.latency_add(ti*conf->latency.latencyWrSinglePhyArr);
+        phyArrManPro.latency_add(ti*conf->latency.latencyWrSinglePhyArr, 1);
     }
     at::parallel_for(0, leny * lenx, 0, [&](int st, int ed) -> void {
         for (int k = st; k < ed; ++k)
@@ -1508,7 +1545,7 @@ at::Tensor pimArrayPro::mm(const at::Tensor &matin)
         if (conf->latency.enable)
         {
             double ti = conf->latency.phyMMLatency* (conf->latency.parMMPhyNum<=0? 1 : ceil(1.0*arrX_size*arrY_size/conf->latency.parMMPhyNum));
-            phyArrManPro.latency_add(conf->inPluses*ti + ceil(1.0*(arrX_size-1)/(conf->latency.addTreeWideSize-1))*conf->latency.addTreeLatency*ceil(1.0*arrY_size/conf->latency.addTreeSharedNum));
+            phyArrManPro.latency_add(conf->inPluses*ti + ceil(1.0*(arrX_size-1)/(conf->latency.addTreeWideSize-1))*conf->latency.addTreeLatency*ceil(1.0*arrY_size/conf->latency.addTreeSharedNum), 0);
         }
         return mm2d(mat);
     }
@@ -1521,7 +1558,7 @@ at::Tensor pimArrayPro::mm(const at::Tensor &matin)
         if (conf->latency.enable)
         {
             double ti = conf->latency.phyMMLatency* (conf->latency.parMMPhyNum<=0? 1 : ceil(1.0*arrX_size*arrY_size/conf->latency.parMMPhyNum));
-            phyArrManPro.latency_add(batch_size*(conf->inPluses*ti + ceil(1.0*(arrX_size-1)/(conf->latency.addTreeWideSize-1))*conf->latency.addTreeLatency*ceil(1.0*arrY_size/conf->latency.addTreeSharedNum)));
+            phyArrManPro.latency_add(batch_size*(conf->inPluses*ti + ceil(1.0*(arrX_size-1)/(conf->latency.addTreeWideSize-1))*conf->latency.addTreeLatency*ceil(1.0*arrY_size/conf->latency.addTreeSharedNum)), 0);
         }
         return mm2d(mat.reshape({-1, col_size})).reshape({batch_size, row_size, -1});
     }

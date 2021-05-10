@@ -28,7 +28,7 @@ energy_cal:  #all energy is J
     readUseProbability: false #use probability to calculate or not
     writeRowPeripheryEnergy: 0
     writeColPeripheryEnergy: 0
-    writeParallelism: 8
+    writeParallelism: 8 #now we don't support it
     writeUseProbability: true
     DACEnergy: 0
     ADCEnergy: 0

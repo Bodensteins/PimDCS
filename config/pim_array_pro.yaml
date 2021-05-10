@@ -11,7 +11,6 @@ D2D_en: false
 # I = k*sinh(a*v)
 nonLinearIV_en: false
 write_cnt_en: false
-energy_cal_en: false
 latency_cal:  #all latency is xx ns 
     enable: false
     parMMPhyNum: 256
@@ -19,9 +18,38 @@ latency_cal:  #all latency is xx ns
     parPhyWrSize: 64
     phyWrLatency: 2000
     phyMMLatency: 100
+    phyReLatency: 80
     addLatency: 5
     addTreeWideSize: 128
     addTreeSharedNum: 8
+
+energy_cal:  #all energy is J
+    enable: true
+    readRowPeripheryEnergy: 0
+    readColPeripheryEnergy: 0
+    readUseProbability: false #use probability to calculate or not
+    writeRowPeripheryEnergy: 0
+    writeColPeripheryEnergy: 0
+    writeParallelism: 8 #now we don't support it
+    writeUseProbability: true
+    DACEnergy: 0
+    ADCEnergy: 0
+    computeRowPeripheryEnergy: 0
+    computeColPeripheryEnergy: 0
+    adderEnergy: 0  #add vertical out
+    computeUseProbability: false
+    CellPD: #read probability distribution, if not illegal, exit
+      - 0.1
+      - 0.86
+      - 0.03
+      - 0.01
+    CellPDDefault: 0 #0:equal probabilty 1:100% max value
+    inVPD: #read probability distribution, if not illegal, exit
+      - 0.23
+      - 0.24
+      - 0.28
+      - 0.25
+    inVPDDefault: 0 #0:equal probabilty 1:100% max value
     
 ir_drop:
     enable: false
@@ -38,17 +66,18 @@ SAF:
     pSA0: 0.0005
     pSA1: 0.0005
 
+
 phyArrRowSize: 64
 phyArrColSize: 64
 
 minConduct: 1e-7
 maxConduct: 1e-4
 
-inVBits: 1
+inVBits: 2
 inBits: 12
 outBits: 12
 unitBits: 12
-cellBits: 1
+cellBits: 2
 has_negative_input: true
 max_phy_input_value: 16
 max_weight_value: 4

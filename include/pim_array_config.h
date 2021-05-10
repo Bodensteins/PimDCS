@@ -75,7 +75,7 @@ struct pim_array_pro_config
     phy_array_readMode rm;
     phy_array_writeMode wm;
     double writeV, readV, computeV;
-    bool C2C_en, D2D_en, nonLinearIV_en, write_cnt_en, energy_cal_en;
+    bool C2C_en, D2D_en, nonLinearIV_en, write_cnt_en;/*, energy_cal_en;*/
     double C2C_theta;
     double minConduct, maxConduct;
     int32_t phyArrRowSize, phyArrColSize;           //  phy array size, a logic array is formed by one or multiple phy arrays.
@@ -101,12 +101,35 @@ struct pim_array_pro_config
         int parPhyWrSize;
         double phyWrLatency;
         double phyMMLatency;
+        double phyReLatency;
         double addLatency;
         int addTreeWideSize;
         double latencyWrSinglePhyArr;
         double addTreeLatency;
         int addTreeSharedNum;
     }latency;
+
+    struct energy_params
+    {
+        bool enable;
+        double readRowPeripheryEnergy;
+        double readColPeripheryEnergy;
+        double writeRowPeripheryEnergy;
+        double writeColPeripheryEnergy;
+        double DACEnergy;
+        double ADCEnergy;
+        double computeRowPeripheryEnergy;
+        double computeColPeripheryEnergy;
+        double adderEnergy;
+        bool readUseProbability;
+        bool writeUseProbability;
+        bool computeUseProbability;
+        std::vector<double> CellPD;
+        int CellPDDefault;
+        std::vector<double> inVPD;
+        int inVPDDefault;
+        int writeParallelism;
+    }energy;
 
     struct SA_params
     {
@@ -151,7 +174,7 @@ struct pim_array_pro_config
         D2D_en = config["D2D_en"].as<bool>();
         nonLinearIV_en = config["nonLinearIV_en"].as<bool>();
         write_cnt_en = config["write_cnt_en"].as<bool>();
-        energy_cal_en = config["energy_cal_en"].as<bool>();
+        //energy_cal_en = config["energy_cal_en"].as<bool>();
 
         cellBits = config["cellBits"].as<int>();
         minConduct = config["minConduct"].as<double>();
@@ -180,8 +203,8 @@ struct pim_array_pro_config
         unitLevels = 1 << unitBits;
         cellLevels = 1 << cellBits;
         // to calculate energy, we need write cnt
-        if (energy_cal_en)
-            write_cnt_en = true;
+//        if (energy_cal_en)
+//            write_cnt_en = true;
 
         inPluses = inBits/inVBits;
 
@@ -217,6 +240,7 @@ struct pim_array_pro_config
             
             latency.phyWrLatency = config["latency_cal"]["phyWrLatency"].as<double>();
             latency.phyMMLatency = config["latency_cal"]["phyMMLatency"].as<double>();
+            latency.phyReLatency = config["latency_cal"]["phyReLatency"].as<double>();
             
             latency.addLatency = config["latency_cal"]["addLatency"].as<double>();
             latency.addTreeWideSize  = config["latency_cal"]["addTreeWideSize"].as<int>();
@@ -229,6 +253,116 @@ struct pim_array_pro_config
             latency.addTreeSharedNum = config["latency_cal"]["addTreeSharedNum"].as<int>();
         }
 
+        //energy params setting
+        energy.enable = latency.enable && config["energy_cal"]["enable"].as<bool>();//must support latency
+        if (energy.enable)
+        {
+            //todo:may modify or add sth
+            energy.readRowPeripheryEnergy = config["energy_cal"]["readRowPeripheryEnergy"].as<double>();
+            energy.readColPeripheryEnergy = config["energy_cal"]["readColPeripheryEnergy"].as<double>();
+            energy.writeRowPeripheryEnergy = config["energy_cal"]["writeRowPeripheryEnergy"].as<double>();
+            energy.writeColPeripheryEnergy = config["energy_cal"]["writeColPeripheryEnergy"].as<double>();
+            energy.computeRowPeripheryEnergy = config["energy_cal"]["computeRowPeripheryEnergy"].as<double>();
+            energy.computeColPeripheryEnergy = config["energy_cal"]["computeColPeripheryEnergy"].as<double>();
+            energy.DACEnergy = config["energy_cal"]["DACEnergy"].as<double>();
+            energy.ADCEnergy = config["energy_cal"]["ADCEnergy"].as<double>();
+            energy.computeRowPeripheryEnergy = config["energy_cal"]["computeRowPeripheryEnergy"].as<double>();
+            energy.computeColPeripheryEnergy = config["energy_cal"]["computeColPeripheryEnergy"].as<double>();
+            energy.readUseProbability = config["energy_cal"]["readUseProbability"].as<bool>();
+            energy.writeUseProbability = config["energy_cal"]["writeUseProbability"].as<bool>();
+            energy.computeUseProbability = config["energy_cal"]["computeUseProbability"].as<bool>();
+            energy.writeParallelism = config["energy_cal"]["writeParallelism"].as<int>();
+            if (energy.readUseProbability || energy.writeUseProbability || energy.computeUseProbability)
+            {
+                if (config["energy_cal"]["CellPD"])
+                {
+                    energy.CellPD = config["energy_cal"]["CellPD"].as<std::vector<double>>();
+                    double sum = 0;
+                    for (auto x:energy.CellPD)
+                    {
+                        sum += x;
+                    }
+
+                    double epsilon = 1e-5;
+                    if (energy.CellPD.size() != cellLevels)
+                    {
+                        std::cerr << "CellPD illegal: the number of probabilities is not cellLevels" << std::endl;
+                        exit(-1);
+                    }
+                    else if (fabs(sum - 1.0) > epsilon)
+                    {
+                        std::cerr << "CellPD illegal: the sum of probabilities is not 1" << std::endl;
+                        exit(-1);
+                    }
+                }
+                else
+                {
+                    energy.CellPDDefault = config["energy_cal"]["CellPDDefault"].as<int>();
+                    if (energy.CellPDDefault == 0)
+                    {
+                        energy.CellPD = std::vector<double>(cellLevels, 1.0/cellLevels);
+                    }
+                    else if (energy.CellPDDefault == 1)
+                    {
+                        energy.CellPD = std::vector<double>(cellLevels, 0);
+                        energy.CellPD[cellLevels - 1] = 1.0;
+                    }
+                    else
+                    {
+                        std::cerr << "undefined CellPDDefault" << std::endl;
+                        exit(-1);
+                    }
+                }
+
+                //std::cout << energy.CellPD << std::endl;
+            }
+
+            if (energy.computeUseProbability)
+            {
+                if (config["energy_cal"]["inVPD"])
+                {
+                    energy.inVPD = config["energy_cal"]["inVPD"].as<std::vector<double>>();
+                    double sum = 0;
+                    for (auto x:energy.inVPD)
+                    {
+                        sum += x;
+                    }
+
+                    double epsilon = 1e-5;
+                    if (energy.inVPD.size() != inVLevels)
+                    {
+                        std::cerr << "inVPD illegal: the number of probabilities is not inVLevels" << std::endl;
+                        exit(-1);
+                    }
+                    else if (fabs(sum - 1.0) > epsilon)
+                    {
+                        std::cerr << "inVPD illegal: the sum of probabilities is not 1" << std::endl;
+                        exit(-1);
+                    }
+                }
+                else
+                {
+                    energy.inVPDDefault = config["energy_cal"]["inVPDDefault"].as<int>();
+                    if (energy.inVPDDefault == 0)
+                    {
+                        energy.inVPD = std::vector<double>(inVLevels, 1.0/inVLevels);
+                    }
+                    else if (energy.inVPDDefault == 1)
+                    {
+                        energy.inVPD = std::vector<double>(inVLevels, 0);
+                        energy.inVPD[inVLevels - 1] = 1.0;
+                    }
+                    else
+                    {
+                        std::cerr << "undefined inVPDDefault" << std::endl;
+                        exit(-1);
+                    }
+                }
+
+                //std::cout << energy.inVPD << std::endl;
+            }
+        }
+      
         //ir_drop
         ir_drop.enable = config["ir_drop"]["enable"].as<bool>();
         if (ir_drop.enable)

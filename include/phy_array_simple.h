@@ -6,6 +6,7 @@
 #include <iostream>
 #include "ir_drop_solve.h"
 
+
 using std::cout;
 using std::endl;
 using torch::TensorOptions;
@@ -142,7 +143,7 @@ struct phyArrayPro
     {
         this->rowSize = rowSize;
         this->colSize = colSize;
-        readEnergy = writeEnergy = 0;
+        readEnergy = writeEnergy = computeEnergy = 0;
         deltaConduct = (conf->maxConduct - conf->minConduct) / (conf->cellLevels-1);
         this->op = op;
         if (!conf->C2C_en)
@@ -206,7 +207,7 @@ struct phyArrayPro
     const pim_array_pro_config *const conf;
     int rowSize, colSize;
     double deltaConduct;
-    double readEnergy, writeEnergy;
+    double readEnergy, writeEnergy, computeEnergy;
     // double area; not support area now
     // int64_t latency; not support latency now
 
@@ -230,6 +231,7 @@ struct phyArrayPro
 void phyArrayPro::writeMat(const at::Tensor &matin, int row, int col)
 {
     auto mat = matin;
+
     int64_t m = mat.size(0), n = mat.size(1);
     totalWrCnt += m * n;
     if (conf->sa.enable && conf->sa.runtime_en)
@@ -255,8 +257,61 @@ void phyArrayPro::writeMat(const at::Tensor &matin, int row, int col)
     }
 
     // remains future works
-    if (conf->energy_cal_en)
+    if (conf->energy.enable)
     {
+        if (conf->wm == phy_array_writeMode::V_Div_2)
+        {
+            double energy = conf->writeV/2 * conf->writeV/2 * conf->latency.phyWrLatency/(conf->cellLevels - 1);
+            double cnt = 0;
+
+            if (conf->energy.writeUseProbability)
+            {
+                double average_conductance = 0;
+
+                for (int i = 0; i < conf->energy.CellPD.size(); ++i)
+                {
+                    average_conductance += i * conf->energy.CellPD[i];
+                }
+                average_conductance *= deltaConduct;
+                average_conductance += conf->minConduct;
+
+                cnt = m * n * ((rowSize + colSize - 2) * average_conductance + average_conductance * 4);
+
+                double average_delta = data.index({Slice(row, row + m), Slice(col, col + n)}).sub(mat)
+                        .abs().sum().div(m * n).item<double>();
+                cnt *= average_delta;
+            }
+            else
+            {
+                for (int i = 0; i < m; ++i)
+                {
+                    for (int j = 0; j < n; ++j)
+                    {
+                        cnt += ((data.index({row + i, Slice(0, col)}).sum().item<double>()
+                                 + mat.index({i, Slice(0, j)}).sum().item<double>()
+                                 + data.index({row + i, Slice(col + j + 1, colSize)}).sum().item<double>()
+                                 + data.index({Slice(0, row), col + j}).sum().item<double>()
+                                 + mat.index({Slice(0, i), j}).sum().item<double>()
+                                 + data.index({Slice(row + i + 1, rowSize), col + j}).sum().item<double>()
+                                 + (data[row + i][col + j].item<double>() + mat[i][j].item<double>())/2 * 4)
+                                * deltaConduct + (rowSize + colSize - 1) * conf->minConduct)
+                               * fabs(data[row + i][col + j].item<double>() - mat[i][j].item<double>());
+                    }
+                }
+            }
+
+            energy *= cnt;
+            //add circuit energy
+            energy += m * n * (rowSize * conf->energy.writeRowPeripheryEnergy
+                               + colSize * conf->energy.writeColPeripheryEnergy);
+
+            writeEnergy += energy;
+        }
+        else
+        {
+            std::cout << "we now don't support other write mode!" << std::endl;
+        }
+
     }
 
     if (conf->C2C_en)
@@ -283,9 +338,41 @@ void phyArrayPro::writeMat(const at::Tensor &matin, int row, int col)
 */
 at::Tensor phyArrayPro::readMat(int row, int col, int m, int n)
 {
-    // remains future works
-    if (conf->energy_cal_en)
+    if (conf->energy.enable)
     {
+        if (conf->rm == phy_array_readMode::Ground)
+        {
+            double energy = conf->readV * conf->readV * conf->latency.phyReLatency;
+            int elementNum = m * colSize;
+            double conductance;
+
+            if (conf->energy.readUseProbability)
+            {
+                double average = 0;
+
+                for (int i = 0; i < conf->energy.CellPD.size(); ++i)
+                {
+                    average += i * conf->energy.CellPD[i];
+                }
+
+                conductance = elementNum * average * deltaConduct;
+            }
+            else
+            {
+                conductance = data.index({Slice(row, row + m)}).sum().item<double>() * deltaConduct;
+            }
+
+            conductance += elementNum * conf->minConduct;
+            energy *= conductance;//array energy
+            //add circuit energy
+            energy += m * conf->energy.readRowPeripheryEnergy + colSize * conf->energy.readColPeripheryEnergy;
+            readEnergy += energy;
+        }
+        else
+        {
+            std::cout << "we now don't support other read mode!" << std::endl;
+        }
+
     }
     if (conf->C2C_en)
         return data.round().to(torch::kInt32).index({Slice(row, row + m), Slice(col, col + n)});
@@ -300,8 +387,43 @@ at::Tensor phyArrayPro::readMat(int row, int col, int m, int n)
 at::Tensor phyArrayPro::mm(const at::Tensor &mat)
 {
     // remains future works
-    if (conf->energy_cal_en)
+    if (conf->energy.enable)
     {
+        double energy = conf->computeV * conf->computeV * conf->latency.phyMMLatency;
+        if (conf->energy.computeUseProbability)
+        {
+            double average_conductance = 0, average_V_square = 0;
+
+            for (int i = 0; i < conf->energy.CellPD.size(); ++i)
+            {
+                average_conductance += i * conf->energy.CellPD[i];
+            }
+            average_conductance *= deltaConduct;
+            average_conductance += conf->minConduct;
+
+            for (int i = 0; i < conf->energy.inVPD.size(); ++i)
+            {
+                average_V_square += i * i * conf->energy.inVPD[i];
+            }
+            average_V_square /= conf->inVLevels * conf->inVLevels;
+
+            //array energy
+            energy *= average_V_square * average_conductance * mat.size(2) * colSize * mat.size(0) * mat.size(1);
+        }
+        else
+        {
+            //array energy
+           // cout << mat.sizes() << endl;
+            //cout << data.index({Slice(0, mat.size(2))}).sizes() << endl;
+            auto G_matrix = data.index({Slice(0, mat.size(2))}).to(torch::kF64)
+                    .mul(deltaConduct).add(conf->minConduct);
+            energy *= mat.pow(2).matmul(G_matrix).sum().item<double>();
+        }
+
+        //add circuit energy
+        energy += (mat.size(2) * (conf->energy.computeRowPeripheryEnergy + conf->energy.DACEnergy) + colSize * (conf->energy.computeColPeripheryEnergy + conf->energy.ADCEnergy))* mat.size(0) * mat.size(1);
+        computeEnergy += energy;
+        //todo:
     }
     if (conf->ir_drop.enable)
     {
@@ -530,11 +652,12 @@ void phyArrayPro::print(std::ostream &os)
     using std::endl;
     os << "data = " << endl;
     os << data << endl;
-    if (conf->energy_cal_en)
+    if (conf->energy.enable)
     {
-        os << " total energy = " << readEnergy + writeEnergy
-           << ", write energy = " << writeEnergy
-           << ", read energy = " << readEnergy << endl;
+        //todo:
+//        os << " total energy = " << readEnergy + writeEnergy
+//           << ", write energy = " << writeEnergy
+//           << ", read energy = " << readEnergy << endl;
     }
     os << " total write cnt = " << totalWrCnt << endl;
     if (conf->write_cnt_en)

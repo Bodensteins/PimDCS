@@ -231,51 +231,59 @@ void phyArrayPro::writeMat(const at::Tensor &mat, int row, int col)
     // remains future works
     if (conf->energy.enable)
     {
-        double energy = conf->writeV/2 * conf->writeV/2 * conf->latency.phyWrLatency/(conf->cellLevels - 1);
-        double cnt = 0;
-
-        if (conf->energy.writeUseProbability)
+        if (conf->wm == phy_array_writeMode::V_Div_2)
         {
-            double average_conductance = 0;
+            double energy = conf->writeV/2 * conf->writeV/2 * conf->latency.phyWrLatency/(conf->cellLevels - 1);
+            double cnt = 0;
 
-            for (int i = 0; i < conf->energy.CellPD.size(); ++i)
+            if (conf->energy.writeUseProbability)
             {
-                average_conductance += i * conf->energy.CellPD[i];
+                double average_conductance = 0;
+
+                for (int i = 0; i < conf->energy.CellPD.size(); ++i)
+                {
+                    average_conductance += i * conf->energy.CellPD[i];
+                }
+                average_conductance *= deltaConduct;
+                average_conductance += conf->minConduct;
+
+                cnt = m * n * ((rowSize + colSize - 2) * average_conductance + average_conductance * 4);
+
+                double average_delta = data.index({Slice(row, row + m), Slice(col, col + n)}).sub(mat)
+                        .abs().sum().div(m * n).item<double>();
+                cnt *= average_delta;
             }
-            average_conductance *= deltaConduct;
-            average_conductance += conf->minConduct;
+            else
+            {
+                for (int i = 0; i < m; ++i)
+                {
+                    for (int j = 0; j < n; ++j)
+                    {
+                        cnt += ((data.index({row + i, Slice(0, col)}).sum().item<double>()
+                                 + mat.index({i, Slice(0, j)}).sum().item<double>()
+                                 + data.index({row + i, Slice(col + j + 1, colSize)}).sum().item<double>()
+                                 + data.index({Slice(0, row), col + j}).sum().item<double>()
+                                 + mat.index({Slice(0, i), j}).sum().item<double>()
+                                 + data.index({Slice(row + i + 1, rowSize), col + j}).sum().item<double>()
+                                 + (data[row + i][col + j].item<double>() + mat[i][j].item<double>())/2 * 4)
+                                * deltaConduct + (rowSize + colSize - 1) * conf->minConduct)
+                               * fabs(data[row + i][col + j].item<double>() - mat[i][j].item<double>());
+                    }
+                }
+            }
 
-            cnt = m * n * ((rowSize + colSize - 2) * average_conductance + average_conductance * 4);
+            energy *= cnt;
+            //add circuit energy
+            energy += m * n * (rowSize * conf->energy.writeRowPeripheryEnergy
+                               + colSize * conf->energy.writeColPeripheryEnergy);
 
-            double average_delta = data.index({Slice(row, row + m), Slice(col, col + n)}).sub(mat)
-                    .abs().sum().div(m * n).item<double>();
-            cnt *= average_delta;
+            writeEnergy += energy;
         }
         else
         {
-            for (int i = 0; i < m; ++i)
-            {
-                for (int j = 0; j < n; ++j)
-                {
-                    cnt += ((data.index({row + i, Slice(0, col)}).sum().item<double>()
-                             + mat.index({i, Slice(0, j)}).sum().item<double>()
-                             + data.index({row + i, Slice(col + j + 1, colSize)}).sum().item<double>()
-                             + data.index({Slice(0, row), col + j}).sum().item<double>()
-                             + mat.index({Slice(0, i), j}).sum().item<double>()
-                             + data.index({Slice(row + i + 1, rowSize), col + j}).sum().item<double>()
-                             + (data[row + i][col + j].item<double>() + mat[i][j].item<double>())/2 * 4)
-                            * deltaConduct + (rowSize + colSize - 1) * conf->minConduct)
-                           * fabs(data[row + i][col + j].item<double>() - mat[i][j].item<double>());
-                }
-            }
+            std::cout << "we now don't support other write mode!" << std::endl;
         }
 
-        energy *= cnt;
-        //add circuit energy
-        energy += m * n * (rowSize * conf->energy.writeRowPeripheryEnergy
-                + colSize * conf->energy.writeColPeripheryEnergy);
-
-        writeEnergy += energy;
     }
 
     if (conf->C2C_en)
@@ -304,31 +312,39 @@ at::Tensor phyArrayPro::readMat(int row, int col, int m, int n)
 {
     if (conf->energy.enable)
     {
-        double energy = conf->readV * conf->readV * conf->latency.phyReLatency;
-        int elementNum = m * colSize;
-        double conductance;
-
-        if (conf->energy.readUseProbability)
+        if (conf->rm == phy_array_readMode::Ground)
         {
-            double average = 0;
+            double energy = conf->readV * conf->readV * conf->latency.phyReLatency;
+            int elementNum = m * colSize;
+            double conductance;
 
-            for (int i = 0; i < conf->energy.CellPD.size(); ++i)
+            if (conf->energy.readUseProbability)
             {
-                average += i * conf->energy.CellPD[i];
+                double average = 0;
+
+                for (int i = 0; i < conf->energy.CellPD.size(); ++i)
+                {
+                    average += i * conf->energy.CellPD[i];
+                }
+
+                conductance = elementNum * average * deltaConduct;
+            }
+            else
+            {
+                conductance = data.index({Slice(row, row + m)}).sum().item<double>() * deltaConduct;
             }
 
-            conductance = elementNum * average * deltaConduct;
+            conductance += elementNum * conf->minConduct;
+            energy *= conductance;//array energy
+            //add circuit energy
+            energy += m * conf->energy.readRowPeripheryEnergy + colSize * conf->energy.readColPeripheryEnergy;
+            readEnergy += energy;
         }
         else
         {
-            conductance = data.index({Slice(row, row + m)}).sum().item<double>() * deltaConduct;
+            std::cout << "we now don't support other read mode!" << std::endl;
         }
 
-        conductance += elementNum * conf->minConduct;
-        energy *= conductance;//array energy
-        //add circuit energy
-        energy += m * conf->energy.readRowPeripheryEnergy + colSize * conf->energy.readColPeripheryEnergy;
-        readEnergy += energy;
     }
     if (conf->C2C_en)
         return data.round().to(torch::kInt32).index({Slice(row, row + m), Slice(col, col + n)});

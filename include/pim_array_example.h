@@ -819,6 +819,9 @@ public:
     phyArrayManagerPro()
     {
         run_latency_s = run_latency_us = 0;
+        adder_energy = 0;
+//        array_energy = periphery_circuit_energy = 0;
+//        read_energy = write_energy = compute_energy = 0;
     }
 
     void latency_add(double time_ns)
@@ -838,11 +841,113 @@ public:
         os << "model running latency = " << run_latency_s << " (s) " << run_latency_us << " (us)" << std::endl;
     }
 
+    double get_total_energy()
+    {
+        return get_read_energy() + get_write_energy() + get_compute_energy();
+    }
+
+//    double get_array_energy()
+//    {
+//        return array_energy;
+//    }
+//
+//    void add_array_energy(double deltaE)
+//    {
+//        std::lock_guard<std::mutex> lk(mu);
+//
+//        array_energy += deltaE;
+//    }
+//
+//    double get_periphery_circuit_energy()
+//    {
+//        return periphery_circuit_energy;
+//    }
+//
+//    void add_periphery_circuit_energy(double deltaE)
+//    {
+//        std::lock_guard<std::mutex> lk(mu);
+//
+//        periphery_circuit_energy += deltaE;
+//    }
+
+    double get_read_energy()
+    {
+        //todo:
+        double readEnergy = 0;
+
+        for (auto &i : arrList)
+        {
+            readEnergy += i->readEnergy;
+        }
+
+        return readEnergy;
+    }
+
+//    void add_read_energy(double deltaE)
+//    {
+//        std::lock_guard<std::mutex> lk(mu);
+//
+//        read_energy += deltaE;
+//    }
+
+    double get_write_energy()
+    {
+        double writeEnergy = 0;
+
+        for (auto &i : arrList)
+        {
+            writeEnergy += i->writeEnergy;
+        }
+
+        return writeEnergy;
+    }
+
+//    void add_write_energy(double deltaE)
+//    {
+//        std::lock_guard<std::mutex> lk(mu);
+//
+//        write_energy += deltaE;
+//    }
+
+    double get_compute_energy()
+    {
+        //todo:
+        double computeEnergy = adder_energy;
+
+        for (auto &i : arrList)
+        {
+            computeEnergy += i->computeEnergy;
+        }
+
+        return computeEnergy;
+    }
+
+//    void add_compute_energy(double deltaE)
+//    {
+//        std::lock_guard<std::mutex> lk(mu);
+//
+//        compute_energy += deltaE;
+//    }
+
+    void add_adder_energy(double deltaE)
+    {
+        std::lock_guard<std::mutex> lk(mu);
+
+        adder_energy += deltaE;
+    }
+
 private:
     std::vector<phyArrayPro *> arrList;
     static std::mutex mu;
     double run_latency_us; 
     double run_latency_s;
+    //energy info
+    double adder_energy;
+//    double array_energy;
+//    double periphery_circuit_energy;
+//    double read_energy;
+//    double write_energy;
+//    double compute_energy;
 };
 
 std::mutex phyArrayManagerPro::mu;
@@ -1359,6 +1464,10 @@ at::Tensor pimArrayPro::mm(const at::Tensor &matin)
         // postive & negative array mode
         if (conf->mode == 0)
         {
+            if (conf->energy.enable)
+            {
+                phyArrManPro.add_adder_energy(2 * (arrY_size - 1) * arrY_size * phyArrManPro.access(0).colSize * conf->energy.adderEnergy);
+            }
             at::Tensor nout = torch::zeros({arrX_size, batch_size, arrY_size * conf->unitsPerPhyRow}, op.dtype(torch::kF64));
             at::parallel_for(0, arrX_size * arrY_size, 0, [&](int st, int ed) {
                 for (int k = st; k < ed; ++k)
@@ -1376,6 +1485,10 @@ at::Tensor pimArrayPro::mm(const at::Tensor &matin)
         }
         else // ref col mode
         {
+            if (conf->energy.enable)
+            {
+                phyArrManPro.add_adder_energy((arrY_size - 1) * arrY_size * phyArrManPro.access(0).colSize * conf->energy.adderEnergy);
+            }
             //at::parallel_for(0, arrX_size * arrY_size, 100, [&](int st, int ed) {
             for (int k = 0; k < arrX_size * arrY_size; ++k)
             {

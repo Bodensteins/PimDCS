@@ -13,9 +13,6 @@ endif()
 
 include_directories(include)
 
-#添加OpenCV头文件
-
-
 if(APPLE)
     set(OPENMP_LIBRARIES "/usr/local/lib")
     set(OPENMP_INCLUDES "/usr/local/include")

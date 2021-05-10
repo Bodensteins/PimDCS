@@ -231,7 +231,51 @@ void phyArrayPro::writeMat(const at::Tensor &mat, int row, int col)
     // remains future works
     if (conf->energy.enable)
     {
-        //todo:
+        double energy = conf->writeV/2 * conf->writeV/2 * conf->latency.phyWrLatency/(conf->cellLevels - 1);
+        double cnt = 0;
+
+        if (conf->energy.writeUseProbability)
+        {
+            double average_conductance = 0;
+
+            for (int i = 0; i < conf->energy.CellPD.size(); ++i)
+            {
+                average_conductance += i * conf->energy.CellPD[i];
+            }
+            average_conductance *= deltaConduct;
+            average_conductance += conf->minConduct;
+
+            cnt = m * n * ((rowSize + colSize - 2) * average_conductance + average_conductance * 4);
+
+            double average_delta = data.index({Slice(row, row + m), Slice(col, col + n)}).sub(mat)
+                    .abs().sum().div(m * n).item<double>();
+            cnt *= average_delta;
+        }
+        else
+        {
+            for (int i = 0; i < m; ++i)
+            {
+                for (int j = 0; j < n; ++j)
+                {
+                    cnt += ((data.index({row + i, Slice(0, col)}).sum().item<double>()
+                             + mat.index({i, Slice(0, j)}).sum().item<double>()
+                             + data.index({row + i, Slice(col + j + 1, colSize)}).sum().item<double>()
+                             + data.index({Slice(0, row), col + j}).sum().item<double>()
+                             + mat.index({Slice(0, i), j}).sum().item<double>()
+                             + data.index({Slice(row + i + 1, rowSize), col + j}).sum().item<double>()
+                             + (data[row + i][col + j].item<double>() + mat[i][j].item<double>())/2 * 4)
+                            * deltaConduct + (rowSize + colSize - 1) * conf->minConduct)
+                           * fabs(data[row + i][col + j].item<double>() - mat[i][j].item<double>());
+                }
+            }
+        }
+
+        energy *= cnt;
+        //add circuit energy
+        energy += m * n * (rowSize * conf->energy.writeRowPeripheryEnergy
+                + colSize * conf->energy.writeColPeripheryEnergy);
+
+        writeEnergy += energy;
     }
 
     if (conf->C2C_en)

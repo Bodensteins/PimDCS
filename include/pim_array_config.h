@@ -258,7 +258,7 @@ struct pim_array_pro_config
             energy.readUseProbability = config["energy_cal"]["readUseProbability"].as<bool>();
             energy.writeUseProbability = config["energy_cal"]["writeUseProbability"].as<bool>();
             energy.computeUseProbability = config["energy_cal"]["computeUseProbability"].as<bool>();
-            energy.writeParallelism = config["energy_cal"]["writeParallelism"].as<bool>();
+            energy.writeParallelism = config["energy_cal"]["writeParallelism"].as<int>();
             if (energy.readUseProbability || energy.writeUseProbability || energy.computeUseProbability)
             {
                 if (config["energy_cal"]["CellPD"])

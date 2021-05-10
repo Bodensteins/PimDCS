@@ -892,8 +892,14 @@ public:
 
     double get_write_energy()
     {
-        //todo:
-        return 0;
+        double writeEnergy = 0;
+
+        for (auto &i : arrList)
+        {
+            writeEnergy += i->writeEnergy;
+        }
+
+        return writeEnergy;
     }
 
 //    void add_write_energy(double deltaE)

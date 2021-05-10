@@ -9,21 +9,25 @@ using torch::indexing::Slice;
 
 int main()
 {
-    double minconduct = 1;
-    double delta = 2;
-    std::vector<double> vec = std::vector<double>({-1, 2, 3, -3, 0, 0, 1, -2});
-    std::vector<double> mat = std::vector<double>({0, 2, 3, 1});
-    Tensor data = torch::from_blob(vec.data(), {2, 2, 2}, torch::kDouble);
-    Tensor target = torch::from_blob(mat.data(), {2, 2}, torch::kDouble);
-    cout << data << endl <<target << endl;
-    auto data2 = data.pow(2);
-    auto realG = target.mul(delta).add(minconduct);
-    auto ans = data2.matmul(realG);
-
-    cout << data2 << endl << realG << ans << endl;
-
-    auto result = ans.sum();
-    cout << result << endl;
+    std::vector<double> mat = std::vector<double>({0, 2, 3, 1, 8, 4, 5, 7, 9});
+    Tensor target = torch::from_blob(mat.data(), {3, 3}, torch::kDouble);
+    auto part = target.index({1, Slice(0, 0)});
+    cout << target << endl << part << endl;
+//    double minconduct = 1;
+//    double delta = 2;
+//    std::vector<double> vec = std::vector<double>({-1, 2, 3, -3, 0, 0, 1, -2});
+//    std::vector<double> mat = std::vector<double>({0, 2, 3, 1});
+//    Tensor data = torch::from_blob(vec.data(), {2, 2, 2}, torch::kDouble);
+//    Tensor target = torch::from_blob(mat.data(), {2, 2}, torch::kDouble);
+//    cout << data << endl <<target << endl;
+//    auto data2 = data.pow(2);
+//    auto realG = target.mul(delta).add(minconduct);
+//    auto ans = data2.matmul(realG);
+//
+//    cout << data2 << endl << realG << ans << endl;
+//
+//    auto result = ans.sum();
+//    cout << result << endl;
 //    torch::Tensor a = torch::tensor({{1.0, 2.0}, {3., 4.}}, torch::requires_grad());
 //    torch::Tensor b = torch::tensor({{1.0, 2.0}});
 //

@@ -5,13 +5,14 @@ readV: 1
 computeV: 1
 # C2C variation, r = Rtarget * exp(q);  q ~ N(0, theta)   
 C2C_en: 
-    enable: true
+    enable: false
     theta: 0.1
 D2D_en: false
+# I = k*sinh(a*v)
 nonLinearIV_en: false
 write_cnt_en: false
 latency_cal:  #all latency is xx ns 
-    enable: true
+    enable: false
     parMMPhyNum: 256
     parWrPhyNum:  -1
     parPhyWrSize: 64
@@ -21,6 +22,7 @@ latency_cal:  #all latency is xx ns
     addLatency: 5
     addTreeWideSize: 128
     addTreeSharedNum: 8
+
 energy_cal:  #all energy is J
     enable: true
     readRowPeripheryEnergy: 0
@@ -36,8 +38,6 @@ energy_cal:  #all energy is J
     computeColPeripheryEnergy: 0
     adderEnergy: 0  #add vertical out
     computeUseProbability: false
-#    readMode: 2 #2: G-G , now we just support it
-#    writeMode: 0 #
     CellPD: #read probability distribution, if not illegal, exit
       - 0.1
       - 0.86
@@ -50,13 +50,28 @@ energy_cal:  #all energy is J
       - 0.28
       - 0.25
     inVPDDefault: 0 #0:equal probabilty 1:100% max value
+    
+ir_drop:
+    enable: false
+    fast_mode: true
+    times: 6
+    g_load: 0.5
+    g_wire: 0.5
+
+SAF:
+    enable: true
+    runtime_en: true
+    init_pSA0: 0.05
+    init_pSA1: 0.05
+    pSA0: 0.0005
+    pSA1: 0.0005
 
 
 phyArrRowSize: 64
 phyArrColSize: 64
 
-minConduct: 1e-6
-maxConduct: 1e-3
+minConduct: 1e-7
+maxConduct: 1e-4
 
 inVBits: 2
 inBits: 12
@@ -72,11 +87,11 @@ mode: 0
 
 # area config (μm)
 area:
-  F: 0.045
+  cell_area: 0.0081       # 4F^2 = 4 * 0.045um ^ 2 =
   share_peripheral: 500
   array_peripheral: 0
-  DAC_area: 10.62  # 8 bit DAC, 3096T, T = 3 * F^2
-  ADC_area: 2.733750   # 8 bit ADC, 450T
+  DAC_area: 10.62         # 8 bit DAC, 3096T, T = 3 * F^2
+  ADC_area: 2.733750      # 8 bit ADC, 450T
   share_inf_row_size: 64
   share_inf_col_size: 64
   row_share_subarray: 8

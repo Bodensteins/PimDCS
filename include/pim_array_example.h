@@ -796,7 +796,7 @@ public:
     }
 
     void printArea() {
-      double total_phy_arrays_area = (4 * pro_decf.F * pro_decf.F * 1e-6 * pro_decf.phyArrRowSize *
+      double total_phy_arrays_area = (pro_decf.cell_area * 1e-6 * pro_decf.phyArrRowSize *
           pro_decf.phyArrColSize + pro_decf.array_peripheral) * arrList.size();
       double total_row_inf_area = (ceil(arrList.size() / pro_decf.row_share_subarray)) * pro_decf.DAC_area * 1e-6;
       double total_col_inf_area = (ceil(arrList.size() / pro_decf.col_share_subarray)) * pro_decf.ADC_area * 1e-6;

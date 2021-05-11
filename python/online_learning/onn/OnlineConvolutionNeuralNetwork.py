@@ -4,7 +4,6 @@ import random
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch.nn.parameter import Parameter
 from mab import algs
 
@@ -14,6 +13,13 @@ from mab import algs
 #   {"in_channels": 64, "block_cfg": [128, 'M'], "output_size": 6272},
 #   {"in_channels": 128, "block_cfg": [256, 256, 'M'], "output_size": 2304},
 # ]
+
+# cfgs = {
+#     'A': [64, 'M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
+#     'B': [64, 64, 'M', 128, 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
+#     'D': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M'],
+#     'E': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],
+# }
 
 def make_vgg_block(in_channels, cfg):
   layers = []
@@ -40,7 +46,7 @@ def make_classifier(in_size, n_classes):
 
 class OCNN(nn.Module):
   def __init__(self, vgg_cfgs, n_classes, batch_size=1,
-               b=0.99, n=0.01, s=0.2, freeze_threshold=0.005, use_cuda=False, vis=None):
+               b=0.99, n=0.01, s=0.2, freeze_threshold=0.005, log_interval=1000, use_cuda=False, vis=None, tb_writer=None):
     super(OCNN, self).__init__()
 
     self.device = torch.device(
@@ -85,10 +91,9 @@ class OCNN(nn.Module):
     self.freeze_steps = [0] * self.vgg_blocks_num
 
     self.cumulative_error = 0
-    # self.tb_writer = tb_writer
+    self.log_interval = log_interval
     self.vis = vis
-    # self.alpha_history = [self.alpha.data.cpu().numpy()]
-    # self.alpha_steps = ['0']
+    self.tb_writer = tb_writer
 
   def zero_grad(self):
     for i in range(self.vgg_blocks_num):
@@ -113,12 +118,19 @@ class OCNN(nn.Module):
     # b = [None] * len(losses_per_layer)
     # grad_list = [ [grad... * sublayer] * losses_per_layer ]
     grad_list = [None] * len(losses_per_layer)
+    mean_delta_w = {}
+    mean_delta_b = {}
 
     with torch.no_grad():
       for i in range(len(losses_per_layer)):
         losses_per_layer[i].backward(retain_graph=True)
-        for param in self.classifiers[i].parameters():
-          param.data -= self.n * self.alpha[i] * param.grad.data
+        for name, param in self.classifiers[i].named_parameters():
+          delta = self.n * self.alpha[i] * param.grad.data
+          param.data -= delta
+          if "weight" in name:
+            mean_delta_w["classifiers_%d.%s" % (i, name)] = delta
+          else:
+            mean_delta_b["classifiers_%d.%s" % (i, name)] = delta
 
         for j in range(i + 1):
           if grad_list[j] is None:
@@ -135,6 +147,7 @@ class OCNN(nn.Module):
         if self.alpha[i].item() >= self.freeze_threshold or batch_idx % 2 == 0:
           for param, grad in zip(self.vgg_blocks[i].parameters(), grad_list[i]):
             param.data -= self.n * grad
+
         else:
           self.freeze_steps[i] += 1
 
@@ -150,7 +163,7 @@ class OCNN(nn.Module):
         self.vgg_blocks_num, self.batch_size, 1), predictions_per_layer), 0)
     self.cumulative_error += torch.argmax(real_output, dim=1).ne(Y).sum().item()
 
-    if show_loss and batch_idx % 1000 == 0:
+    if show_loss and batch_idx % self.log_interval == 0:
       loss = self.criterion(real_output, Y)
       if self.vis is not None:
         self.vis.line(X=torch.Tensor([batch_idx]), Y=torch.Tensor([loss]), win='Final Loss of Train',
@@ -170,17 +183,21 @@ class OCNN(nn.Module):
                                                'xlabel': 'step',
                                                'ylabel': 'alpha',
                                                'showlegend': True})
-
+      if self.tb_writer is not None:
+        for i in range(len(losses_per_layer)):
+          for name, param in self.classifiers[i].named_parameters():
+            self.tb_writer.add_histogram("classifiers_%d/" % i + name, param.data, batch_idx)
+          for name, param in self.vgg_blocks[j].named_parameters():
+            self.tb_writer.add_histogram("vgg_blocks_%d/" % i + name, param.data, batch_idx)
 
   def forward(self, X):
     hidden_connections = []
 
-    x = F.relu(self.vgg_blocks[0](X))
+    x = self.vgg_blocks[0](X)
     hidden_connections.append(x)
 
     for i in range(1, self.vgg_blocks_num):
-      hidden_connections.append(
-        F.relu(self.vgg_blocks[i](hidden_connections[i - 1])))
+      hidden_connections.append(self.vgg_blocks[i](hidden_connections[i - 1]))
 
     output_class = []
 

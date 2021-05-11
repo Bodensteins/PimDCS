@@ -106,7 +106,7 @@ add_dependencies(logic_array_interface_test YAML_CPP_EXTERNAL_PROJECT)
 target_link_libraries(logic_array_interface_test "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
 set_property(TARGET logic_array_interface_test PROPERTY CXX_STANDARD 14)
 
-add_executable(conv_test unittest/conv_test.cpp)
+add_executable(conv_test test/conv_test.cpp)
 add_dependencies(conv_test YAML_CPP_EXTERNAL_PROJECT)
 target_link_libraries(conv_test "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
 set_property(TARGET conv_test PROPERTY CXX_STANDARD 14)

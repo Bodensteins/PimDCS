@@ -1,0 +1,24 @@
+%YAML 1.2
+---
+
+vgg_cfgs:
+  -
+    in_channels: 3
+    block_cfg: [64, 'M']
+    output_size: 16384
+  -
+    in_channels: 64
+    block_cfg: [128, 'M']
+    output_size: 8192
+  -
+    in_channels: 128
+    block_cfg: [256, 256, 'M']
+    output_size: 4096
+  -
+    in_channels: 256
+    block_cfg: [ 512, 512, 'M' ]
+    output_size: 2048
+  -
+    in_channels: 512
+    block_cfg: [ 512, 512, 'M' ]
+    output_size: 512

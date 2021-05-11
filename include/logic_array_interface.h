@@ -121,7 +121,7 @@ namespace PIM {
      * @param col index of column
      * @return torch::Tensor
      */
-    virtual torch::Tensor dot_column(const torch::Tensor &vec, int64_t col) = 0;
+    virtual at::Tensor dot_column(const torch::Tensor &vec, int64_t col) = 0;
 
     /**
      * Multiplies each element of the selected row with the scalar value and return a

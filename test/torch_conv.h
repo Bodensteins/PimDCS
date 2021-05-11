@@ -38,7 +38,7 @@ public:
 
   /// Pretty prints the `Linear` module into the given `stream`.
   void pretty_print(std::ostream &stream) const override {
-    stream << "PIM::PimConv2d"
+    stream << "TorchConv2d"
            << "(" << options.in_channels()
            << ", " << options.out_channels()
            << ", kernel_size=" << options.kernel_size()

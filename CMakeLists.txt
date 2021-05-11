@@ -111,6 +111,11 @@ add_dependencies(conv_test YAML_CPP_EXTERNAL_PROJECT)
 target_link_libraries(conv_test "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
 set_property(TARGET conv_test PROPERTY CXX_STANDARD 14)
 
+add_executable(linear_test test/linear_test.cpp)
+add_dependencies(linear_test YAML_CPP_EXTERNAL_PROJECT)
+target_link_libraries(linear_test "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
+set_property(TARGET linear_test PROPERTY CXX_STANDARD 14)
+
 add_executable(simple_test unittest/simple_test.cpp)
 add_dependencies(simple_test YAML_CPP_EXTERNAL_PROJECT)
 target_link_libraries(simple_test "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")

@@ -20,25 +20,27 @@ const int64_t kTrainBatchSize = 64;
 const int64_t kTestBatchSize = 1000;
 
 // The number of epochs to train.
-const int64_t kNumberOfEpochs = 1;
+const int64_t kNumberOfEpochs = 10;
 
 // After how many batches to log a new update with the loss value.
 const int64_t kLogInterval = 10;
 
 auto runDev = torch::kCPU;
-auto type = PIM::PimArrayType::pim_array_pro;
+
+//auto type = PIM::PimArrayType::pim_array_pro;
+auto type = PIM::PimArrayType::simple_logic_array;
 
 struct Net : torch::nn::Module {
   Net()
       : conv1(ExpandingArray<4>({kTrainBatchSize, 1, 28, 28}),
               type,
-              Conv2dOptions(1, 10, {5, 5}), runDev),
+              Conv2dOptions(1, 10, {5, 5}), false, runDev),
         conv2(ExpandingArray<4>({kTrainBatchSize, 10, 24, 24}),
               type,
-              Conv2dOptions(10, 20, {5, 5}), runDev),
-        pim_fc1(320, 10, kTrainBatchSize, type, runDev)
-       // fc2(50, 10) 
-        {
+              Conv2dOptions(10, 20, {5, 5}), false, runDev),
+        pim_fc1(320, 10, kTrainBatchSize, type, false, runDev)
+       // fc2(50, 10)
+  {
     register_module("conv1", conv1);
     register_module("conv2", conv2);
     // register_module("conv2_drop", conv2_drop);

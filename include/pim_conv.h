@@ -281,14 +281,12 @@ namespace PIM {
                 Tensor(), Tensor(), Tensor(), Tensor()}; // number of returns should be equal to forward's args.
       } else {
         at::Tensor insert_dLdZ = insert_zeros(grad_output.permute({0, 1, 3, 2}), stride);
-        std::cout << insert_dLdZ << std::endl;
 
         // grad of input
         at::Tensor unf_dLdZ = F::unfold(insert_dLdZ,F::UnfoldFuncOptions(kernel_size)
                                     .padding(unfold_padding)).transpose(1, 2);
         at::Tensor dZ_ = wb_t_ptr->ptr->mm(unf_dLdZ).transpose(1, 2);
         at::Tensor pim_grad_input = F::fold(dZ_, F::FoldFuncOptions(input_size, {1, 1}).padding(padding));
-        std::cout << pim_grad_input << std::endl;
         // grad of weight
         at::Tensor swap_flip_X = input.flip({2, 3}).permute({1, 0, 2, 3}).transpose(1, 2);
         at::Tensor unf_swap_dLdZ = F::unfold(insert_dLdZ.permute({1, 0, 2, 3}),

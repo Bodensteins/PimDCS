@@ -3,7 +3,7 @@
 DATA_PATH="/home/zhouheng/datasets/susy.npz"
 DATASET_NAME="susy"
 
-python ./online_deep_learning.py \
+python ./onn_training.py \
   --data $DATA_PATH \
   --dataset-name $DATASET_NAME \
   -j 4 \

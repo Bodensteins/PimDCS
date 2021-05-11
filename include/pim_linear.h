@@ -36,12 +36,14 @@ namespace PIM {
      */
     static Tensor forward(
         AutogradContext *ctx, PimArrayPtr &wb, PimArrayPtr &wb_t, PimArrayPtr &prev,
-        const Tensor &input, const Tensor &weight, const c10::optional<Tensor> &bias, bool is_training) {
+        const Tensor &input, const Tensor &weight, const c10::optional<Tensor> &bias,
+        bool is_training, bool fast_mode = false) {
       ctx->save_for_backward({input, weight, bias.has_value() ? bias.value() : Tensor()});
 
       // ctx->saved_data["wb_ptr"] = c10::make_intrusive<PimArrayPtr>(wb);
       ctx->saved_data["wb_t_ptr"] = c10::make_intrusive<PimArrayPtr>(wb_t);
       ctx->saved_data["prev_ptr"] = c10::make_intrusive<PimArrayPtr>(prev);
+      ctx->saved_data["fast_mode"] = fast_mode;
 
 //      Tensor output = input.mm(weight.t());
 //      if (bias.has_value()) {
@@ -90,42 +92,47 @@ namespace PIM {
       auto input = saved[0];
       auto weight = saved[1];
       auto bias = saved[2];
+      bool fast_mode = ctx->saved_data["fast_mode"].toBool();
 
       Tensor grad_output = grad_outputs[0];
-
-//      Tensor grad_input = grad_output.mm(weight);
-//      Tensor grad_weight = grad_output.t().mm(input);
-
-      Tensor pim_grad_bias = Tensor();
+      Tensor grad_bias = Tensor();
       if (bias.defined()) {
-        pim_grad_bias = grad_output.sum(0);
+        grad_bias = grad_output.sum(0);
       }
 
-      // shape of wb_t_ptr: (out_features, in_features)
-      Tensor pim_grad_input = ctx->saved_data["wb_t_ptr"].toCustomClass<PimArrayPtr>()->ptr->mm(grad_output.detach());
-      Tensor pim_grad_weight = ctx->saved_data["prev_ptr"].toCustomClass<PimArrayPtr>()->ptr->mm(grad_output.t().detach());
+      if (fast_mode) {
+        Tensor grad_input = grad_output.mm(weight);
+        Tensor grad_weight = grad_output.t().mm(input);
+        return {Tensor(), Tensor(), Tensor(), grad_input, grad_weight, grad_bias, Tensor(), Tensor()};
+      } else {
+        // shape of wb_t_ptr: (out_features, in_features)
+        Tensor pim_grad_input = ctx->saved_data["wb_t_ptr"].toCustomClass<PimArrayPtr>()->ptr->mm(grad_output.detach());
+        Tensor pim_grad_weight = ctx->saved_data["prev_ptr"].toCustomClass<PimArrayPtr>()->ptr->mm(grad_output.t().detach());
 
-      // if (!torch::allclose(grad_input, pim_grad_input, 1e-05, 1e-06)) {
-      //   TORCH_INTERNAL_ASSERT(false, "calculation error");
-      // }
+        // if (!torch::allclose(grad_input, pim_grad_input, 1e-05, 1e-06)) {
+        //   TORCH_INTERNAL_ASSERT(false, "calculation error");
+        // }
 
-      // if (!torch::allclose(grad_weight, pim_grad_weight, 1e-05, 1e-06)) {
-      //   TORCH_INTERNAL_ASSERT(false, "calculation error");
-      // }
+        // if (!torch::allclose(grad_weight, pim_grad_weight, 1e-05, 1e-06)) {
+        //   TORCH_INTERNAL_ASSERT(false, "calculation error");
+        // }
 
-      // number of returns should be equal to forward's args.
-      return {Tensor(), Tensor(), Tensor(), pim_grad_input, pim_grad_weight, pim_grad_bias, Tensor()};
+        // number of returns should be equal to forward's args.
+        return {Tensor(), Tensor(), Tensor(), pim_grad_input, pim_grad_weight, grad_bias, Tensor(), Tensor()};
+      }
     }
   };
 
 
   class TORCH_API PimLinearImpl : public Cloneable<PimLinearImpl> {
   public:
-    PimLinearImpl(int64_t in_features, int64_t out_features, int64_t batch_size, PimArrayType pim_type, const TensorOptions op = {})
-        : PimLinearImpl(batch_size, pim_type, LinearOptions(in_features, out_features), op) {}
+    PimLinearImpl(int64_t in_features, int64_t out_features, int64_t batch_size, PimArrayType pim_type,
+                  bool fast_mode = false, const TensorOptions op = {})
+        : PimLinearImpl(batch_size, pim_type, LinearOptions(in_features, out_features), fast_mode, op) {}
 
-    explicit PimLinearImpl(int64_t batch_size, PimArrayType pim_type, const LinearOptions &options_, const TensorOptions op = {})
-        : options(options_), batch_size(batch_size), pim_type(pim_type) {
+    explicit PimLinearImpl(int64_t batch_size, PimArrayType pim_type, const LinearOptions &options_,
+                           bool fast_mode = false, const TensorOptions op = {})
+        : options(options_), batch_size(batch_size), pim_type(pim_type), fast_mode(fast_mode){
       reset();
       if (op.device()==torch::kCUDA)
       {
@@ -183,16 +190,16 @@ namespace PIM {
       switch (pim_type) {
         case PimArrayType::simple_logic_array:
           return PimLinearFunction<SimpleLogicArray>::apply(wb_ptr, wb_t_ptr, prev_ptr, input, weight,
-              options.bias() ? bias : c10::optional<Tensor>(), is_training_);
+              options.bias() ? bias : c10::optional<Tensor>(), is_training_, fast_mode);
         case PimArrayType::pim_array:
           return PimLinearFunction<pimArrayExample>::apply(wb_ptr, wb_t_ptr, prev_ptr, input, weight,
-              options.bias() ? bias : c10::optional<Tensor>(), is_training_);
+              options.bias() ? bias : c10::optional<Tensor>(), is_training_, fast_mode);
         case PimArrayType::only_counters_pim_array:
           return PimLinearFunction<pimArrayExampleCounters>::apply(wb_ptr, wb_t_ptr, prev_ptr, input, weight,
-              options.bias() ? bias : c10::optional<Tensor>(), is_training_);
+              options.bias() ? bias : c10::optional<Tensor>(), is_training_, fast_mode);
         case PimArrayType::pim_array_pro:
           return PimLinearFunction<pimArrayPro>::apply(wb_ptr, wb_t_ptr, prev_ptr, input, weight,
-              options.bias() ? bias : c10::optional<Tensor>(), is_training_);
+              options.bias() ? bias : c10::optional<Tensor>(), is_training_, fast_mode);
         default:
           TORCH_INTERNAL_ASSERT(false, "pimlinear, forward type not support!")
       }
@@ -233,11 +240,14 @@ namespace PIM {
     /// Whether the physical array is be printed.
     bool print_detail_{false};
 
+    bool fast_mode;
+
     PimArrayPtr wb_ptr;
     PimArrayPtr wb_t_ptr;
     PimArrayPtr prev_ptr;
     PimArrayType pim_type;
     int64_t batch_size;
+
   };
 
 /// A `ModuleHolder` subclass for `LinearImpl`.

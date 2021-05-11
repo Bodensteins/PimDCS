@@ -11,7 +11,7 @@ from mab import algs
 
 class ONN(nn.Module):
   def __init__(self, features_size, max_num_hidden_layers, qtd_neuron_per_hidden_layer, n_classes, batch_size=1,
-               b=0.99, n=0.01, s=0.2, freeze_threshold=0.005, use_cuda=False, vis=None):
+               b=0.99, n=0.01, s=0.2, freeze_threshold=0.005, log_interval=1000, use_cuda=False, vis=None, tb_writer=None):
     super(ONN, self).__init__()
 
     self.device = torch.device(
@@ -54,10 +54,18 @@ class ONN(nn.Module):
     self.freeze_steps = [0] * self.max_num_hidden_layers
 
     self.cumulative_error = 0
-    # self.tb_writer = tb_writer
+    self.log_interval = log_interval
     self.vis = vis
-    # self.alpha_history = [self.alpha.data.cpu().numpy()]
-    # self.alpha_steps = ['0']
+    self.tb_writer = tb_writer
+
+    self.hidden_w_bar = []
+    self.hidden_b_bar = []
+    self.out_w_bar = []
+    self.out_b_bar = []
+    self.hidden_delta_w = [0.0] * max_num_hidden_layers
+    self.hidden_delta_b = [0.0] * max_num_hidden_layers
+    self.out_delta_w = [0.0] * max_num_hidden_layers
+    self.out_delta_b = [0.0] * max_num_hidden_layers
 
   def zero_grad(self):
     for i in range(self.max_num_hidden_layers):
@@ -80,12 +88,26 @@ class ONN(nn.Module):
 
     w = [None] * len(losses_per_layer)
     b = [None] * len(losses_per_layer)
+    mean_delta_w = {}
+    mean_delta_b = {}
 
     with torch.no_grad():
       for i in range(len(losses_per_layer)):
         losses_per_layer[i].backward(retain_graph=True)
-        self.output_layers[i].weight.data -= self.n * self.alpha[i] * self.output_layers[i].weight.grad.data
-        self.output_layers[i].bias.data -= self.n * self.alpha[i] * self.output_layers[i].bias.grad.data
+        delta_w = self.n * self.alpha[i] * self.output_layers[i].weight.grad.data
+        delta_b = self.n * self.alpha[i] * self.output_layers[i].bias.grad.data
+        self.output_layers[i].weight.data -= delta_w
+        self.output_layers[i].bias.data -= delta_b
+        mean_delta_w["out_%d.delta_w" % i] = delta_w.abs().mean().item()
+        mean_delta_b["out_%d.delta_b" % i] = delta_b.abs().mean().item()
+        self.out_delta_w[i] += mean_delta_w["out_%d.delta_w" % i]
+        self.out_delta_b[i] += mean_delta_b["out_%d.delta_b" % i]
+
+        if self.tb_writer is not None and batch_idx % self.log_interval == 0:
+          self.tb_writer.add_histogram("delta/output_layer_%d.weight" % i, delta_w, batch_idx)
+          self.tb_writer.add_histogram("delta/output_layer_%d.bias" % i, delta_b, batch_idx)
+          self.tb_writer.add_histogram("weight/output_layer_%d.weight" % i, self.output_layers[i].weight.data, batch_idx)
+          self.tb_writer.add_histogram("bias/output_layer_%d.bias" % i, self.output_layers[i].bias.data, batch_idx)
 
         for j in range(i + 1):
           if w[j] is None:
@@ -99,8 +121,20 @@ class ONN(nn.Module):
 
       for i in range(len(losses_per_layer)):
         if self.alpha[i].item() >= self.freeze_threshold or batch_idx % 2 == 0:
-          self.hidden_layers[i].weight.data -= self.n * w[i]
-          self.hidden_layers[i].bias.data -= self.n * b[i]
+          delta_w = self.n * w[i]
+          delta_b = self.n * b[i]
+          self.hidden_layers[i].weight.data -= delta_w
+          self.hidden_layers[i].bias.data -= delta_b
+          mean_delta_w["hidden_%d.delta_w" % i] = delta_w.abs().mean().item()
+          mean_delta_b["hidden_%d.delta_b" % i] = delta_b.abs().mean().item()
+          self.hidden_delta_w[i] += mean_delta_w["hidden_%d.delta_w" % i]
+          self.hidden_delta_b[i] += mean_delta_b["hidden_%d.delta_b" % i]
+
+          if self.tb_writer is not None and batch_idx % self.log_interval == 0:
+            self.tb_writer.add_histogram("delta/hidden_layer_%d.weight" % i, delta_w, batch_idx)
+            self.tb_writer.add_histogram("delta/hidden_layer_%d.bias" % i, delta_b, batch_idx)
+            self.tb_writer.add_histogram("weight/hidden_layers_%d.weight" % i, self.hidden_layers[i].weight.data, batch_idx)
+            self.tb_writer.add_histogram("bias/hidden_layers_%d.bias" % i, self.hidden_layers[i].bias.data, batch_idx)
         else:
           self.freeze_steps[i] += 1
 
@@ -116,25 +150,96 @@ class ONN(nn.Module):
         self.max_num_hidden_layers, self.batch_size, 1), predictions_per_layer), 0)
     self.cumulative_error += torch.argmax(real_output, dim=1).ne(Y).sum().item()
 
-    if show_loss and batch_idx % 1000 == 0:
+    if batch_idx % 5000 == 0 and batch_idx != 0:
+      self.hidden_w_bar.append(self.hidden_delta_w)
+      self.hidden_b_bar.append(self.hidden_delta_b)
+      self.out_w_bar.append(self.out_delta_w)
+      self.out_b_bar.append(self.out_delta_b)
+      self.hidden_delta_w = [0.0] * len(losses_per_layer)
+      self.hidden_delta_b = [0.0] * len(losses_per_layer)
+      self.out_delta_w = [0.0] * len(losses_per_layer)
+      self.out_delta_b = [0.0] * len(losses_per_layer)
+      if self.vis is not None:
+        self.vis.bar(X=np.array(self.hidden_w_bar),
+                     win='hidden weight',
+                     opts={
+                       "stacked": True,
+                       'title': 'hidden weight',
+                       "legend": ['layer %d' % i for i in range(len(losses_per_layer))],
+                       # "rownames": ['step %d' % i * 10000 for i in range(batch_idx // 10000)]
+                     })
+        self.vis.bar(X=np.array(self.hidden_b_bar),
+                     win='hidden bias',
+                     opts={
+                       "stacked": True,
+                       'title': 'hidden bias',
+                       "legend": ['layer %d' % i for i in range(len(losses_per_layer))],
+                       # "rownames": ['step %d' % i * 10000 for i in range(batch_idx // 10000)]
+                     })
+        self.vis.bar(X=np.array(self.out_w_bar),
+                     win='out weight',
+                     opts={
+                       "stacked": True,
+                       'title': 'out weight',
+                       "legend": ['layer %d' % i for i in range(len(losses_per_layer))],
+                       # "rownames": ['step %d' % i * 10000 for i in range(batch_idx // 10000)]
+                     })
+        self.vis.bar(X=np.array(self.out_b_bar),
+                     win='out bias',
+                     opts={
+                       "stacked": True,
+                       'title': 'out bias',
+                       "legend": ['layer %d' % i for i in range(len(losses_per_layer))],
+                       # "rownames": ['step %d' % i * 10000 for i in range(batch_idx // 10000)]
+                     })
+
+
+    if show_loss and batch_idx % self.log_interval == 0:
       loss = self.criterion(real_output, Y)
-      self.vis.line(X=torch.Tensor([batch_idx]), Y=torch.Tensor([loss]), win='Final Loss of Train',
-                    update='append', opts={'title': 'Final Loss of Train', 'xlabel': 'step', 'ylabel': 'loss'})
-      self.vis.line(X=torch.Tensor([batch_idx]), Y=torch.Tensor([self.cumulative_error / (batch_idx + 1) * self.batch_size]),
-                    win='Cumulative Error Rate', update='append',
-                    opts={'title': 'Cumulative Error Rate', 'xlabel': 'step', 'ylabel': 'error rate'})
-      for i in range(len(losses_per_layer)):
-        self.vis.line(X=torch.Tensor([batch_idx]), Y=torch.Tensor([losses_per_layer[i]]), win='Train Loss',
-                      name='layer %d' % i, update='append',
-                      opts={'title': 'Train Loss',
-                            'xlabel': 'step',
-                            'ylabel': 'loss',
-                            'showlegend': True})
-        self.vis.line(X=torch.Tensor([batch_idx]), Y=torch.Tensor([self.alpha[i]]), win='Alpha', name='layer %d' % i,
-                      update='append', opts={'title': 'Alpha',
-                                             'xlabel': 'step',
-                                             'ylabel': 'alpha',
-                                             'showlegend': True})
+      if self.vis is not None:
+        self.vis.line(X=torch.Tensor([batch_idx]), Y=torch.Tensor([loss]), win='Final Loss of Train',
+                      update='append', opts={'title': 'Final Loss of Train', 'xlabel': 'step', 'ylabel': 'loss'})
+        self.vis.line(X=torch.Tensor([batch_idx]), Y=torch.Tensor([self.cumulative_error / (batch_idx + 1) * self.batch_size]),
+                      win='Cumulative Error Rate', update='append',
+                      opts={'title': 'Cumulative Error Rate', 'xlabel': 'step', 'ylabel': 'error rate'})
+        for i in range(len(losses_per_layer)):
+          self.vis.line(X=torch.Tensor([batch_idx]), Y=torch.Tensor([losses_per_layer[i]]), win='Train Loss',
+                        name='layer %d' % i, update='append',
+                        opts={'title': 'Train Loss',
+                              'xlabel': 'step',
+                              'ylabel': 'loss',
+                              'showlegend': True})
+          self.vis.line(X=torch.Tensor([batch_idx]), Y=torch.Tensor([self.alpha[i]]), win='Alpha', name='layer %d' % i,
+                        update='append', opts={'title': 'Alpha',
+                                               'xlabel': 'step',
+                                               'ylabel': 'alpha',
+                                               'showlegend': True})
+          # self.vis.line(X=torch.Tensor([batch_idx]), Y=torch.Tensor([mean_delta_w["hidden_%d.delta_w" % i]]),
+          #               win='hidden delta_w', name='layer %d' % i,
+          #               update='append', opts={'title': 'hidden delta_w',
+          #                                      'xlabel': 'step',
+          #                                      'ylabel': 'delta',
+          #                                      'showlegend': True})
+          # self.vis.line(X=torch.Tensor([batch_idx]), Y=torch.Tensor([mean_delta_b["hidden_%d.delta_b" % i]]),
+          #               win='hidden delta_b', name='layer %d' % i,
+          #               update='append', opts={'title': 'hidden delta_b',
+          #                                      'xlabel': 'step',
+          #                                      'ylabel': 'delta',
+          #                                      'showlegend': True})
+          # self.vis.line(X=torch.Tensor([batch_idx]), Y=torch.Tensor([mean_delta_w["out_%d.delta_w" % i]]),
+          #               win='out delta_w', name='layer %d' % i,
+          #               update='append', opts={'title': 'out delta_w',
+          #                                      'xlabel': 'step',
+          #                                      'ylabel': 'delta',
+          #                                      'showlegend': True})
+          # self.vis.line(X=torch.Tensor([batch_idx]), Y=torch.Tensor([mean_delta_b["out_%d.delta_b" % i]]),
+          #               win='out delta_b', name='layer %d' % i,
+          #               update='append', opts={'title': 'out delta_b',
+          #                                      'xlabel': 'step',
+          #                                      'ylabel': 'delta',
+          #                                      'showlegend': True})
+
+
 
 
   def forward(self, X):

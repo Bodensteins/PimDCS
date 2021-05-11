@@ -149,7 +149,7 @@ namespace PIM {
     static torch::Tensor forward(
         AutogradContext *ctx, PimArrayPtr &wb, PimArrayPtr &wb_t, PimArrayPtrList &prevs,
         const Tensor &input, const Tensor &weight, const c10::optional<Tensor> &bias,
-        IntArrayRef stride, IntArrayRef padding, bool is_training) {
+        IntArrayRef stride, IntArrayRef padding, bool is_training, bool fast_mode = false) {
 
       IntArrayRef kernel_size = weight.sizes().slice(2);
       conv2d_shape_check(input, weight, bias.has_value() ? bias.value() : Tensor(), kernel_size, stride, padding);
@@ -175,8 +175,9 @@ namespace PIM {
       ctx->save_for_backward({input, weight, bias.has_value() ? bias.value() : Tensor()});
       ctx->saved_data["stride"] = std::vector<int64_t>(stride.vec());
       ctx->saved_data["padding"] = std::vector<int64_t>(padding.vec());
-      ctx->saved_data["wb_t_ptr"] = c10::make_intrusive<PimArrayPtr>(wb_t);;
-      ctx->saved_data["prev_ptrs"] = c10::make_intrusive<PimArrayPtrList>(prevs);;
+      ctx->saved_data["wb_t_ptr"] = c10::make_intrusive<PimArrayPtr>(wb_t);
+      ctx->saved_data["prev_ptrs"] = c10::make_intrusive<PimArrayPtrList>(prevs);
+      ctx->saved_data["fast_mode"] = fast_mode;
 
       // write parameters to PIM if is trainable
       if (is_training && weight.requires_grad()) {
@@ -238,6 +239,7 @@ namespace PIM {
       auto input = saved[0];
       auto weight = saved[1];
       auto bias = saved[2];
+      bool fast_mode = ctx->saved_data["fast_mode"].toBool();
 
       const int64_t batch_size = input.size(0);
       std::vector<int64_t> input_size({input.size(2), input.size(3)});
@@ -250,50 +252,63 @@ namespace PIM {
       c10::intrusive_ptr<PimArrayPtrList> prev_ptrs = ctx->saved_data["prev_ptrs"].toCustomClass<PimArrayPtrList>();
 
       Tensor grad_output = grad_outputs[0];
-      Tensor pim_grad_bias = Tensor();
-
-      Tensor insert_dLdZ = insert_zeros(grad_output, stride);
-
-      // grad of input
-      Tensor unf_dLdZ = F::unfold(insert_dLdZ,
-                                  F::UnfoldFuncOptions(kernel_size).padding(unfold_padding)).transpose(1, 2);
-      //Tensor dZ_ = torch::zeros({batch_size, input.size(1), unf_dLdZ.size(1)}, grad_output.options());
-
-      //at::parallel_for(0, batch_size, parallel_for_size, [&](int64_t start, int64_t end) {
-      //  for (int64_t i = start; i < end; i++) {
-      //    dZ_[i] = wb_t_ptr->ptr->mm(unf_dLdZ[i].detach()).transpose(0, 1);
-      //  }
-      //});
-      Tensor dZ_ = wb_t_ptr->ptr->mm(unf_dLdZ.detach()).transpose(1, 2);
-
-      Tensor pim_grad_input = F::fold(dZ_, F::FoldFuncOptions(input_size, {1, 1}).padding(padding));
-
-      // grad of weight
-      Tensor swap_flip_X = input.flip({2, 3}).permute({1, 0, 2, 3}).transpose(1, 2);
-      Tensor unf_swap_dLdZ = F::unfold(insert_dLdZ.permute({1, 0, 2, 3}),
-                                       F::UnfoldFuncOptions(input_size).padding(unfold_padding)).transpose(1, 2);
-      std::vector<Tensor> dW_(batch_size);
-      auto dLdZ_chunks = unf_swap_dLdZ.chunk(batch_size, 2);
-
-      at::parallel_for(0, batch_size, parallel_for_size, [&](int64_t start, int64_t end) {
-        for (int64_t i = start; i < end; i++) {
-          dW_[i] = prev_ptrs->ptrs[i]->mm(dLdZ_chunks[i].detach()).transpose(1, 2);
-//          dW_[i] = torch::zeros({weight.size(0), input.size(1), unf_swap_dLdZ.size(1)}, grad_output.options());
-//          for (int64_t j = 0; j < weight.size(0); j++) {
-//            dW_[i][j] = prev_ptrs->ptrs[i]->mm(dLdZ_chunks[i][j].detach()).transpose(0, 1);
-//          }
-        }
-      });
-      Tensor dW = torch::stack(dW_, 0).sum(0);
-
-      Tensor pim_grad_weight = F::fold(dW,F::FoldFuncOptions(kernel_size, {1, 1}).padding(padding));
-
+      Tensor grad_bias = Tensor();
       if (bias.defined()) {
-        pim_grad_bias = grad_output.sum({0, 2, 3});
+        grad_bias = grad_output.sum({0, 2, 3});
       }
 
-      return {Tensor(), Tensor(), Tensor(), pim_grad_input, pim_grad_weight,
-              pim_grad_bias, Tensor(), Tensor(), Tensor()}; // number of returns should be equal to forward's args.
+      if (fast_mode) {
+        int64_t in_ex = input.size(0);
+        int64_t in_ch = input.size(1);
+        int64_t out_ch = grad_output.size(1);
+        at::Tensor dLdZ_col = grad_output.transpose(0,3).reshape({out_ch, -1}); //合并transpose
+        at::Tensor X_unfold = F::unfold(input,
+          F::UnfoldFuncOptions(kernel_size).padding(padding).stride(stride))
+              .permute({1, 2, 0})
+              .reshape({in_ch * kernel_size[0] * kernel_size[1], -1})
+              .transpose(0, 1);
+        at::Tensor dW = dLdZ_col.matmul(X_unfold)
+            .reshape({out_ch, in_ch, kernel_size[0], kernel_size[1]});
+
+        // dX
+        at::Tensor W_col = weight.reshape({out_ch, -1}).transpose(0, 1);
+        at::Tensor dX_col = W_col.matmul(dLdZ_col)
+            .reshape({in_ch * kernel_size[0] * kernel_size[1], -1, in_ex})
+            .permute({2, 0, 1});
+        at::Tensor dX = F::fold(dX_col, F::FoldFuncOptions(input_size, kernel_size)
+          .padding(padding).stride(stride));
+        return {Tensor(), Tensor(), Tensor(), dX, dW, grad_bias,
+                Tensor(), Tensor(), Tensor(), Tensor()}; // number of returns should be equal to forward's args.
+      } else {
+        at::Tensor insert_dLdZ = insert_zeros(grad_output.permute({0, 1, 3, 2}), stride);
+        std::cout << insert_dLdZ << std::endl;
+
+        // grad of input
+        at::Tensor unf_dLdZ = F::unfold(insert_dLdZ,F::UnfoldFuncOptions(kernel_size)
+                                    .padding(unfold_padding)).transpose(1, 2);
+        at::Tensor dZ_ = wb_t_ptr->ptr->mm(unf_dLdZ).transpose(1, 2);
+        at::Tensor pim_grad_input = F::fold(dZ_, F::FoldFuncOptions(input_size, {1, 1}).padding(padding));
+        std::cout << pim_grad_input << std::endl;
+        // grad of weight
+        at::Tensor swap_flip_X = input.flip({2, 3}).permute({1, 0, 2, 3}).transpose(1, 2);
+        at::Tensor unf_swap_dLdZ = F::unfold(insert_dLdZ.permute({1, 0, 2, 3}),
+                                         F::UnfoldFuncOptions(input_size)
+                                         .padding(unfold_padding)).transpose(1, 2);
+        std::vector<at::Tensor> dW_(batch_size);
+        auto dLdZ_chunks = unf_swap_dLdZ.chunk(batch_size, 2);
+
+        at::parallel_for(0, batch_size, parallel_for_size, [&](int64_t start, int64_t end) {
+          for (int64_t i = start; i < end; i++) {
+            dW_[i] = prev_ptrs->ptrs[i]->mm(dLdZ_chunks[i]).transpose(1, 2);
+          }
+        });
+        at::Tensor dW = torch::stack(dW_, 0).sum(0);
+        at::Tensor pim_grad_weight = F::fold(dW,F::FoldFuncOptions(kernel_size, {1, 1})
+            .padding(padding));
+
+        return {Tensor(), Tensor(), Tensor(), pim_grad_input, pim_grad_weight, grad_bias,
+                Tensor(), Tensor(), Tensor(), Tensor()}; // number of returns should be equal to forward's args.
+      }
     }
   };
 
@@ -304,12 +319,14 @@ namespace PIM {
                   ExpandingArray<2> kernel_size,
                   int64_t output_channels,
                   PimArrayType pim_type,
+                  bool fast_mode = false,
                   const torch::TensorOptions &op = {})
-        : PimConv2dImpl(input_shape, pim_type, Conv2dOptions((*input_shape)[1], output_channels, kernel_size), op) {}
+        : PimConv2dImpl(input_shape, pim_type,
+                        Conv2dOptions((*input_shape)[1], output_channels, kernel_size), fast_mode, op) {}
 
     explicit PimConv2dImpl(ExpandingArray<4> input_shape, PimArrayType pim_type, const Conv2dOptions &options_,
-                           const torch::TensorOptions &op = {})
-        : input_shape(input_shape), pim_type(pim_type), options(options_) {
+                           bool fast_mode = false, const torch::TensorOptions &op = {})
+        : input_shape(input_shape), pim_type(pim_type), options(options_), fast_mode(fast_mode){
 
       ExpandingArray<2> kernel_size = options_.kernel_size();
       const int64_t n_input_plane = options_.in_channels();
@@ -398,22 +415,22 @@ namespace PIM {
           return PimConv2dFunction<SimpleLogicArray>::apply(
               wb_ptr, wb_t_ptr, prev_ptrs,
               input, weight, options.bias() ? bias : c10::optional<Tensor>(),
-              options.stride(), options.padding(), is_training_);
+              options.stride(), options.padding(), is_training_, fast_mode);
         case PimArrayType::pim_array:
           return PimConv2dFunction<pimArrayExample>::apply(
               wb_ptr, wb_t_ptr, prev_ptrs,
               input, weight, options.bias() ? bias : c10::optional<Tensor>(),
-              options.stride(), options.padding(), is_training_);
+              options.stride(), options.padding(), is_training_, fast_mode);
         case PimArrayType::only_counters_pim_array:
           return PimConv2dFunction<pimArrayExampleCounters>::apply(
               wb_ptr, wb_t_ptr, prev_ptrs,
               input, weight, options.bias() ? bias : c10::optional<Tensor>(),
-              options.stride(), options.padding(), is_training_);
+              options.stride(), options.padding(), is_training_, fast_mode);
         case PimArrayType::pim_array_pro:
           return PimConv2dFunction<pimArrayPro>::apply(
               wb_ptr, wb_t_ptr, prev_ptrs,
               input, weight, options.bias() ? bias : c10::optional<Tensor>(),
-              options.stride(), options.padding(), is_training_);
+              options.stride(), options.padding(), is_training_, fast_mode);
         default:
           TORCH_INTERNAL_ASSERT(false, "pim conv, forward type not supported!")
       }
@@ -455,6 +472,8 @@ namespace PIM {
 
     /// Whether the physical array is be printed.
     bool print_detail_{false};
+
+    bool fast_mode;
 
     PimArrayPtr wb_ptr;
     PimArrayPtr wb_t_ptr;

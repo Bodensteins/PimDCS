@@ -1342,8 +1342,8 @@ void pimArrayPro::write_mat(const at::Tensor &matin, int row, int col)
             pos.index_put_({pos < 0}, 0); // 0 ~ unitLevels-1
             neg.index_put_({neg > 0}, 0);
             neg.abs_(); // 0 ~ unitLevels-1
-            pos.round_();
-            neg.round_();
+            pos = pos.round_().to(torch::kInt32);
+            neg = neg.round_().to(torch::kInt32);
         };
 
         int mask = (conf->cellLevels) - 1;

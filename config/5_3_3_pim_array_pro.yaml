@@ -24,7 +24,7 @@ latency_cal:  #all latency is xx ns
     addTreeSharedNum: 8
 
 energy_cal:  #all energy is J
-    enable: false
+    enable: true
     readRowPeripheryEnergy: 0
     readColPeripheryEnergy: 0
     readUseProbability: false #use probability to calculate or not
@@ -73,14 +73,14 @@ phyArrColSize: 64
 minConduct: 1e-7
 maxConduct: 1e-4
 
-inVBits: 1
-inBits: 12
+inVBits: 2
+inBits: 8
 outBits: 12
-unitBits: 12
-cellBits: 1
+unitBits: 8
+cellBits: 2
 has_negative_input: true
 max_phy_input_value: 16
-max_weight_value: 4
+max_weight_value: 5
 trunc_input: true
 dynamic_max_input: true
 mode: 0

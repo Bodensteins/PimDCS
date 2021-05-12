@@ -6,6 +6,8 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include "yaml-cpp/yaml.h"
 #include "Darknet.h"
+#include "pim_conv.h"
+#include "pim_linear.h"
 
 using namespace std;
 using namespace std::chrono;
@@ -136,6 +138,10 @@ int main(int argc, const char *argv[]) {
       std::cout << "Error! Cannot open image directory." << std::endl;
     }
   }
+
+  pimArrayPro::phyArrManPro.printArea();
+  pimArrayPro::phyArrManPro.print_latency(std::cout);
+  std::cout << "Total energy: " << pimArrayPro::phyArrManPro.get_total_energy() << " J" << std::endl;
 
   return 0;
 }

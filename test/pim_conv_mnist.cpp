@@ -178,4 +178,8 @@ auto main() -> int {
   auto stop = high_resolution_clock::now();
   auto duration = duration_cast<milliseconds>(stop - start);
   std::cout << "Time: " << duration.count() / 1000. << " seconds" << std::endl;
+
+  pimArrayPro::phyArrManPro.printArea();
+  pimArrayPro::phyArrManPro.print_latency(std::cout);
+  std::cout << "Total energy: " << pimArrayPro::phyArrManPro.get_total_energy() << " J" << std::endl;
 }

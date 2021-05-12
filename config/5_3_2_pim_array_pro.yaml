@@ -12,7 +12,7 @@ D2D_en: false
 nonLinearIV_en: false
 write_cnt_en: false
 latency_cal:  #all latency is xx ns 
-    enable: true
+    enable: false
     parMMPhyNum: 256
     parWrPhyNum:  -1
     parPhyWrSize: 64
@@ -73,11 +73,11 @@ phyArrColSize: 64
 minConduct: 1e-7
 maxConduct: 1e-4
 
-inVBits: 1
-inBits: 12
+inVBits: 2
+inBits: 8
 outBits: 12
-unitBits: 12
-cellBits: 1
+unitBits: 8
+cellBits: 2
 has_negative_input: true
 max_phy_input_value: 16
 max_weight_value: 4

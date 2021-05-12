@@ -109,6 +109,10 @@ struct pim_array_pro_config
     int row_share_subarray;
     int col_share_subarray;
 
+    /* print voltage and conductance */
+    bool print_voltage_conductance;
+
+
     pim_array_pro_config(std::string filename = "../config/pim_array_pro.yaml")
     {
         YAML::Node config = YAML::LoadFile(filename);
@@ -355,6 +359,9 @@ struct pim_array_pro_config
         share_inf_col_size = config["area"]["share_inf_col_size"].as<int>();
         row_share_subarray = config["area"]["row_share_subarray"].as<int>();
         col_share_subarray = config["area"]["col_share_subarray"].as<int>();
+
+        // print voltage and conductance
+        print_voltage_conductance = config["print_voltage_conductance"].as<bool>();
     }
 };
 

@@ -797,18 +797,18 @@ struct pim_latency
 class phyArrayManagerPro
 {
 public:
-    int allocPhyArray(int rowSize, int colSize, at::TensorOptions op = {})
+    int allocPhyArray(int rowSize, int colSize, at::TensorOptions op = {}, const pim_array_pro_config *conf = &pro_decf)
     {
         std::lock_guard<std::mutex> lk(mu);
-        arrList.push_back(new phyArrayPro(rowSize, colSize, op));
+        arrList.push_back(new phyArrayPro(rowSize, colSize, op, conf));
         return arrList.size() - 1;
     }
 
-    std::pair<int, int> allocPhyArray(int n, int rowSize, int colSize, at::TensorOptions op = {})
+    std::pair<int, int> allocPhyArray(int n, int rowSize, int colSize, at::TensorOptions op = {}, const pim_array_pro_config *conf = &pro_decf)
     {
         std::lock_guard<std::mutex> lk(mu);
         for (int i=0; i<n; ++i)
-            arrList.push_back(new phyArrayPro(rowSize, colSize, op));
+            arrList.push_back(new phyArrayPro(rowSize, colSize, op, conf));
         return std::make_pair((int)arrList.size() - n, (int)arrList.size() - 1);
     }
 
@@ -1143,17 +1143,17 @@ void pimArrayPro::init(const pim_array_pro_config *cf, const torch::TensorOption
         {
             if (cf->mode == 1) // ref  col mode
             {
-                int k = phyArrManPro.allocPhyArray(cf->phyArrRowSize, cf->phyArrColSize + 2, op);
+                int k = phyArrManPro.allocPhyArray(cf->phyArrRowSize, cf->phyArrColSize + 2, op, conf);
                 arr[i][j] = k;
                 phyArrManPro.synaccess(k).writeMat(initMat);
             }
             else // postive & negative array mode
             {
-                int k = phyArrManPro.allocPhyArray(cf->phyArrRowSize, cf->phyArrColSize, op);
+                int k = phyArrManPro.allocPhyArray(cf->phyArrRowSize, cf->phyArrColSize, op, conf);
                 arr[i][j] = k;
                 phyArrManPro.synaccess(k).writeMat(initMat);
 
-                narr[i][j] = k = phyArrManPro.allocPhyArray(cf->phyArrRowSize, cf->phyArrColSize, op);
+                narr[i][j] = k = phyArrManPro.allocPhyArray(cf->phyArrRowSize, cf->phyArrColSize, op, conf);
                 phyArrManPro.synaccess(k).writeMat(initMat);
             }
         }

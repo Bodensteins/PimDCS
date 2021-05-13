@@ -346,7 +346,7 @@ void Darknet::create_modules() {
       PIM::PimConv2d pim_conv = PIM::PimConv2d(
           ExpandingArray<4>(in_shape),
           PIM::PimArrayType::pim_array_pro,
-          Conv2dOptions(in_shape[1], filters, kernel_size).stride(stride).padding(pad).bias(with_bias), runDev);
+          Conv2dOptions(in_shape[1], filters, kernel_size).stride(stride).padding(pad).bias(with_bias), false, runDev);
       module->push_back(pim_conv);
 
       if (batch_normalize > 0) {

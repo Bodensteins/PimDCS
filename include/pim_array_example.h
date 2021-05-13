@@ -776,7 +776,7 @@ struct pim_latency
         std::lock_guard<std::mutex> lk(mu);
 
         run_latency_us += time_ns / 1000.0;
-        if (run_latency_us >= 1e6)
+        while (run_latency_us >= 1e6)
         {
             run_latency_s += 1;
             run_latency_us -= 1e6;

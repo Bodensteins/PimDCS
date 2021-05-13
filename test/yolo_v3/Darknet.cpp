@@ -8,12 +8,16 @@
 *
 *******************************************************************************/
 #include "Darknet.h"
-#include "pim_conv.h"
-#include "pim_linear.h"
 #include <stdio.h>
 #include <iostream>
 #include <typeinfo>
+#include "pim_conv.h"
 
+void print_pim_manager_info() {
+  pimArrayPro::phyArrManPro.printArea();
+  pimArrayPro::phyArrManPro.print_latency(std::cout);
+  std::cout << "Total energy: " << pimArrayPro::phyArrManPro.get_total_energy() << " J" << std::endl;
+}
 
 // trim from start (in place)
 static inline void ltrim(std::string &s) {

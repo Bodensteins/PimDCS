@@ -23,5 +23,13 @@ ExternalProject_Add(YAML_CPP_EXTERNAL_PROJECT
 
 link_directories(${YAML_CPP_LIB_DIR})
 
+execute_process(
+        COMMAND	git describe --abbrev=0 --tags
+        WORKING_DIRECTORY ${YAML_CPP_ROOT}/src/yaml_cpp
+        OUTPUT_VARIABLE YAML_CPP_VERSION
+)
+
+message("yaml-cpp version: ${YAML_CPP_VERSION}")
+
 #Set this var to make the linking similar to linking via an external install of yaml-cpp
 set (YAML_CPP_LIBRARIES yaml-cpp)

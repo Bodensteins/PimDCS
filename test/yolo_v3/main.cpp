@@ -6,11 +6,11 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include "yaml-cpp/yaml.h"
 #include "Darknet.h"
-#include "pim_conv.h"
-#include "pim_linear.h"
 
 using namespace std;
 using namespace std::chrono;
+
+void print_pim_manager_info();
 
 void detect(Darknet &net, torch::Device &device, YAML::Node &config, int input_image_size, const std::string &img_path,
             const std::string &output_path) {
@@ -139,9 +139,7 @@ int main(int argc, const char *argv[]) {
     }
   }
 
-  pimArrayPro::phyArrManPro.printArea();
-  pimArrayPro::phyArrManPro.print_latency(std::cout);
-  std::cout << "Total energy: " << pimArrayPro::phyArrManPro.get_total_energy() << " J" << std::endl;
+  print_pim_manager_info();
 
   return 0;
 }

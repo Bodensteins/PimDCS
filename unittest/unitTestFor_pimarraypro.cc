@@ -31,7 +31,6 @@ int main()
 
 void writeTest()
 {
-    pim_array_config cf;
     auto op = torch::TensorOptions(dev).dtype(torch::kFloat64);
     pimArrayPro pim(M+1, N+1, op);
     SimpleLogicArray simple(M, N, op);

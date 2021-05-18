@@ -1,10 +1,12 @@
 cmake_minimum_required(VERSION 3.0 FATAL_ERROR)
 project(pimtorch)
 
+set(CMAKE_PREFIX_PATH "/etc/libtorch")
 find_package(Torch REQUIRED)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
+set(CMAKE_CXX_FLAGS, "-std=c++14")
+option(USE_OPENCV "Use opencv for object detection" ON)
 
-option(USE_OPENCV "Use opencv for object detection" OFF)
 
 if (USE_OPENCV)
     find_package(OpenCV REQUIRED)
@@ -59,11 +61,6 @@ add_dependencies(pim_fc_mnist YAML_CPP_EXTERNAL_PROJECT)
 target_link_libraries(pim_fc_mnist "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
 set_property(TARGET pim_fc_mnist PROPERTY CXX_STANDARD 14)
 
-add_executable(pim_fc_onlycnt_mnist test/pim_fc_onlyCnt_mnist.cpp)
-add_dependencies(pim_fc_onlycnt_mnist YAML_CPP_EXTERNAL_PROJECT)
-target_link_libraries(pim_fc_onlycnt_mnist "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
-set_property(TARGET pim_fc_onlycnt_mnist PROPERTY CXX_STANDARD 14)
-
 add_executable(original_conv_mnist test/original_conv_mnist.cpp)
 add_dependencies(original_conv_mnist YAML_CPP_EXTERNAL_PROJECT)
 target_link_libraries(original_conv_mnist "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
@@ -73,16 +70,6 @@ add_executable(original_fc_mnist test/original_fc_mnist.cpp)
 add_dependencies(original_fc_mnist YAML_CPP_EXTERNAL_PROJECT)
 target_link_libraries(original_fc_mnist "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
 set_property(TARGET original_fc_mnist PROPERTY CXX_STANDARD 14)
-
-add_executable(unittest unittest/unitTestFor_pimArray.cc)
-add_dependencies(unittest YAML_CPP_EXTERNAL_PROJECT)
-target_link_libraries(unittest "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
-set_property(TARGET unittest PROPERTY CXX_STANDARD 14)
-
-add_executable(unittest_only_counters unittest/unitTestFor_onlyCounters.cc)
-add_dependencies(unittest_only_counters YAML_CPP_EXTERNAL_PROJECT)
-target_link_libraries(unittest_only_counters "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
-set_property(TARGET unittest_only_counters PROPERTY CXX_STANDARD 14)
 
 add_executable(original_vgg8_cifar10 test/original_vgg8_cifar10.cc)
 add_dependencies(original_vgg8_cifar10 YAML_CPP_EXTERNAL_PROJECT)

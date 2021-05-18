@@ -15,7 +15,7 @@ int kTrainBatchSize = 32;
 int kNumberOfEpochs = 10;
 auto runDev = torch::kCPU;
 std::string out_string = "pim_vgg8_cifar10_out";
-auto pim_type = PimArrayType::only_counters_pim_array;//PimArrayType::simple_logic_array;
+auto pim_type = PimArrayType::pim_array_pro;//PimArrayType::simple_logic_array;
 
 
 struct VGG8_Net: torch::nn::Module

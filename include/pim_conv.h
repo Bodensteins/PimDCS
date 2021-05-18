@@ -414,16 +414,6 @@ namespace PIM {
               wb_ptr, wb_t_ptr, prev_ptrs,
               input, weight, options.bias() ? bias : c10::optional<Tensor>(),
               options.stride(), options.padding(), is_training_, fast_mode);
-        case PimArrayType::pim_array:
-          return PimConv2dFunction<pimArrayExample>::apply(
-              wb_ptr, wb_t_ptr, prev_ptrs,
-              input, weight, options.bias() ? bias : c10::optional<Tensor>(),
-              options.stride(), options.padding(), is_training_, fast_mode);
-        case PimArrayType::only_counters_pim_array:
-          return PimConv2dFunction<pimArrayExampleCounters>::apply(
-              wb_ptr, wb_t_ptr, prev_ptrs,
-              input, weight, options.bias() ? bias : c10::optional<Tensor>(),
-              options.stride(), options.padding(), is_training_, fast_mode);
         case PimArrayType::pim_array_pro:
           return PimConv2dFunction<pimArrayPro>::apply(
               wb_ptr, wb_t_ptr, prev_ptrs,

@@ -12,7 +12,7 @@ D2D_en: false
 nonLinearIV_en: false
 write_cnt_en: false
 latency_cal:  #all latency is xx ns 
-    enable: false
+    enable: true
     parMMPhyNum: 256
     parWrPhyNum:  -1
     parPhyWrSize: 64
@@ -24,7 +24,7 @@ latency_cal:  #all latency is xx ns
     addTreeSharedNum: 8
 
 energy_cal:  #all energy is J
-    enable: true
+    enable: false
     readRowPeripheryEnergy: 0
     readColPeripheryEnergy: 0
     readUseProbability: false #use probability to calculate or not
@@ -59,7 +59,7 @@ ir_drop:
     g_wire: 0.5
 
 SAF:
-    enable: true
+    enable: false
     runtime_en: true
     init_pSA0: 0.05
     init_pSA1: 0.05

@@ -17,7 +17,7 @@ struct IR_solver
 {
     int rowSize, colSize, n;
     double g_load, g_wire;
-    IR_solver(const pim_array_pro_config *conf = &pro_decf)
+    IR_solver(const pim_array_pro_config *conf = &pro_decf())
     {
         this->conf = conf;
         if (conf->mode == 0)

@@ -358,6 +358,13 @@ struct pim_array_pro_config
     }
 };
 
-const pim_array_pro_config pro_decf("../config/pim_array_pro.yaml");
+/**
+ * Generate the only default pim array pro config.
+ * */
+const pim_array_pro_config& pro_decf()
+{
+    static const pim_array_pro_config decf("../config/pim_array_pro.yaml");
+    return decf;
+}
 
 #endif //PIMTORCH_PIM_ARRAY_CONFIG_H

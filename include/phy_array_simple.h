@@ -14,7 +14,7 @@ using namespace torch::indexing;
 
 struct phyArrayPro
 {
-    phyArrayPro(int rowSize, int colSize, torch::TensorOptions op = {}, const pim_array_pro_config *conf = &pro_decf): conf(conf)
+    phyArrayPro(int rowSize, int colSize, torch::TensorOptions op = {}, const pim_array_pro_config *conf = &pro_decf()): conf(conf)
     {
         this->rowSize = rowSize;
         this->colSize = colSize;

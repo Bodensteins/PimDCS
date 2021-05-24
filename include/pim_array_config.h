@@ -96,7 +96,7 @@ struct pim_array_pro_config
         int times;
         double g_load, g_wire;
     }ir_drop;
-    at::Tensor inScalar, unitScalar;
+    at::Tensor inScalar, unitScalar, rshift, crshift;
 
     /* area config */
     double cell_area;
@@ -180,7 +180,13 @@ struct pim_array_pro_config
         if (inVBits==1 && has_negative_input)
             inScalar.index_put_({Slice(inBits-1)}, (1 << (inBits-1))*-1);
         
-
+        rshift = torch::ones({inPluses}, torch::kI32);
+        for (int i=0; i<inPluses; ++i)
+            rshift[i] = i*inVBits;
+        
+        crshift = torch::empty({cellsPerUnit}, torch::kI32);
+        for (int i=0; i<cellsPerUnit; ++i)
+            crshift[i] = i*cellBits;
         //-----latency params setting----
         latency.enable = config["latency_cal"]["enable"].as<bool>();
         if (latency.enable)
@@ -352,6 +358,13 @@ struct pim_array_pro_config
     }
 };
 
-const pim_array_pro_config pro_decf("../config/pim_array_pro.yaml");
+/**
+ * Generate the only default pim array pro config.
+ * */
+const pim_array_pro_config& pro_decf()
+{
+    static const pim_array_pro_config decf("../config/pim_array_pro.yaml");
+    return decf;
+}
 
 #endif //PIMTORCH_PIM_ARRAY_CONFIG_H

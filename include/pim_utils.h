@@ -4,6 +4,7 @@
 
 #include "logic_array_interface.h"
 #include "pim_array_example.h"
+#include "phy_array_aggregate_view.h"
 
 namespace PIM
 {
@@ -24,6 +25,9 @@ namespace PIM
                 break;
             case PimArrayType::pim_array_pro:
                 arr_ptr.ptr = std::make_shared<pimArrayPro>((*arr_size)[0], (*arr_size)[1], options);
+                break;
+            case PimArrayType::pim_array_fast:
+                arr_ptr.ptr = std::make_shared<pimArrayFast>((*arr_size)[0], (*arr_size)[1], options);
                 break;
             default:
                 TORCH_INTERNAL_ASSERT(false, "create array, pimArrayType not support!");
@@ -58,6 +62,15 @@ namespace PIM
                     for (int64_t i = start; i < end; i++)
                     {
                         array_ptrs.ptrs[i] = std::make_shared<pimArrayPro>((*arr_shape)[1], (*arr_shape)[2], options);
+                    }
+                });
+                break;
+            case PimArrayType::pim_array_fast:
+                array_ptrs.ptrs.resize((*arr_shape)[0]);
+                at::parallel_for(0, (*arr_shape)[0], 0, [&](int64_t start, int64_t end) {
+                    for (int64_t i = start; i < end; i++)
+                    {
+                        array_ptrs.ptrs[i] = std::make_shared<pimArrayFast>((*arr_shape)[1], (*arr_shape)[2], options);
                     }
                 });
                 break;

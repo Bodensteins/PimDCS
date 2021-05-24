@@ -9,6 +9,12 @@
 using std::mutex;
 using std::lock_guard;
 
+template <typename T>
+inline T trunc_ceil(T x, T mod)
+{
+    return (x + mod - 1) / mod;
+}
+
 /**
  * this struct is used to count latency
  * a thread safe counter

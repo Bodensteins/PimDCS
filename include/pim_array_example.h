@@ -21,23 +21,18 @@ using torch::indexing::None;
 using torch::indexing::Slice;
 using namespace PIM;
 
-template <typename T>
-inline T trunc_ceil(T x, T mod)
-{
-    return (x + mod - 1) / mod;
-}
 
 class phyArrayManagerPro
 {
 public:
-    int allocPhyArray(int rowSize, int colSize, at::TensorOptions op = {}, const pim_array_pro_config *conf = &pro_decf)
+    int allocPhyArray(int rowSize, int colSize, at::TensorOptions op = {}, const pim_array_pro_config *conf = &pro_decf())
     {
         std::lock_guard<std::mutex> lk(mu);
         arrList.push_back(new phyArrayPro(rowSize, colSize, op, conf));
         return arrList.size() - 1;
     }
 
-    std::pair<int, int> allocPhyArray(int n, int rowSize, int colSize, at::TensorOptions op = {}, const pim_array_pro_config *conf = &pro_decf)
+    std::pair<int, int> allocPhyArray(int n, int rowSize, int colSize, at::TensorOptions op = {}, const pim_array_pro_config *conf = &pro_decf())
     {
         std::lock_guard<std::mutex> lk(mu);
         for (int i=0; i<n; ++i)
@@ -68,11 +63,11 @@ public:
     }
 
     void printArea() {
-      double total_phy_arrays_area = (pro_decf.cell_area * 1e-6 * pro_decf.phyArrRowSize *
-          pro_decf.phyArrColSize + pro_decf.array_peripheral) * arrList.size();
-      double total_row_inf_area = (ceil(arrList.size() / pro_decf.row_share_subarray)) * pro_decf.DAC_area * 1e-6;
-      double total_col_inf_area = (ceil(arrList.size() / pro_decf.col_share_subarray)) * pro_decf.ADC_area * 1e-6;
-      double total_area = total_phy_arrays_area + total_row_inf_area + total_col_inf_area + (pro_decf.share_peripheral * 1e-6);
+      double total_phy_arrays_area = (pro_decf().cell_area * 1e-6 * pro_decf().phyArrRowSize *
+          pro_decf().phyArrColSize + pro_decf().array_peripheral) * arrList.size();
+      double total_row_inf_area = (ceil(arrList.size() / pro_decf().row_share_subarray)) * pro_decf().DAC_area * 1e-6;
+      double total_col_inf_area = (ceil(arrList.size() / pro_decf().col_share_subarray)) * pro_decf().ADC_area * 1e-6;
+      double total_area = total_phy_arrays_area + total_row_inf_area + total_col_inf_area + (pro_decf().share_peripheral * 1e-6);
       std::cout << "Area info:\n"
                 << "Physical array area: " << total_phy_arrays_area << " mm^2\n"
                 << "DAC area: " << total_row_inf_area << " mm^2\n"
@@ -225,7 +220,7 @@ std::mutex phyArrayManagerPro::mu;
 class pimArrayPro: public LogicArrayInterface
 {
 public:
-    pimArrayPro(int rowSizeIn, int colSizeIn, const torch::TensorOptions &op = {}, const pim_array_pro_config *cf = &pro_decf)
+    pimArrayPro(int rowSizeIn, int colSizeIn, const torch::TensorOptions &op = {}, const pim_array_pro_config *cf = &pro_decf())
       : LogicArrayInterface(rowSizeIn, colSizeIn)
     {
         conf = cf;
@@ -327,6 +322,7 @@ protected:
     std::vector<int64_t> sizes_vec;
     const pim_array_pro_config *conf;
     int arrX_size, arrY_size;
+    int phyAllRowSize;
     std::vector<std::vector<int>> arr, narr;
     torch::TensorOptions op;
 };
@@ -354,6 +350,7 @@ void pimArrayPro::init(const pim_array_pro_config *cf, const torch::TensorOption
     arrX_size = trunc_ceil((int)rowSize, cf->phyArrRowSize);
     arrY_size = trunc_ceil((int)colSize, cf->unitsPerPhyRow);
 
+    phyAllRowSize = arrX_size*cf->phyArrRowSize;
     this->op = op;
 
     arr = std::vector<std::vector<int>>(arrX_size, std::vector<int>(arrY_size));
@@ -580,13 +577,9 @@ void pimArrayPro::write_mat(const at::Tensor &matin, int row, int col)
 
         int mask = (conf->cellLevels) - 1;
         auto digit2cell = [&](at::Tensor &in, at::Tensor &out) -> void {
-            out = torch::empty({m, conf->cellsPerUnit * n}, op.dtype(torch::kI32));
-            at::parallel_for(0, conf->cellsPerUnit, 0, [&](int st, int ed) -> void {
-                for (int i = st; i < ed; ++i)
-                {
-                    out.index({Slice(), Slice(i, conf->cellsPerUnit * n, conf->cellsPerUnit)}) = in.__rshift__(i * conf->cellBits).bitwise_and(mask);
-                }
-            });
+            out = torch::cat({std::vector<at::Tensor>(conf->cellsPerUnit, in.view({m, n, 1}))}, 2);
+            out.__irshift__(conf->crshift.to(in.device())).bitwise_and_(mask);
+            out = out.view({m, n*conf->cellsPerUnit});
         };
         at::Tensor neg, pos, pos_cell, neg_cell;
 
@@ -655,13 +648,9 @@ void pimArrayPro::write_mat(const at::Tensor &matin, int row, int col)
 
     int mask = (conf->cellLevels) - 1;
     auto digit2cell = [&](at::Tensor &in, at::Tensor &out) -> void {
-        out = torch::empty({m, conf->cellsPerUnit * n}, op.dtype(torch::kI32));
-        at::parallel_for(0, conf->cellsPerUnit, 0, [&](int st, int ed) -> void {
-            for (int i = st; i < ed; ++i)
-            {
-                out.index({Slice(), Slice(i, conf->cellsPerUnit * n, conf->cellsPerUnit)}) = in.__rshift__(i * conf->cellBits).bitwise_and(mask);
-            }
-        });
+        out = torch::cat({std::vector<at::Tensor>(conf->cellsPerUnit, in.view({m, n, 1}))}, 2);
+        out.__irshift__(conf->crshift.to(in.device())).bitwise_and_(mask);
+        out = out.view({m, -1});
     };
 
     at::Tensor data = unit2digit(mat);
@@ -760,16 +749,16 @@ at::Tensor pimArrayPro::mm(const at::Tensor &matin)
             {
                 phyArrManPro.add_adder_energy((arrY_size - 1) * arrY_size * phyArrManPro.access(0).colSize * conf->energy.adderEnergy);
             }
-            //at::parallel_for(0, arrX_size * arrY_size, 100, [&](int st, int ed) {
-            for (int k = 0; k < arrX_size * arrY_size; ++k)
-            {
-                int i = k / arrY_size;
-                int j = k % arrY_size;
-                if (i * conf->phyArrRowSize >= siz)
-                    continue;
-                out[i].index({Slice(), Slice(j * conf->unitsPerPhyRow, (j + 1) * conf->unitsPerPhyRow)}) = phyArrManPro[arr[i][j]].mm(input.index({Slice(), Slice(), Slice(i * conf->phyArrRowSize, (i + 1) * conf->phyArrRowSize)}), conf, max_one, phyArrayPro::postWorkForMM);
-            }
-            // });
+            at::parallel_for(0, arrX_size * arrY_size, 0, [&](int st, int ed) {
+                for (int k = st; k < ed; ++k)
+                {
+                    int i = k / arrY_size;
+                    int j = k % arrY_size;
+                    if (i * conf->phyArrRowSize >= siz)
+                        continue;
+                    out[i].index({Slice(), Slice(j * conf->unitsPerPhyRow, (j + 1) * conf->unitsPerPhyRow)}) = phyArrManPro[arr[i][j]].mm(input.index({Slice(), Slice(), Slice(i * conf->phyArrRowSize, (i + 1) * conf->phyArrRowSize)}), conf, max_one, phyArrayPro::postWorkForMM);
+                }
+            });
         }
         return out.sum(0).index({Slice(), Slice(0, colSize)});
     };

@@ -75,11 +75,11 @@ public:
                 << "Total area: " << total_area << " mm^2\n";
     }
 
-    void printVoltageConductance(bool on = true) {
-      for (auto &i : arrList) {
-        i->printVoltageConductance(on);
-      }
-    }
+//    void printVoltageConductance(bool on = true) {
+//      for (auto &i : arrList) {
+//        i->printVoltageConductance(on);
+//      }
+//    }
 
     ~phyArrayManagerPro()
     {

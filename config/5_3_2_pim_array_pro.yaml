@@ -80,7 +80,7 @@ unitBits: 8
 cellBits: 2
 has_negative_input: true
 max_phy_input_value: 16
-max_weight_value: 4
+max_weight_value: 5
 trunc_input: true
 dynamic_max_input: true
 mode: 0

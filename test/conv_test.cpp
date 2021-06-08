@@ -18,7 +18,7 @@ const int64_t kH = 4;
 const int64_t kW = 2;
 const int64_t s = 1;
 const int64_t p = 4;
-
+const pim_array_pro_config pim_cfg("../config/pim_array_pro.yaml");
 
 // Define a new Module.
 struct Net : torch::nn::Module {
@@ -27,6 +27,7 @@ struct Net : torch::nn::Module {
         PimConv2d(
             ExpandingArray<4>({N, Cin, H, W}),
             PimArrayType::simple_logic_array,
+            &pim_cfg,
             Conv2dOptions(Cin, Cout, {kH, kW}).stride(s).padding(p), true
             ));
   }

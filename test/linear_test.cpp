@@ -12,12 +12,12 @@ using namespace PIM;
 const int64_t N = 2;
 const int64_t Cin = 5;
 const int64_t Cout = 5;
-
+const pim_array_pro_config pim_cfg("../config/pim_array_pro.yaml");
 
 // Define a new Module.
 struct Net : torch::nn::Module {
   Net() {
-    fc1 = register_module("fc1", PimLinear(Cin, Cout, N, PimArrayType::simple_logic_array, true));
+    fc1 = register_module("fc1", PimLinear(Cin, Cout, N, PimArrayType::simple_logic_array, &pim_cfg, true));
   }
 
   // Implement the Net's algorithm.

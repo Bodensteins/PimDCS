@@ -30,22 +30,19 @@ auto runDev = torch::kCPU;
 //auto type = PIM::PimArrayType::pim_array_pro;
 auto type = PIM::PimArrayType::simple_logic_array;
 
+const pim_array_pro_config pim_cfg("../config/5_3_3_pim_array_pro.yaml");
+
 struct Net : torch::nn::Module {
   Net()
-      : conv1(ExpandingArray<4>({kTrainBatchSize, 1, 28, 28}),
-              type,
+      : conv1(ExpandingArray<4>({kTrainBatchSize, 1, 28, 28}), type, &pim_cfg,
               Conv2dOptions(1, 10, {5, 5}), false, runDev),
-        conv2(ExpandingArray<4>({kTrainBatchSize, 10, 24, 24}),
-              type,
+        conv2(ExpandingArray<4>({kTrainBatchSize, 10, 24, 24}), type, &pim_cfg,
               Conv2dOptions(10, 20, {5, 5}), false, runDev),
-        pim_fc1(320, 10, kTrainBatchSize, type, false, runDev)
-       // fc2(50, 10)
+        pim_fc1(320, 10, kTrainBatchSize, type, &pim_cfg, false, runDev)
   {
     register_module("conv1", conv1);
     register_module("conv2", conv2);
-    // register_module("conv2_drop", conv2_drop);
     register_module("pim_fc1", pim_fc1);
-    //register_module("fc2", fc2);
   }
 
   torch::Tensor forward(torch::Tensor x) {
@@ -56,17 +53,12 @@ struct Net : torch::nn::Module {
 
     x = x.view({x.size(0), -1});
     x = pim_fc1(x);
-    //x = torch::dropout(x, /*p=*/0.5, /*training=*/is_training());
-    //x = fc2->forward(x);
     return torch::log_softmax(x, /*dim=*/1);
   }
 
   PIM::PimConv2d conv1;
   PIM::PimConv2d conv2;
   PIM::PimLinear pim_fc1;
-  // torch::nn::Dropout2d conv2_drop;
-  //torch::nn::Linear fc1;
-  //torch::nn::Linear fc2;
 };
 
 

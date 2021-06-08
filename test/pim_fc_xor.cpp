@@ -25,38 +25,37 @@ const int64_t kNumberOfEpochs = 1;
 
 // After how many batches to log a new update with the loss value.
 const int64_t kLogInterval = 100;
+
 auto runDev = torch::kCPU;
 
 const int trainTimes = 1000;
+
 const int train_dataset_size = 4 * trainTimes;
 
 const int testTimes = 1;
+
 const int test_dataset_size = 4 * testTimes;
+
+const pim_array_pro_config pim_cfg("../config/5_3_1_pim_array_pro.yaml");
 // Define a new Module.
 struct Net : torch::nn::Module {
   Net()
   {
-    //fc = register_module("fc", PimLinear(2, 2, kTrainBatchSize, PimArrayType::pim_array_pro, runDev));
-    //fc1 = register_module("fc1", torch::nn::Linear(2, 10));
-    //fc2 = register_module("fc2", torch::nn::Linear(10, 2));
-    fc1 = register_module("fc1", PimLinear(2, 3, kTrainBatchSize, PimArrayType::pim_array_pro, false, runDev));
-    fc2 = register_module("fc2", PimLinear(3, 2, kTrainBatchSize, PimArrayType::pim_array_pro, false, runDev));
-    //fc = register_module("fc", torch::nn::Linear(2, 2));
+    fc1 = register_module("fc1", PimLinear(2, 3, kTrainBatchSize, PimArrayType::pim_array_pro,
+                                           &pim_cfg, false, runDev));
+    fc2 = register_module("fc2", PimLinear(3, 2, kTrainBatchSize, PimArrayType::pim_array_pro,
+                                           &pim_cfg, false, runDev));
   }
 
   // Implement the Net's algorithm.
   torch::Tensor forward(torch::Tensor x) {
     x = torch::sigmoid(fc1->forward(x));
     x = torch::log_softmax(fc2->forward(x), /*dim=*/1);
-    //x = torch::log_softmax(fc->forward(x), /*dim=*/1);
     return x;
   }
 
   // Use one of many "standard library" modules.
-  //PimLinear fc{nullptr};
-  //torch::nn::Linear fc1{nullptr}, fc2{nullptr};
   PimLinear fc1{nullptr}, fc2{nullptr};
-  //torch::nn::Linear fc{nullptr};
 };
 
 void train(
@@ -71,7 +70,6 @@ void train(
   std::vector<long> out = std::vector<long>({0, 1, 1, 0});
   Tensor data = torch::from_blob(in.data(), {4, 2}, torch::kF64);
   Tensor target = torch::from_blob(out.data(), {4}, torch::kLong);
-  //cout << target << endl;
 
   for (int i = 1; i <= trainTimes; ++i) {
     data = data.to(device);
@@ -150,8 +148,6 @@ auto main() -> int {
   auto start = high_resolution_clock::now();
 
   double lr = 0.1;
-  //torch::optim::SGD optimizer(
-  //      model.parameters(), torch::optim::SGDOptions(lr).momentum(0.5));
 
   torch::optim::Adam optimizer(
       model.parameters(), torch::optim::AdamOptions(lr));

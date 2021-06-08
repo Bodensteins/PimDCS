@@ -126,10 +126,10 @@ target_link_libraries(pim_vgg "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
 set_property(TARGET pim_vgg PROPERTY CXX_STANDARD 14)
 
 # yolo v3
-aux_source_directory(test/yolo_v3 YOLO_SRCS)
-add_executable(yolo_v3 ${YOLO_SRCS})
+add_executable(yolo_v3 test/yolo_v3/main.cpp)
 add_dependencies(yolo_v3 YAML_CPP_EXTERNAL_PROJECT)
 target_link_libraries(yolo_v3 "${TORCH_LIBRARIES}" "${OpenCV_LIBS}" "${CURSES_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
 set_property(TARGET yolo_v3 PROPERTY CXX_STANDARD 14)
 
+# online learning
 

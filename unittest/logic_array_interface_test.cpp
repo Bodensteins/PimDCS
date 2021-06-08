@@ -7,7 +7,7 @@ using namespace PIM;
 
 struct Net : torch::nn::Module {
   Net() {
-    fc1 = register_module("fc1", PimLinear(6, 7, 1, PimArrayType::simple_logic_array));
+    fc1 = register_module("fc1", PimLinear(6, 7, 1, PimArrayType::simple_logic_array, nullptr));
   }
 
   // Implement the Net's algorithm.

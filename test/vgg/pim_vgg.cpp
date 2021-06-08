@@ -25,6 +25,10 @@ const int64_t kNumberOfEpochs = 40;
 // After how many batches to log a new update with the loss value.
 const int64_t kLogInterval = 10;
 
+auto type = PIM::PimArrayType::simple_logic_array;
+
+const pim_array_pro_config pim_cfg("../config/pim_array_pro.yaml");
+
 class CIFAR10Dataset : public torch::data::Dataset<CIFAR10Dataset>
 {
 private:
@@ -70,11 +74,6 @@ public:
 
       for (int j=0; j<3072; ++j)
         data[j] = (int)buf[j];
-      // if (i<=2)
-      // {
-      //     for (int j=0; j<10; ++j)
-      //         std::cout << data[j] << ' ' << std::endl;
-      // }
       auto tharray = torch::zeros({3, 32, 32}, torch::kFloat);
       std::memcpy(tharray.data_ptr(), data.data(), sizeof(float)*3072);
       tharray.div_(255);
@@ -195,7 +194,7 @@ auto main() -> int {
       {{kTrainBatchSize, 64, 14, 14}},
       {{kTrainBatchSize, 128, 7, 7}, {kTrainBatchSize, 256, 7, 7}},
   };
-  VGG model(conv_arch_shape, true, kTrainBatchSize, in_shapes);
+  VGG model(conv_arch_shape, true, kTrainBatchSize, in_shapes, type, &pim_cfg);
   model.to(device, torch::kFloat64);
 
   auto start = high_resolution_clock::now();

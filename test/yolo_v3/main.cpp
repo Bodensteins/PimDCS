@@ -87,6 +87,8 @@ int main(int argc, const char *argv[]) {
 
   torch::DeviceType device_type;
 
+  const pim_array_pro_config pim_cfg(config["pim_config_path"].as<std::string>());
+
   constexpr torch::DeviceType runDev = getRunDev();
   if (torch::cuda::is_available() && runDev == torch::kCUDA) {
     device_type = torch::kCUDA;
@@ -98,7 +100,7 @@ int main(int argc, const char *argv[]) {
   // input image size for YOLO v3
   int input_image_size = 416;
 
-  Darknet net(config, device);
+  Darknet net(config, &pim_cfg, device);
 
   map<string, string> *info = net.get_net_info();
 

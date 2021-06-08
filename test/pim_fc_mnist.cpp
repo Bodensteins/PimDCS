@@ -25,48 +25,31 @@ const int64_t kNumberOfEpochs = 1;
 
 // After how many batches to log a new update with the loss value.
 const int64_t kLogInterval = 10;
+
 auto runDev = torch::kCPU;
+
+const pim_array_pro_config pim_cfg("../config/5_3_2_pim_array_pro.yaml");
+
 // Define a new Module.
 struct Net : torch::nn::Module {
   Net() {
     // Construct and register two Linear submodules.
-//    fc1 = register_module("fc1", torch::nn::Linear(784, 64));
-//    fc2 = register_module("fc2", torch::nn::Linear(64, 32));
-//    fc3 = register_module("fc3", torch::nn::Linear(32, 10));
-    //fc1 = register_module("fc1", PimLinear(784, 64, kTrainBatchSize, PimArrayType::only_counters_pim_array, runDev));
-    //fc2 = register_module("fc2", PimLinear(64, 10, kTrainBatchSize, PimArrayType::only_counters_pim_array, runDev));
-    fc1 = register_module("fc1", PimLinear(784, 64, kTrainBatchSize, PimArrayType::pim_array_pro, false, runDev));
-    fc2 = register_module("fc2", PimLinear(64, 10, kTrainBatchSize, PimArrayType::pim_array_pro, false, runDev));
-// fc3 = register_module("fc3", PimLinear(32, 10, kTrainBatchSize, PimArrayType::wb_logic_array, runDev));
-//    fc1 = register_module("fc1", PimLinear(kTrainBatchSize, PimArrayType::simple_logic_array,
-//        LinearOptions(784, 64).bias(false)));
-//    fc2 = register_module("fc2", PimLinear(kTrainBatchSize, PimArrayType::simple_logic_array,
-//        LinearOptions(64, 32).bias(false)));
-//    fc3 = register_module("fc3", PimLinear(kTrainBatchSize, PimArrayType::simple_logic_array,
-//        LinearOptions(32, 10).bias(false)));
+    fc1 = register_module("fc1", PimLinear(784, 64, kTrainBatchSize, PimArrayType::pim_array_pro,
+                                           &pim_cfg, false, runDev));
+    fc2 = register_module("fc2", PimLinear(64, 10, kTrainBatchSize, PimArrayType::pim_array_pro,
+                                           &pim_cfg, false, runDev));
   }
 
   // Implement the Net's algorithm.
   torch::Tensor forward(torch::Tensor x) {
     // Use one of many tensor manipulation functions.
     x = torch::relu(fc1->forward(x.reshape({x.size(0), 784})));
-    // x = torch::dropout(x, /*p=*/0.5, /*train=*/is_training());
-    // x = torch::relu(fc2->forward(x));
     x = torch::log_softmax(fc2->forward(x), /*dim=*/1);
     return x;
   }
 
   // Use one of many "standard library" modules.
-//  torch::nn::Linear fc1{nullptr}, fc2{nullptr}, fc3{nullptr};
   PimLinear fc1{nullptr}, fc2{nullptr}, fc3{nullptr};
-  // void pretty_print(std::ostream &stream) const override {
-  //   stream << "layer 1" << std::endl;
-  //   fc1->pretty_print(stream);
-  //   stream << "layer 2" << std::endl;
-  //   fc2->pretty_print(stream);
-  //   // stream << "layer 3" << std::endl;
-  //   // fc3->pretty_print(stream);
-  // }
 };
 
 template <typename DataLoader>

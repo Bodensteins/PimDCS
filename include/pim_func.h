@@ -57,4 +57,16 @@ struct pim_latency
         os << run_latency_s << " (s) " << run_latency_us << " (us)";
     }
 };
+
+struct operation_count
+{
+    std::mutex mu;
+    void count_add(int64_t x)
+    {
+        std::lock_guard<std::mutex> lk(mu);
+        count+=x;
+    }
+    operation_count(int x=0): count(x) {}
+    int64_t count;
+};
 #endif

@@ -107,6 +107,31 @@ public:
         os << std::endl;
     }
 
+    //type 0 -> read, write #operation
+    //type 1 -> mm #operation 
+    void op_add(int64_t x, int type)
+    {
+        op[type].count_add(x);
+    }
+
+    void print_op(std::ostream &os)
+    {
+        os << "memory operation count = " << op[0].count  << " (" <<  (double)op[0].count/1e9 << "G)" << std::endl;
+        os << "cal operation count = " << op[1].count << " (" << (double)op[1].count/1e9 << "G)" << std::endl;
+
+    }
+
+    void print_power_efficiency(std::ostream &os)
+    {
+        os << "GOPS/W means giga operations per second per watt" << endl;
+        os << "memory op power efficiency = " << (double)op[0].count/(get_read_energy()+get_write_energy()) << " GOPS/W" << std::endl;
+
+        os << "calculation op power efficiency = " << (double)op[1].count/(get_compute_energy()) << " GOPS/W" << std::endl;
+
+
+        os << "total op power efficiency = " << (double)(op[0].count+op[1].count)/(get_total_energy()) << " GOPS/W" << std::endl;
+    }
+
     double get_total_energy()
     {
         return get_read_energy() + get_write_energy() + get_compute_energy();
@@ -206,6 +231,7 @@ private:
     std::vector<phyArrayPro *> arrList;
     static std::mutex mu;
     pim_latency lat[3]; //0-> mm_latency, 1->wr_latency, 2->rd_latency
+    operation_count op[2];//0-> read/write #operation,  1-> calculation #operation
     //energy info
     double adder_energy;
 //    double array_energy;
@@ -548,6 +574,7 @@ void pimArrayPro::write_mat(const at::Tensor &matin, int row, int col)
     int ed_row = std::min(row + m, rowSize);
     int ed_col = std::min(col + n, colSize);
 
+    phyArrManPro.op_add(m*n, 0);
     auto getColPos = [&](int col, int &Y, int &arrCol) -> void {
         Y = col / conf->unitsPerPhyRow;
         arrCol = col % conf->unitsPerPhyRow * conf->cellsPerUnit;
@@ -717,6 +744,7 @@ at::Tensor pimArrayPro::mm(const at::Tensor &matin)
         int batch_size = mat.size(0);
         int siz = mat.size(1);
         double max_one;
+        phyArrManPro.op_add(  ((int64_t)rowSize*colSize + (int64_t)(rowSize-1)*colSize)*batch_size, 1);
         at::Tensor input = phyArrayPro::preWorkForMM(mat, conf, std::ref(max_one)); // input should be tensor of size {batch_size, inBits/inVBits, rowSize}
 
         at::Tensor out = torch::zeros({arrX_size, batch_size, arrY_size * conf->unitsPerPhyRow}, op.dtype(torch::kF64));

@@ -15,8 +15,9 @@ int kTrainBatchSize = 32;
 int kNumberOfEpochs = 10;
 auto runDev = torch::kCPU;
 std::string out_string = "pim_vgg8_cifar10_out";
-auto pim_type = PimArrayType::pim_array_pro;//PimArrayType::simple_logic_array;
-
+auto pim_type = PimArrayType::pim_array_pro;
+//auto pim_type = PimArrayType::simple_logic_array;
+auto fast_mode = false;
 
 struct VGG8_Net: torch::nn::Module
 {
@@ -29,28 +30,28 @@ struct VGG8_Net: torch::nn::Module
         //conv[4] = register_module("conv4", torch::nn::Conv2d(torch::nn::Conv2dOptions(256, 512, 3).padding(1)));
         //conv[5] = register_module("conv5", torch::nn::Conv2d(torch::nn::Conv2dOptions(512, 512, 3).padding(1)));
         // conv[6] = register_module("conv6", torch::nn::Conv2d(torch::nn::Conv2dOptions(512, 1024, 3).padding(1)));
-        conv[0] = register_module("conv0", PimConv2d(ExpandingArray<4>({kTrainBatchSize, 3, 32, 32}), pim_type, Conv2dOptions(3, 128, 3).padding(1), false, runDev));
+        conv[0] = register_module("conv0", PimConv2d(ExpandingArray<4>({kTrainBatchSize, 3, 32, 32}), pim_type, Conv2dOptions(3, 128, 3).padding(1), fast_mode, runDev));
 
         std::cout << "0" << std::endl;
-        conv[1] = register_module("conv1", PimConv2d(ExpandingArray<4>({kTrainBatchSize, 128, 32, 32}), pim_type, Conv2dOptions(128, 128, 3).padding(1), false, runDev)); 
+        conv[1] = register_module("conv1", PimConv2d(ExpandingArray<4>({kTrainBatchSize, 128, 32, 32}), pim_type, Conv2dOptions(128, 128, 3).padding(1), fast_mode, runDev)); 
         std::cout << "1" << std::endl;
         
-        conv[2] = register_module("conv2", PimConv2d(ExpandingArray<4>({kTrainBatchSize, 128, 16, 16}), pim_type, Conv2dOptions(128, 256, 3).padding(1), false, runDev));
+        conv[2] = register_module("conv2", PimConv2d(ExpandingArray<4>({kTrainBatchSize, 128, 16, 16}), pim_type, Conv2dOptions(128, 256, 3).padding(1), fast_mode, runDev));
 
         std::cout << "2" << std::endl;
-        conv[3] = register_module("conv3", PimConv2d(ExpandingArray<4>({kTrainBatchSize, 256, 16, 16}), pim_type, Conv2dOptions(256, 256, 3).padding(1), false, runDev));
+        conv[3] = register_module("conv3", PimConv2d(ExpandingArray<4>({kTrainBatchSize, 256, 16, 16}), pim_type, Conv2dOptions(256, 256, 3).padding(1), fast_mode, runDev));
 
-        conv[4] = register_module("conv4", PimConv2d(ExpandingArray<4>({kTrainBatchSize, 256, 8, 8}), pim_type, Conv2dOptions(256, 512, 3).padding(1), false, runDev));
+        conv[4] = register_module("conv4", PimConv2d(ExpandingArray<4>({kTrainBatchSize, 256, 8, 8}), pim_type, Conv2dOptions(256, 512, 3).padding(1), fast_mode, runDev));
 
         std::cout << "4" << std::endl;
-        conv[5] = register_module("conv5", PimConv2d(ExpandingArray<4>({kTrainBatchSize, 512, 8, 8}), pim_type, Conv2dOptions(512, 512, 3).padding(1), false, runDev));
+        conv[5] = register_module("conv5", PimConv2d(ExpandingArray<4>({kTrainBatchSize, 512, 8, 8}), pim_type, Conv2dOptions(512, 512, 3).padding(1), fast_mode, runDev));
 
-        conv[6] = register_module("conv6", PimConv2d(ExpandingArray<4>({kTrainBatchSize, 512, 4, 4}), pim_type, Conv2dOptions(512, 1024, 3).padding(1), false, runDev));
+        conv[6] = register_module("conv6", PimConv2d(ExpandingArray<4>({kTrainBatchSize, 512, 4, 4}), pim_type, Conv2dOptions(512, 1024, 3).padding(1), fast_mode, runDev));
         
         std::cout << "6" << std::endl;
-        fc1 = register_module("fc1", PimLinear(4096, 128, kTrainBatchSize, pim_type, false, runDev));
+        fc1 = register_module("fc1", PimLinear(4096, 128, kTrainBatchSize, pim_type, fast_mode, runDev));
         
-        fc2 = register_module("fc2", PimLinear(128, 10, kTrainBatchSize, pim_type, false, runDev));
+        fc2 = register_module("fc2", PimLinear(128, 10, kTrainBatchSize, pim_type, fast_mode, runDev));
     }
 
     // Implement the Net's algorithm.

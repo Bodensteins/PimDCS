@@ -80,10 +80,11 @@ at::Tensor phyArrayAggrView::readMat(const std::vector<at::indexing::TensorIndex
 at::Tensor phyArrayAggrView::mm_3d(const at::Tensor &input_mat)
 {
     //size [m*phyrow, n*phycol] -> [m, phyrow, n*phycol]
-    auto tmp = phyAggrViewData.view({m, phyArrRowSize, -1}).to(torch::kF64);
+    //auto tmp = phyAggrViewData.view({m, phyArrRowSize, -1}).to(torch::kF64);
 
     //input_mat's size [batch, inpluses, m*phyrow] -> size[batch, in, m, phyrow]->size [batch, m, inplses, phyrow]
-    return torch::matmul(input_mat.view({input_mat.size(0), -1, m, phyArrRowSize}).permute({0, 2, 1, 3}), tmp*deltaConduct+conf->minConduct).div_(phyArrRowSize*conf->maxConduct);
+    return torch::matmul(input_mat.view({input_mat.size(0), -1, m, phyArrRowSize}).permute({0, 2, 1, 3}), \
+    phyAggrViewData.view({m, phyArrRowSize, -1}).to(torch::kF64).mul_(deltaConduct).add_(conf->minConduct)).div_(phyArrRowSize*conf->maxConduct);
 }
 
 /**

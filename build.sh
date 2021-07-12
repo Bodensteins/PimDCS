@@ -6,7 +6,7 @@ if [ ! -d "$build_dir" ]; then
 fi
 
 TORCH_LIBRARY=/opt/libtorch
-cd ./build
+cd $build_dir
 
 cmake .. -DCMAKE_PREFIX_PATH=$TORCH_LIBRARY -DCMAKE_BUILD_TYPE=Release
 make -j

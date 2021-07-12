@@ -9,7 +9,8 @@ set(YAML_CPP_INCLUDE_DIR ${YAML_CPP_ROOT}/bin/include)
 
 ExternalProject_Add(YAML_CPP_EXTERNAL_PROJECT
         PREFIX ${YAML_CPP_ROOT}
-        GIT_REPOSITORY "https://github.com/jbeder/yaml-cpp.git"
+        #GIT_REPOSITORY "https://github.com/jbeder/yaml-cpp.git"
+        GIT_REPOSITORY "https://gitee.com/Coxhuang/yaml-cpp.git"
         GIT_TAG "master"
         UPDATE_COMMAND ""
         PATCH_COMMAND ""

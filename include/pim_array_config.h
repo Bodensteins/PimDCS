@@ -45,21 +45,33 @@ struct pim_array_pro_config
     int cellsPerUnit, unitsPerPhyRow, usedCellsPerPhyRow;
     int inLevels, inVLevels, outLevels, unitLevels, cellLevels, inPluses;
 
-    struct latency_params
+    struct latency_area_params
     {
-        bool enable;
-        int parMMPhyNum;
+        int phyArrayNum;
+
+        //1 means every phy array has a set of dac/adc.  2 means, 2 phy array share 1 set of dac/adc and so on.
+        //1 set of dac/adc means phyArray #rowsize DACs, and phyArray #colSize ADCs.
+        int adc_shared_ratio;
+        int dac_shared_ratio;
+
+        double dac_latency, adc_latency;
+        double phyMMLatency;
+        double phyRdLatency;
+        double phyWrLatency;
         int parWrPhyNum;
         int parPhyWrSize;
-        double phyWrLatency;
-        double phyMMLatency;
-        double phyReLatency;
-        double addLatency;
-        int addTreeWideSize;
-        double latencyWrSinglePhyArr;
-        double addTreeLatency;
-        int addTreeSharedNum;
-    }latency;
+
+        double single_SH_area, SH_area;
+        // area unit is um^2
+        double single_dac_area, single_adc_area, total_dac_area, total_adc_area;
+        //total_dac_adc_area = (single_dac_area*phyArray_row_size + singe_adc_area*phyArray_col_size)*phyArrayNum/addaSharedRatio.
+        double adder_area;
+        double adder_latency;                  //no master how deep the tree is , please give the total latency here.
+        double cell_area, single_phyArray_area, total_phyArray_area; //phyArrayNum * single_phy_array_area
+
+        double PE_area;               //total_phyArray_area + adder_tree_area + total_dac_adc_area
+        double latencyWrSinglePhyArr; // = phyArrRowSize*phyArrColSize/latency.parPhyWrSize * latency.phyWrLatency;
+    }lat_area;
 
     struct energy_params
     {
@@ -188,31 +200,47 @@ struct pim_array_pro_config
         for (int i=0; i<cellsPerUnit; ++i)
             crshift[i] = i*cellBits;
         //-----latency params setting----
-        latency.enable = config["latency_cal"]["enable"].as<bool>();
-        if (latency.enable)
         {
-            latency.parMMPhyNum = config["latency_cal"]["parMMPhyNum"].as<int>();
-            latency.parWrPhyNum = config["latency_cal"]["parWrPhyNum"].as<int>();
+            lat_area.phyArrayNum = config["latency_area_cal"]["phyArrayNum"].as<int>();
+            lat_area.dac_shared_ratio = config["latency_area_cal"]["dac_shared_ratio"].as<int>();
+            lat_area.adc_shared_ratio = config["latency_area_cal"]["adc_shared_ratio"].as<int>();
+            
+            if (lat_area.phyArrayNum%lat_area.dac_shared_ratio!=0 \
+                ||lat_area.phyArrayNum%lat_area.adc_shared_ratio!=0)
+            {
+                std::cerr << "phyArrayNum should be divided by addaSharedRatio" << std::endl;
+                exit(-1);
+            }
+            lat_area.adc_latency = config["latency_area_cal"]["adc_latency"].as<double>();
+            lat_area.dac_latency = config["latency_area_cal"]["dac_latency"].as<double>();
 
-            latency.parPhyWrSize = config["latency_cal"]["parPhyWrSize"].as<int>();
+            lat_area.phyMMLatency = config["latency_area_cal"]["phyMMLatency"].as<double>();
+            lat_area.phyRdLatency = config["latency_area_cal"]["phyRdLatency"].as<double>();
+            lat_area.phyWrLatency = config["latency_area_cal"]["phyWrLatency"].as<double>();
+            lat_area.parWrPhyNum = config["latency_area_cal"]["parWrPhyNum"].as<int>();
+            lat_area.parPhyWrSize = config["latency_area_cal"]["parPhyWrSize"].as<int>();
+            lat_area.single_dac_area = config["latency_area_cal"]["single_dac_area"].as<double>();
+            lat_area.single_SH_area= config["latency_area_cal"]["single_SH_area"].as<double>();
+            lat_area.single_adc_area = config["latency_area_cal"]["single_adc_area"].as<double>();
+            lat_area.adder_area = config["latency_area_cal"]["adder_area"].as<double>();
+            lat_area.adder_latency = config["latency_area_cal"]["adder_latency"].as<double>();
+            lat_area.cell_area = config["latency_area_cal"]["cell_area"].as<double>();
+
+            lat_area.total_dac_area = (lat_area.single_dac_area*phyArrRowSize)*lat_area.phyArrayNum/lat_area.dac_shared_ratio;
+            lat_area.total_adc_area = (lat_area.single_adc_area*phyArrColSize)*lat_area.phyArrayNum/lat_area.adc_shared_ratio;
             
-            latency.phyWrLatency = config["latency_cal"]["phyWrLatency"].as<double>();
-            latency.phyMMLatency = config["latency_cal"]["phyMMLatency"].as<double>();
-            latency.phyReLatency = config["latency_cal"]["phyReLatency"].as<double>();
-            
-            latency.addLatency = config["latency_cal"]["addLatency"].as<double>();
-            latency.addTreeWideSize  = config["latency_cal"]["addTreeWideSize"].as<int>();
-            
-            if (latency.parPhyWrSize <=0 || latency.parPhyWrSize>phyArrRowSize)
-                latency.parPhyWrSize = phyArrRowSize;
-            
-            latency.latencyWrSinglePhyArr = phyArrRowSize*phyArrColSize/latency.parPhyWrSize * latency.phyWrLatency;
-            latency.addTreeLatency = latency.addLatency*std::log2(1.0*latency.addTreeWideSize);
-            latency.addTreeSharedNum = config["latency_cal"]["addTreeSharedNum"].as<int>();
+            lat_area.single_phyArray_area = lat_area.cell_area * phyArrRowSize*phyArrColSize;
+            lat_area.total_phyArray_area = lat_area.single_phyArray_area * lat_area.phyArrayNum;
+            lat_area.SH_area = lat_area.single_SH_area*lat_area.phyArrayNum*phyArrColSize;
+
+            lat_area.PE_area = lat_area.total_phyArray_area + lat_area.adder_area + lat_area.total_dac_area + lat_area.total_adc_area + lat_area.SH_area;
+
+            lat_area.latencyWrSinglePhyArr = phyArrRowSize*phyArrColSize/lat_area.parPhyWrSize*lat_area.phyWrLatency;
+
         }
 
         //energy params setting
-        energy.enable = latency.enable && config["energy_cal"]["enable"].as<bool>();//must support latency
+        energy.enable = config["energy_cal"]["enable"].as<bool>();//must support latency
         if (energy.enable)
         {
             //todo:may modify or add sth
@@ -345,16 +373,6 @@ struct pim_array_pro_config
             sa.pSA1 = config["SAF"]["pSA1"].as<double>();
         }
 
-        // area config
-        cell_area = config["area"]["cell_area"].as<double>();
-        share_peripheral = config["area"]["share_peripheral"].as<double>();
-        array_peripheral = config["area"]["array_peripheral"].as<double>();
-        DAC_area = config["area"]["DAC_area"].as<double>();
-        ADC_area = config["area"]["ADC_area"].as<double>();
-        share_inf_row_size = config["area"]["share_inf_row_size"].as<int>();
-        share_inf_col_size = config["area"]["share_inf_col_size"].as<int>();
-        row_share_subarray = config["area"]["row_share_subarray"].as<int>();
-        col_share_subarray = config["area"]["col_share_subarray"].as<int>();
     }
 };
 

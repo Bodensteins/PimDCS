@@ -146,8 +146,8 @@ auto main() -> int {
 
   Net model;
   model.to(device, torch::kFloat64);
-  pimArrayPro::phyArrManPro.printArea();
 
+  pimArrayPro::phyArrManPro.printArea(std::cout);
   auto start = high_resolution_clock::now();
 
   auto train_dataset = torch::data::datasets::MNIST(kDataRoot)
@@ -180,5 +180,7 @@ auto main() -> int {
   auto duration = duration_cast<milliseconds>(stop - start);
   std::cout << "Time: " << duration.count() / 1000. << " seconds" << std::endl;
   pimArrayPro::phyArrManPro.print_latency(std::cout);
+  pimArrayPro::phyArrManPro.print_op(std::cout);
+  pimArrayPro::phyArrManPro.print_power_efficiency(std::cout);
   return 0;
 }

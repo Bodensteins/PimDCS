@@ -136,7 +136,7 @@ void phyArrayPro::writeMat(const at::Tensor &matin, int row, int col)
     {
         if (conf->wm == phy_array_writeMode::V_Div_2)
         {
-            double energy = conf->writeV/2 * conf->writeV/2 * conf->latency.phyWrLatency/(conf->cellLevels - 1);
+            double energy = conf->writeV/2 * conf->writeV/2 * conf->lat_area.phyWrLatency/(conf->cellLevels - 1);
             double cnt = 0;
 
             if (conf->energy.writeUseProbability)
@@ -217,7 +217,7 @@ at::Tensor phyArrayPro::readMat(int row, int col, int m, int n)
     {
         if (conf->rm == phy_array_readMode::Ground)
         {
-            double energy = conf->readV * conf->readV * conf->latency.phyReLatency;
+            double energy = conf->readV * conf->readV * conf->lat_area.phyRdLatency;
             int elementNum = m * colSize;
             double conductance;
 
@@ -264,7 +264,7 @@ at::Tensor phyArrayPro::mm(const at::Tensor &mat)
     // remains future works
     if (conf->energy.enable)
     {
-        double energy = conf->computeV * conf->computeV * conf->latency.phyMMLatency;
+        double energy = conf->computeV * conf->computeV * conf->lat_area.phyMMLatency;
         if (conf->energy.computeUseProbability)
         {
             double average_conductance = 0, average_V_square = 0;

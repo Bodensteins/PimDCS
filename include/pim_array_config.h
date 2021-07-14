@@ -93,6 +93,7 @@ struct pim_array_pro_config
         std::vector<double> inVPD;
         int inVPDDefault;
         int writeParallelism;
+        double averageEnergyPerWrite;
     }energy;
 
     struct SA_params
@@ -258,6 +259,7 @@ struct pim_array_pro_config
             energy.writeUseProbability = config["energy_cal"]["writeUseProbability"].as<bool>();
             energy.computeUseProbability = config["energy_cal"]["computeUseProbability"].as<bool>();
             energy.writeParallelism = config["energy_cal"]["writeParallelism"].as<int>();
+            energy.averageEnergyPerWrite = config["energy_cal"]["averageEnergyPerWrite"].as<double>();
             if (energy.readUseProbability || energy.writeUseProbability || energy.computeUseProbability)
             {
                 if (config["energy_cal"]["CellPD"])

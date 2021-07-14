@@ -128,65 +128,70 @@ void phyArrayPro::writeMat(const at::Tensor &matin, int row, int col)
         //currently, cell write cnt is simply equal to whther it is wrriten or not, does not based on pluse number when cell bits >1
         at::Tensor add = (data.index({Slice(row, row + m), Slice(col, col + n)}) != mat);
         cellWrCnt.index({Slice(row, row + m), Slice(col, col + n)}).add_(add);
+
         totalCmpWrCnt += add.sum().item<int64_t>();
     }
 
     // remains future works
     if (conf->energy.enable)
     {
-        if (conf->wm == phy_array_writeMode::V_Div_2)
-        {
-            double energy = conf->writeV/2 * conf->writeV/2 * conf->lat_area.phyWrLatency/(conf->cellLevels - 1);
-            double cnt = 0;
-
-            if (conf->energy.writeUseProbability)
-            {
-                double average_conductance = 0;
-
-                for (int i = 0; i < conf->energy.CellPD.size(); ++i)
-                {
-                    average_conductance += i * conf->energy.CellPD[i];
-                }
-                average_conductance *= deltaConduct;
-                average_conductance += conf->minConduct;
-
-                cnt = m * n * ((rowSize + colSize - 2) * average_conductance + average_conductance * 4);
-
-                double average_delta = data.index({Slice(row, row + m), Slice(col, col + n)}).sub(mat)
-                        .abs().sum().div(m * n).item<double>();
-                cnt *= average_delta;
-            }
-            else
-            {
-                for (int i = 0; i < m; ++i)
-                {
-                    for (int j = 0; j < n; ++j)
-                    {
-                        cnt += ((data.index({row + i, Slice(0, col)}).sum().item<double>()
-                                 + mat.index({i, Slice(0, j)}).sum().item<double>()
-                                 + data.index({row + i, Slice(col + j + 1, colSize)}).sum().item<double>()
-                                 + data.index({Slice(0, row), col + j}).sum().item<double>()
-                                 + mat.index({Slice(0, i), j}).sum().item<double>()
-                                 + data.index({Slice(row + i + 1, rowSize), col + j}).sum().item<double>()
-                                 + (data[row + i][col + j].item<double>() + mat[i][j].item<double>())/2 * 4)
-                                * deltaConduct + (rowSize + colSize - 1) * conf->minConduct)
-                               * fabs(data[row + i][col + j].item<double>() - mat[i][j].item<double>());
-                    }
-                }
-            }
-
-            energy *= cnt;
-            //add circuit energy
-            energy += m * n * (rowSize * conf->energy.writeRowPeripheryEnergy
-                               + colSize * conf->energy.writeColPeripheryEnergy);
-
-            writeEnergy += energy;
-        }
-        else
-        {
-            std::cout << "we now don't support other write mode!" << std::endl;
-        }
-
+        at::Tensor diff = data.index({Slice(row, row + m), Slice(col, col + n)}) != mat;
+        int64_t cmpWriteNum = diff.sum().item<int64_t>();
+        double energy = cmpWriteNum * conf->energy.averageEnergyPerWrite;
+        writeEnergy += energy;
+//        if (conf->wm == phy_array_writeMode::V_Div_2)
+//        {
+//            double energy = conf->writeV/2 * conf->writeV/2 * conf->lat_area.phyWrLatency/(conf->cellLevels - 1);
+//            double cnt = 0;
+//
+//            if (conf->energy.writeUseProbability)
+//            {
+//                double average_conductance = 0;
+//
+//                for (int i = 0; i < conf->energy.CellPD.size(); ++i)
+//                {
+//                    average_conductance += i * conf->energy.CellPD[i];
+//                }
+//                average_conductance *= deltaConduct;
+//                average_conductance += conf->minConduct;
+//
+//                cnt = m * n * ((rowSize + colSize - 2) * average_conductance + average_conductance * 4);
+//
+//                double average_delta = data.index({Slice(row, row + m), Slice(col, col + n)}).sub(mat)
+//                        .abs().sum().div(m * n).item<double>();
+//                cnt *= average_delta;
+//            }
+//            else
+//            {
+//                for (int i = 0; i < m; ++i)
+//                {
+//                    for (int j = 0; j < n; ++j)
+//                    {
+//                        cnt += ((data.index({row + i, Slice(0, col)}).sum().item<double>()
+//                                 + mat.index({i, Slice(0, j)}).sum().item<double>()
+//                                 + data.index({row + i, Slice(col + j + 1, colSize)}).sum().item<double>()
+//                                 + data.index({Slice(0, row), col + j}).sum().item<double>()
+//                                 + mat.index({Slice(0, i), j}).sum().item<double>()
+//                                 + data.index({Slice(row + i + 1, rowSize), col + j}).sum().item<double>()
+//                                 + (data[row + i][col + j].item<double>() + mat[i][j].item<double>())/2 * 4)
+//                                * deltaConduct + (rowSize + colSize - 1) * conf->minConduct)
+//                               * fabs(data[row + i][col + j].item<double>() - mat[i][j].item<double>());
+//                    }
+//                }
+//            }
+//
+//            energy *= cnt;
+//            //add circuit energy
+//            energy += m * n * (rowSize * conf->energy.writeRowPeripheryEnergy
+//                               + colSize * conf->energy.writeColPeripheryEnergy);
+//
+//            writeEnergy += energy;
+//        }
+//        else
+//        {
+//            std::cout << "we now don't support other write mode!" << std::endl;
+//        }
+//
     }
 
     if (conf->C2C_en)

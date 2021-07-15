@@ -198,6 +198,13 @@ public:
         os << "cal operation count = " << op[1].count << " (" << (double)op[1].count / 1e9 << "G)" << std::endl;
     }
 
+    void print_energy(std::ostream &os)
+    {
+        os << "memory energy = " << (get_read_energy() + get_write_energy()) / 1e9 << " J" << std::endl;
+        os << "calculation energy = " << get_compute_energy() / 1e9 << " J" << std::endl;
+        os << "total energy = " << get_total_energy() / 1e9 << " J" << std::endl;
+    }
+
     void print_power_efficiency(std::ostream &os)
     {
         os << "GOPS/W means giga operations per second per watt" << endl;

@@ -93,7 +93,8 @@ struct pim_array_pro_config
         std::vector<double> inVPD;
         int inVPDDefault;
         int writeParallelism;
-        double averageEnergyPerWrite;
+        std::vector<double> averageEnergyPerWrite;
+        //double averageEnergyPerWrite;
     }energy;
 
     struct SA_params
@@ -259,7 +260,7 @@ struct pim_array_pro_config
             energy.writeUseProbability = config["energy_cal"]["writeUseProbability"].as<bool>();
             energy.computeUseProbability = config["energy_cal"]["computeUseProbability"].as<bool>();
             energy.writeParallelism = config["energy_cal"]["writeParallelism"].as<int>();
-            energy.averageEnergyPerWrite = config["energy_cal"]["averageEnergyPerWrite"].as<double>();
+
             if (energy.readUseProbability || energy.writeUseProbability || energy.computeUseProbability)
             {
                 if (config["energy_cal"]["CellPD"])
@@ -348,6 +349,47 @@ struct pim_array_pro_config
                 }
 
                 //std::cout << energy.inVPD << std::endl;
+            }
+
+            //calculate averageEnergyPerWrite
+            {
+                energy.averageEnergyPerWrite = std::vector<double>(energy.writeParallelism + 1);
+                double VoltageSquareMulTime = writeV/2 * writeV/2 * lat_area.phyWrLatency;
+                double conductanceSum = 0;
+                double average_conductance = 0;
+
+                for (int i = 0; i < energy.CellPD.size(); ++i)
+                {
+                    average_conductance += i * energy.CellPD[i];
+                }
+                double deltaConduct = (maxConduct - minConduct) / (cellLevels - 1);
+                average_conductance *= deltaConduct;
+                average_conductance += minConduct;
+
+                //i cells in every writeParallelism cells need to write
+                for (int i = 0; i <= energy.writeParallelism; ++i)
+                {
+                    conductanceSum = 0;
+                    if (i)
+                    {
+                        //half selected row
+                        conductanceSum += (phyArrColSize - i) * average_conductance;
+                        //half selected col
+                        conductanceSum += i * (phyArrRowSize - 1) * average_conductance;
+                        //full selected cells
+                        conductanceSum += i * average_conductance * 4;
+
+                        //ref column need extra two cells
+                        if (mode == 1)
+                        {
+                            conductanceSum += 2 * average_conductance;
+                        }
+                    }
+
+                    energy.averageEnergyPerWrite[i] = VoltageSquareMulTime * conductanceSum;
+                }
+                std::cout << "energy.averageEnergyPerWrite: " << energy.averageEnergyPerWrite << std::endl;
+
             }
         }
       

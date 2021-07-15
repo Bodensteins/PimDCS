@@ -137,7 +137,9 @@ void phyArrayPro::writeMat(const at::Tensor &matin, int row, int col)
     {
         at::Tensor diff = data.index({Slice(row, row + m), Slice(col, col + n)}) != mat;
         int64_t cmpWriteNum = diff.sum().item<int64_t>();
-        double energy = cmpWriteNum * conf->energy.averageEnergyPerWrite;
+
+        int index = round(cmpWriteNum * 1.0 * conf->energy.writeParallelism / (rowSize * colSize));
+        double energy = rowSize * colSize * conf->energy.averageEnergyPerWrite[index] / conf->energy.writeParallelism;
         writeEnergy += energy;
 //        if (conf->wm == phy_array_writeMode::V_Div_2)
 //        {
@@ -163,6 +165,9 @@ void phyArrayPro::writeMat(const at::Tensor &matin, int row, int col)
 //            }
 //            else
 //            {
+//                //don't support it
+//                std::cerr << "sorry, we don't support it" << endl;
+//
 //                for (int i = 0; i < m; ++i)
 //                {
 //                    for (int j = 0; j < n; ++j)
@@ -191,7 +196,7 @@ void phyArrayPro::writeMat(const at::Tensor &matin, int row, int col)
 //        {
 //            std::cout << "we now don't support other write mode!" << std::endl;
 //        }
-//
+
     }
 
     if (conf->C2C_en)

@@ -88,7 +88,7 @@ set_property(TARGET pim_fc_xor PROPERTY CXX_STANDARD 14)
 
 
 # Test
-add_executable(logic_array_interface_test unittest/logic_array_interface_test.cpp )
+add_executable(logic_array_interface_test unittest/logic_array_interface_test.cpp unittest/mmtest.cpp)
 add_dependencies(logic_array_interface_test YAML_CPP_EXTERNAL_PROJECT)
 target_link_libraries(logic_array_interface_test "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
 set_property(TARGET logic_array_interface_test PROPERTY CXX_STANDARD 14)

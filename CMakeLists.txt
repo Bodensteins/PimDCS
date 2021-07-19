@@ -1,11 +1,11 @@
 cmake_minimum_required(VERSION 3.0 FATAL_ERROR)
 project(pimtorch)
 
-set(CMAKE_PREFIX_PATH "/etc/libtorch")
+#set(CMAKE_PREFIX_PATH "/etc/libtorch")
 find_package(Torch REQUIRED)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 set(CMAKE_CXX_FLAGS, "-std=c++14")
-option(USE_OPENCV "Use opencv for object detection" ON)
+option(USE_OPENCV "Use opencv for object detection" OFF)
 
 
 if (USE_OPENCV)
@@ -126,10 +126,11 @@ target_link_libraries(pim_vgg "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
 set_property(TARGET pim_vgg PROPERTY CXX_STANDARD 14)
 
 # yolo v3
-aux_source_directory(test/yolo_v3 YOLO_SRCS)
-add_executable(yolo_v3 ${YOLO_SRCS})
-add_dependencies(yolo_v3 YAML_CPP_EXTERNAL_PROJECT)
-target_link_libraries(yolo_v3 "${TORCH_LIBRARIES}" "${OpenCV_LIBS}" "${CURSES_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
-set_property(TARGET yolo_v3 PROPERTY CXX_STANDARD 14)
-
+if (USE_OPENCV)
+    aux_source_directory(test/yolo_v3 YOLO_SRCS)
+    add_executable(yolo_v3 ${YOLO_SRCS})
+    add_dependencies(yolo_v3 YAML_CPP_EXTERNAL_PROJECT)
+    target_link_libraries(yolo_v3 "${TORCH_LIBRARIES}" "${OpenCV_LIBS}" "${CURSES_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
+    set_property(TARGET yolo_v3 PROPERTY CXX_STANDARD 14)
+endif ()
 

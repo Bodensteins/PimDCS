@@ -200,7 +200,7 @@ auto main() -> int {
 
   std::vector<std::vector<ExpandingArray<4>>> in_shapes = {};
 
-  VGG model(conv_arch_shape, false, kTrainBatchSize, in_shapes);
+  VGG model(conv_arch_shape, false, kTrainBatchSize, in_shapes, nullptr);
   model.to(device, torch::kFloat64);
 
   auto start = high_resolution_clock::now();

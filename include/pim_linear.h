@@ -127,12 +127,12 @@ namespace PIM {
   class TORCH_API PimLinearImpl : public Cloneable<PimLinearImpl> {
   public:
     PimLinearImpl(int64_t in_features, int64_t out_features, int64_t batch_size, PimArrayType pim_type,
-                  bool fast_mode = false, const TensorOptions op = {})
-        : PimLinearImpl(batch_size, pim_type, LinearOptions(in_features, out_features), fast_mode, op) {}
+                  const pim_array_pro_config* pim_cfg, bool fast_mode = false, const TensorOptions op = {})
+        : PimLinearImpl(batch_size, pim_type, pim_cfg, LinearOptions(in_features, out_features), fast_mode, op) {}
 
-    explicit PimLinearImpl(int64_t batch_size, PimArrayType pim_type, const LinearOptions &options_,
-                           bool fast_mode = false, const TensorOptions op = {})
-        : options(options_), batch_size(batch_size), pim_type(pim_type), fast_mode(fast_mode){
+    explicit PimLinearImpl(int64_t batch_size, PimArrayType pim_type, const pim_array_pro_config* pim_cfg,
+                           const LinearOptions &options_, bool fast_mode = false, const TensorOptions op = {})
+        : options(options_), batch_size(batch_size), pim_type(pim_type), pim_cfg(pim_cfg), fast_mode(fast_mode){
       reset();
       if (op.device()==torch::kCUDA)
       {
@@ -140,14 +140,15 @@ namespace PIM {
       }
       create_pim_array(wb_ptr, {
           options_.bias() ? options_.in_features() + 1 : options_.in_features(), options_.out_features()
-        }, pim_type, weight.options());
-      create_pim_array(wb_t_ptr, {options_.out_features(), options_.in_features()}, pim_type, weight.options());
-      create_pim_array(prev_ptr, {batch_size, options_.in_features()}, pim_type, weight.options());
+        }, pim_type, pim_cfg, weight.options());
+      create_pim_array(wb_t_ptr, {options_.out_features(), options_.in_features()}, pim_type, pim_cfg,
+                       weight.options());
+      create_pim_array(prev_ptr, {batch_size, options_.in_features()}, pim_type, pim_cfg,
+                       weight.options());
     }
 
     void reset() override {
-      weight = register_parameter("weight",
-                                  torch::empty({options.out_features(), options.in_features()}));
+      weight = register_parameter("weight",torch::empty({options.out_features(), options.in_features()}));
       if (options.bias()) {
         bias = register_parameter("bias", torch::empty(options.out_features()));
       } else {
@@ -243,8 +244,8 @@ namespace PIM {
     PimArrayPtr wb_t_ptr;
     PimArrayPtr prev_ptr;
     PimArrayType pim_type;
+    const pim_array_pro_config* pim_cfg;
     int64_t batch_size;
-
   };
 
 /// A `ModuleHolder` subclass for `LinearImpl`.

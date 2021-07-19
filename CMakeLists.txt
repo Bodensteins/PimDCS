@@ -143,3 +143,6 @@ if (USE_OPENCV)
     set_property(TARGET yolo_v3 PROPERTY CXX_STANDARD 14)
 endif ()
 
+
+# online learning
+add_subdirectory(test/online_learning)

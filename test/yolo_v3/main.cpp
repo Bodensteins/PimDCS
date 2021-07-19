@@ -96,7 +96,9 @@ int main(int argc, const char *argv[]) {
   // input image size for YOLO v3
   int input_image_size = 416;
 
-  Darknet net(config, device);
+  const pim_array_pro_config pim_cfg(config["pim_config_path"].as<std::string>());
+
+  Darknet net(config, device, &pim_cfg);
 
   map<string, string> *info = net.get_net_info();
 

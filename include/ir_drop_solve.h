@@ -261,6 +261,7 @@ at::Tensor IR_solver::solve_fast(const at::Tensor &inV, const at::Tensor &G_mat,
     return current.sum(2).t();
 }
 
+
 static IR_solver ir_solver;
 
 /**

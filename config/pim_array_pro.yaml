@@ -30,7 +30,7 @@ latency_area_cal:  #all latency is xx ns
     cell_area: 0.0081
 
 energy_cal:  #all energy is nJ
-    enable: true
+    enable: false
     readRowPeripheryEnergy: 0
     readColPeripheryEnergy: 0
     readUseProbability: false #use probability to calculate or not
@@ -77,7 +77,7 @@ phyArrColSize: 128
 minConduct: 1e-7
 maxConduct: 1e-5
 
-inVBits: 2
+inVBits: 1
 inBits: 8
 outBits: 13
 unitBits: 8

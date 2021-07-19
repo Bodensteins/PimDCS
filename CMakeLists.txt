@@ -51,6 +51,15 @@ endif()
 include(yaml-cpp.cmake)
 include_directories(${YAML_CPP_INCLUDE_DIR})
 
+# -DPIM_ARRAY_CONFIG_PATH=/your/path
+if ("${PIM_ARRAY_CONFIG_PATH}" STREQUAL "")
+    message(WARNING "Using default config path: ../config/pim_array_pro.yaml")
+    set(PIM_ARRAY_CONFIG_PATH "../config/pim_array_pro.yaml")
+else()
+    message(STATUS "Using config path: ${PIM_ARRAY_CONFIG_PATH}")
+endif()
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/include/config_path.h.in ${CMAKE_CURRENT_SOURCE_DIR}/include/config_path.h)
+
 add_executable(pim_conv_mnist test/pim_conv_mnist.cpp)
 add_dependencies(pim_conv_mnist YAML_CPP_EXTERNAL_PROJECT)
 target_link_libraries(pim_conv_mnist "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
@@ -134,3 +143,6 @@ if (USE_OPENCV)
     set_property(TARGET yolo_v3 PROPERTY CXX_STANDARD 14)
 endif ()
 
+
+# online learning
+add_subdirectory(test/online_learning)

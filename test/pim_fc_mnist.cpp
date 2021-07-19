@@ -181,6 +181,7 @@ auto main() -> int {
   std::cout << "Time: " << duration.count() / 1000. << " seconds" << std::endl;
   pimArrayPro::phyArrManPro.print_latency(std::cout);
   pimArrayPro::phyArrManPro.print_op(std::cout);
+  pimArrayPro::phyArrManPro.print_energy(std::cout);
   pimArrayPro::phyArrManPro.print_power_efficiency(std::cout);
   return 0;
 }

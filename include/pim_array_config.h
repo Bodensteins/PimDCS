@@ -397,7 +397,7 @@ struct pim_array_pro_config
 
                     energy.averageEnergyPerWrite[i] = VoltageSquareMulTime * conductanceSum;
                 }
-                std::cout << "energy.averageEnergyPerWrite: " << energy.averageEnergyPerWrite << std::endl;
+                //std::cout << "energy.averageEnergyPerWrite: " << energy.averageEnergyPerWrite << std::endl;
 
             }
         }

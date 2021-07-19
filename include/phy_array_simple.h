@@ -316,7 +316,7 @@ at::Tensor phyArrayPro::mm(const at::Tensor &mat)
             return ir_drop_solve_acc(matin*conf->computeV, data.to(torch::kF64) * deltaConduct + conf->minConduct, rowSize, colSize).div(rowSize*conf->maxConduct*conf->computeV);
 
     }
-    return torch::matmul(mat, data.index({Slice(0, mat.size(2))}).to(torch::kF64) * deltaConduct + conf->minConduct).div(rowSize*conf->maxConduct);
+    return torch::matmul(mat, data.index({Slice(0, mat.size(2))}).to(torch::kF64) * deltaConduct + conf->minConduct);
 }
 
 /**
@@ -388,7 +388,8 @@ at::Tensor phyArrayPro::preWorkForMM(const at::Tensor &mat, const pim_array_pro_
 
             out = out.view({out.size(0), out.size(1), 1});
             out = torch::cat({std::vector<at::Tensor>(conf->inPluses, out)}, 2);
-            output.index({Ellipsis}) = out.__irshift__(conf->rshift.to(mat.device())).bitwise_and_(mask).div((double)(conf->inVLevels - 1)).transpose_(1, 2);
+            //output.index({Ellipsis}) = out.__irshift__(conf->rshift.to(mat.device())).bitwise_and_(mask).div((double)(conf->inVLevels - 1)).transpose_(1, 2);
+            output.index({Ellipsis}) = out.__irshift__(conf->rshift.to(mat.device())).bitwise_and_(mask).transpose_(1, 2);
             /*at::parallel_for(0, conf->inPluses, 0, [&](int st, int ed) {
                 for (int i = st; i < ed; ++i)
                 {
@@ -430,7 +431,8 @@ at::Tensor phyArrayPro::preWorkForMM(const at::Tensor &mat, const pim_array_pro_
     int mask = conf->inVLevels - 1;
     out = out.view({out.size(0), out.size(1), 1});
     out = torch::cat({std::vector<at::Tensor>(conf->inPluses, out)}, 2);
-    output.index({Ellipsis}) = out.__irshift__(conf->rshift.to(mat.device())).bitwise_and_(mask).div((double)(conf->inVLevels -1)).transpose_(1, 2);
+    //output.index({Ellipsis}) = out.__irshift__(conf->rshift.to(mat.device())).bitwise_and_(mask).div((double)(conf->inVLevels -1)).transpose_(1, 2);
+    output.index({Ellipsis}) = out.__irshift__(conf->rshift.to(mat.device())).bitwise_and_(mask).transpose_(1, 2);
     /*at::parallel_for(0, conf->inPluses, 0, [&](int st, int ed) {
         for (int i = st; i < ed; ++i)
         {
@@ -450,13 +452,17 @@ at::Tensor phyArrayPro::preWorkForMM(const at::Tensor &mat, const pim_array_pro_
 at::Tensor phyArrayPro::postWorkForMM(const at::Tensor &mat, const pim_array_pro_config *conf, double &max_one)
 {
     // int nums = conf->inBits/conf->inVBits;
-    double scalar_value = max_one *conf->phyArrRowSize /(conf->unitLevels-1) * conf->max_weight_value /(conf->outLevels -1) *(conf->inVLevels-1) / (conf->inLevels-1) * (conf->cellLevels-1);
+    double scalar_value = max_one / (conf->unitLevels-1) * conf->max_weight_value / (conf->inLevels-1);
     at::Tensor out;
 
     if (conf->mode == 1) // ref col mode
     {
-        scalar_value *= conf->maxConduct/(conf->maxConduct-conf->minConduct);
-        out = mat.mul(conf->outLevels - 1).round_(); //let out range from 0 -- outLevels -1, double
+        if (conf->maxCurrentNum>=conf->outLevels)  
+        {
+            out = mat.div(conf->deltaMaxConduct*conf->adc_scalar).round_().mul_(conf->adc_scalar); // 0---maxCurrentNum
+        }
+        else
+            out = mat.div(conf->deltaMaxConduct).round_(); //let out range from 0 -- outLevels -1, double
 
         out.index({Ellipsis, Slice(0, conf->phyArrColSize+1)}).subtract_(out.index({Ellipsis, Slice(conf->phyArrColSize+1)}));
         
@@ -508,7 +514,12 @@ at::Tensor phyArrayPro::postWorkForMM(const at::Tensor &mat, const pim_array_pro
     else // postive & negative array mode,  in this single array, normal calculation.
     {
 
-        out = mat.mul(conf->outLevels - 1).round_().index({Ellipsis, Slice(0, conf->usedCellsPerPhyRow)}); //let out range from 0 -- outLevels -1, double
+        if (conf->maxCurrentNum>=conf->outLevels)
+        {
+            out = mat.div(conf->deltaMaxConduct*conf->adc_scalar).round_().mul_(conf->adc_scalar).index({Ellipsis, Slice(0, conf->usedCellsPerPhyRow)}); // 0---maxCurrentNum
+        }
+        else
+            out = mat.div(conf->deltaMaxConduct).round_().index({Ellipsis, Slice(0, conf->usedCellsPerPhyRow)}); //let out range from 0 -- maxCurrentNum, double
         at::Tensor output = torch::empty({mat.size(0), conf->inPluses, conf->unitsPerPhyRow}, mat.device());
         // at::Tensor unitScalar = torch::ones({nums, conf->usedCellsPerPhyRow}, TensorOptions(mat.device()).dtype(torch::kI32));
 

@@ -186,15 +186,15 @@ namespace PIM {
         }
 
         // update parameters, note that weight shape is (Cin * H * W, Cout)
-        if (bias.has_value()) {
-          wb.ptr->write_mat(torch::cat({
-                                           weight.permute({1, 2, 3, 0}).reshape({-1, n_output_plane}),
-                                           bias.value().unsqueeze(0)}, 0));
-        } else {
-          wb.ptr->write_mat(weight.permute({1, 2, 3, 0}).reshape({-1, n_output_plane}));
-        }
-        // flip kernel
-        wb_t.ptr->write_mat(weight.flip({2, 3}).permute({1, 0, 2, 3}).reshape({n_input_plane, -1}).t());
+//        if (bias.has_value()) {
+//          wb.ptr->write_mat(torch::cat({
+//                                           weight.permute({1, 2, 3, 0}).reshape({-1, n_output_plane}),
+//                                           bias.value().unsqueeze(0)}, 0));
+//        } else {
+//          wb.ptr->write_mat(weight.permute({1, 2, 3, 0}).reshape({-1, n_output_plane}));
+//        }
+//        // flip kernel
+//        wb_t.ptr->write_mat(weight.flip({2, 3}).permute({1, 0, 2, 3}).reshape({n_input_plane, -1}).t());
       }
 
       // gold result
@@ -343,6 +343,7 @@ namespace PIM {
       create_pim_array_list(prev_ptrs, {
           (*input_shape)[0], (*input_shape)[2] * (*input_shape)[3], (*input_shape)[1]
       }, pim_type, pim_cfg, weight.options());
+      sync_weight();
     }
 
 
@@ -414,38 +415,41 @@ namespace PIM {
           return PimConv2dFunction<SimpleLogicArray>::apply(
               wb_ptr, wb_t_ptr, prev_ptrs,
               input, weight, options.bias() ? bias : c10::optional<Tensor>(),
-              options.stride(), options.padding(), is_training_, fast_mode);
+              options.stride(), options.padding(), is_training(), fast_mode);
         case PimArrayType::pim_array_pro:
           return PimConv2dFunction<pimArrayPro>::apply(
               wb_ptr, wb_t_ptr, prev_ptrs,
               input, weight, options.bias() ? bias : c10::optional<Tensor>(),
-              options.stride(), options.padding(), is_training_, fast_mode);
+              options.stride(), options.padding(), is_training(), fast_mode);
         case PimArrayType::pim_array_fast:
           return PimConv2dFunction<pimArrayFast>::apply(
               wb_ptr, wb_t_ptr, prev_ptrs,
               input, weight, options.bias() ? bias : c10::optional<Tensor>(),
-              options.stride(), options.padding(), is_training_, fast_mode);
+              options.stride(), options.padding(), is_training(), fast_mode);
         default:
           TORCH_INTERNAL_ASSERT(false, "pim conv, forward type not supported!")
       }
     }
 
     void sync_weight() {
-      if (options.bias()) {
+      // update parameters, note that weight shape is (Cin * H * W, Cout)
+      if (bias.defined()) {
         wb_ptr.ptr->write_mat(torch::cat({
-                                             weight.permute({1, 2, 3, 0}).reshape({-1, options.out_channels()}),
-                                             bias.unsqueeze(0)}, 0));
+                                         weight.permute({1, 2, 3, 0}).reshape({-1, options.out_channels()}),
+                                         bias.unsqueeze(0)}, 0));
       } else {
         wb_ptr.ptr->write_mat(weight.permute({1, 2, 3, 0}).reshape({-1, options.out_channels()}));
       }
+      // flip kernel
+      wb_t_ptr.ptr->write_mat(weight.flip({2, 3}).permute({1, 0, 2, 3}).reshape({options.in_channels(), -1}).t());
     }
 
-    void train(bool on = true) override {
-      if (!on) {
-        sync_weight();
-      }
-      is_training_ = on;
-    }
+//    void train(bool on = true) override {
+//      if (!on) {
+//        sync_weight();
+//      }
+//      is_training_ = on;
+//    }
 
     void print_detail(bool on = true) {
       print_detail_ = on;
@@ -461,8 +465,8 @@ namespace PIM {
     /// undefined.
     Tensor bias;
 
-    /// Whether the module is in training mode.
-    bool is_training_{true};
+//    /// Whether the module is in training mode.
+//    bool is_training_{true};
 
     /// Whether the physical array is be printed.
     bool print_detail_{false};

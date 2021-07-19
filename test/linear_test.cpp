@@ -19,7 +19,7 @@ const pim_array_pro_config pim_cfg("../config/pim_array_pro.yaml");
 // Define a new Module.
 struct Net : torch::nn::Module {
   Net() {
-    fc1 = register_module("fc1", PimLinear(Cin, Cout, N, PimArrayType::simple_logic_array, &pim_cfg, true));
+    fc1 = register_module("fc1", PimLinear(Cin, Cout, N, PimArrayType::simple_logic_array, &pim_cfg, false));
   }
 
   // Implement the Net's algorithm.
@@ -77,6 +77,8 @@ int main() {
 
   model.fc1->weight = pim_weight;
   model.fc1->bias = pim_bias;
+  model.fc1->sync_weight();
+
   TorchLinear torch_linear = TorchLinear(LinearOptions(Cin, Cout).bias(true), torch_weight, torch_bias);
 
   auto pim_output = model.forward(pim_input);

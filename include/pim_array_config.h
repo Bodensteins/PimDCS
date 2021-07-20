@@ -148,7 +148,7 @@ struct pim_array_pro_config
         cellLevels = 1 << cellBits;
         minConduct = config["minConduct"].as<double>();
         maxConduct = config["maxConduct"].as<double>();
-        deltaMaxConduct = (maxConduct)/(cellLevels-1);
+        deltaMaxConduct = (maxConduct - minConduct)/(cellLevels-1);
 
         phyArrRowSize = config["phyArrRowSize"].as<int>();
         phyArrColSize = config["phyArrColSize"].as<int>();
@@ -171,7 +171,7 @@ struct pim_array_pro_config
         outLevels = 1 << outBits;
         unitLevels = 1 << unitBits;
 
-        maxCurrentNum = phyArrRowSize*(inVLevels-1)*(cellLevels-1);
+        maxCurrentNum = phyArrRowSize * (inVLevels-1) * maxConduct / deltaMaxConduct;
         {
             int bits = ceil(log(maxCurrentNum+1.0)/log(2.0));
             int delta_bits = bits - outBits;

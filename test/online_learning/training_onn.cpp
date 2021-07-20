@@ -156,8 +156,8 @@ int main(int argc, const char *argv[]) {
   std::unique_ptr<Json::StreamWriter> writer(Json::StreamWriterBuilder().newStreamWriter());
   auto t = std::time(nullptr);
   auto tm = *std::localtime(&t);
-  out_str << config["json_output_dir"].as<std::string>()
-          << "/" << config["dataset"].as<std::string>() << std::put_time(&tm, "_%Y-%m-%d_%H-%M-%S.json");
+  out_str << config["json_output_path"].as<std::string>()
+          << "/" << config["dataset_name"].as<std::string>() << std::put_time(&tm, "_%Y-%m-%d_%H-%M-%S.json");
   json_out.open(out_str.str(), std::ios::out | std::ios::trunc);
 
   std::string text_win = vis.text("Training arguments:\n");

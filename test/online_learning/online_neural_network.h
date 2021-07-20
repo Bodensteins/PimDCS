@@ -101,6 +101,9 @@ public:
         at::Tensor delta_b = n * alpha[i] * output_layers[i]->as<LayerType>()->bias.grad().data();
         output_layers[i]->as<LayerType>()->weight.data() -= delta_w;
         output_layers[i]->as<LayerType>()->bias.data() -= delta_b;
+        if (PIM::PimLinearImpl* layer_ptr = dynamic_cast<PIM::PimLinearImpl*>(output_layers[i]->as<LayerType>())) {
+          layer_ptr->sync_weight();
+        }
 
         for (int j = 0; j < i + 1; j++) {
           if (!w[j].defined()) {
@@ -120,6 +123,9 @@ public:
           at::Tensor delta_b = n * b[i];
           hidden_layers[i]->as<LayerType>()->weight.data() -= delta_w;
           hidden_layers[i]->as<LayerType>()->bias.data() -= delta_b;
+          if (PIM::PimLinearImpl* layer_ptr = dynamic_cast<PIM::PimLinearImpl*>(hidden_layers[i]->as<LayerType>())) {
+            layer_ptr->sync_weight();
+          }
         } else {
           freeze_steps[i] += 1;
         }

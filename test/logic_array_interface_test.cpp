@@ -4,10 +4,14 @@
 
 using namespace torch::nn;
 using namespace PIM;
+// Config
+const pim_array_pro_config pim_cfg("../config/pim_array_pro.yaml");
+
+const pim_array_pro_config pim_cfg("../config/pim_array_pro.yaml");
 
 struct Net : torch::nn::Module {
   Net() {
-    fc1 = register_module("fc1", PimLinear(6, 7, 1, PimArrayType::simple_logic_array));
+    fc1 = register_module("fc1", PimLinear(6, 7, 1, PimArrayType::simple_logic_array, &pim_cfg));
   }
 
   // Implement the Net's algorithm.

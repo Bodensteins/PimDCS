@@ -1,6 +1,7 @@
 #ifndef PIMTORCH_PIM_ARRAY_CONFIG_H
 #define PIMTORCH_PIM_ARRAY_CONFIG_H
 
+#include "config_path.h"
 #include "yaml-cpp/yaml.h"
 #include <torch/torch.h>
 #include <torch/custom_class.h>
@@ -436,7 +437,7 @@ struct pim_array_pro_config
  * */
 const pim_array_pro_config& pro_decf()
 {
-    static const pim_array_pro_config decf("../config/pim_array_pro.yaml");
+    static const pim_array_pro_config decf(PIM_ARRAY_CONFIG_PATH);
     return decf;
 }
 

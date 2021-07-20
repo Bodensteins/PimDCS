@@ -16,7 +16,7 @@ namespace PIM
    * @param options Tensor options
    */
     void create_pim_array(PimArrayPtr &arr_ptr, torch::ExpandingArray<2> arr_size, PimArrayType pim_type,
-                          const torch::TensorOptions &options = {})
+                          const pim_array_pro_config* pim_cfg, const torch::TensorOptions &options = {})
     {
         switch (pim_type)
         {
@@ -24,10 +24,10 @@ namespace PIM
                 arr_ptr.ptr = std::make_shared<SimpleLogicArray>((*arr_size)[0], (*arr_size)[1], options);
                 break;
             case PimArrayType::pim_array_pro:
-                arr_ptr.ptr = std::make_shared<pimArrayPro>((*arr_size)[0], (*arr_size)[1], options);
+                arr_ptr.ptr = std::make_shared<pimArrayPro>((*arr_size)[0], (*arr_size)[1], options, pim_cfg);
                 break;
             case PimArrayType::pim_array_fast:
-                arr_ptr.ptr = std::make_shared<pimArrayFast>((*arr_size)[0], (*arr_size)[1], options);
+                arr_ptr.ptr = std::make_shared<pimArrayFast>((*arr_size)[0], (*arr_size)[1], options, pim_cfg);
                 break;
             default:
                 TORCH_INTERNAL_ASSERT(false, "create array, pimArrayType not support!");
@@ -43,7 +43,7 @@ namespace PIM
    * @param options Tensor options
    */
     void create_pim_array_list(PimArrayPtrList &array_ptrs, torch::ExpandingArray<3> arr_shape, PimArrayType pim_type,
-                               const torch::TensorOptions &options = {})
+                               const pim_array_pro_config* pim_cfg, const torch::TensorOptions &options = {})
     {
         switch (pim_type)
         {
@@ -61,7 +61,8 @@ namespace PIM
                 at::parallel_for(0, (*arr_shape)[0], 0, [&](int64_t start, int64_t end) {
                     for (int64_t i = start; i < end; i++)
                     {
-                        array_ptrs.ptrs[i] = std::make_shared<pimArrayPro>((*arr_shape)[1], (*arr_shape)[2], options);
+                        array_ptrs.ptrs[i] = std::make_shared<pimArrayPro>(
+                            (*arr_shape)[1], (*arr_shape)[2], options, pim_cfg);
                     }
                 });
                 break;
@@ -70,7 +71,8 @@ namespace PIM
                 at::parallel_for(0, (*arr_shape)[0], 0, [&](int64_t start, int64_t end) {
                     for (int64_t i = start; i < end; i++)
                     {
-                        array_ptrs.ptrs[i] = std::make_shared<pimArrayFast>((*arr_shape)[1], (*arr_shape)[2], options);
+                        array_ptrs.ptrs[i] = std::make_shared<pimArrayFast>(
+                            (*arr_shape)[1], (*arr_shape)[2], options, pim_cfg);
                     }
                 });
                 break;

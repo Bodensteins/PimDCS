@@ -14,6 +14,8 @@
 #include <vector>
 #include <map>
 #include "yaml-cpp/yaml.h"
+#include "pim_conv.h"
+#include "pim_linear.h"
 
 using namespace std;
 
@@ -28,7 +30,7 @@ struct Darknet : torch::nn::Module {
 
 public:
 
-  Darknet(YAML::Node &config, torch::Device &device);
+  Darknet(YAML::Node &config, torch::Device &device, const pim_array_pro_config* pim_cfg);
 
  // static constexpr torch::DeviceType runDev = torch::kCUDA;
 
@@ -54,6 +56,8 @@ private:
   vector<torch::nn::Sequential> module_list;
 
   YAML::Node config;
+
+  const pim_array_pro_config* pim_cfg;
 
   // load YOLOv3
   void load_cfg();

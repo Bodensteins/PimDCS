@@ -25,7 +25,12 @@ const int64_t kNumberOfEpochs = 1;
 
 // After how many batches to log a new update with the loss value.
 const int64_t kLogInterval = 10;
+
 auto runDev = torch::kCPU;
+
+// Config
+const pim_array_pro_config pim_cfg("../config/pim_array_pro.yaml");
+
 // Define a new Module.
 struct Net : torch::nn::Module {
   Net() {
@@ -35,8 +40,8 @@ struct Net : torch::nn::Module {
 //    fc3 = register_module("fc3", torch::nn::Linear(32, 10));
     //fc1 = register_module("fc1", PimLinear(784, 64, kTrainBatchSize, PimArrayType::only_counters_pim_array, runDev));
     //fc2 = register_module("fc2", PimLinear(64, 10, kTrainBatchSize, PimArrayType::only_counters_pim_array, runDev));
-    fc1 = register_module("fc1", PimLinear(784, 64, kTrainBatchSize, PimArrayType::pim_array_pro, false, runDev));
-    fc2 = register_module("fc2", PimLinear(64, 10, kTrainBatchSize, PimArrayType::pim_array_pro, false, runDev));
+    fc1 = register_module("fc1", PimLinear(784, 64, kTrainBatchSize, PimArrayType::pim_array_pro, &pim_cfg, false, runDev));
+    fc2 = register_module("fc2", PimLinear(64, 10, kTrainBatchSize, PimArrayType::pim_array_pro, &pim_cfg, false, runDev));
 // fc3 = register_module("fc3", PimLinear(32, 10, kTrainBatchSize, PimArrayType::wb_logic_array, runDev));
 //    fc1 = register_module("fc1", PimLinear(kTrainBatchSize, PimArrayType::simple_logic_array,
 //        LinearOptions(784, 64).bias(false)));
@@ -79,15 +84,23 @@ void train(
     size_t dataset_size) {
   model.train();
   size_t batch_idx = 0;
+
   for (auto& batch : data_loader) {
     //std::cout << batch_idx << std::endl;
-    auto data = batch.data.to(device, torch::kFloat64), targets = batch.target.to(device);
+    auto data = batch.data.to(device, torch::kFloat32), targets = batch.target.to(device);
     optimizer.zero_grad();
     auto output = model.forward(data);
     auto loss = torch::nll_loss(output, targets);
     AT_ASSERT(!std::isnan(loss.template item<float>()));
     loss.backward();
     optimizer.step();
+    // sync weights
+    model.apply([](nn::Module& module) {
+      PIM::PimLinearImpl* module_ptr = dynamic_cast<PIM::PimLinearImpl*>(&module);
+      if (module_ptr) {
+        module_ptr->sync_weight();
+      }
+    });
     if (batch_idx++ % kLogInterval == 0) {
       std::printf(
           "Train Epoch: %d [%5ld/%5ld] Loss: %.4f\n",
@@ -111,7 +124,7 @@ void test(
   double test_loss = 0;
   int32_t correct = 0;
   for (const auto& batch : data_loader) {
-    auto data = batch.data.to(device, torch::kFloat64), targets = batch.target.to(device);
+    auto data = batch.data.to(device, torch::kFloat32), targets = batch.target.to(device);
     auto output = model.forward(data);
     test_loss += torch::nll_loss(
         output,
@@ -145,7 +158,7 @@ auto main() -> int {
   torch::Device device(device_type);
 
   Net model;
-  model.to(device, torch::kFloat64);
+  model.to(device, torch::kFloat32);
 
   pimArrayPro::phyArrManPro.printArea(std::cout);
   auto start = high_resolution_clock::now();

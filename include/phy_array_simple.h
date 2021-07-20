@@ -469,10 +469,10 @@ at::Tensor phyArrayPro::postWorkForMM(const at::Tensor &mat, const pim_array_pro
     {
         if (conf->maxCurrentNum>=conf->outLevels)  
         {
-            out = mat.div(conf->deltaMaxConduct*conf->adc_scalar).round_().mul_(conf->adc_scalar); // 0---maxCurrentNum
+            out = mat.div(conf->deltaConduct*conf->adc_scalar).round_().mul_(conf->adc_scalar); // 0---maxCurrentNum
         }
         else
-            out = mat.div(conf->deltaMaxConduct).round_(); //let out range from 0 -- outLevels -1, double
+            out = mat.div(conf->deltaConduct).round_(); //let out range from 0 -- outLevels -1, double
 
         out.index({Ellipsis, Slice(0, conf->phyArrColSize+1)}).subtract_(out.index({Ellipsis, Slice(conf->phyArrColSize+1)}));
         
@@ -526,10 +526,10 @@ at::Tensor phyArrayPro::postWorkForMM(const at::Tensor &mat, const pim_array_pro
 
         if (conf->maxCurrentNum>=conf->outLevels)
         {
-            out = mat.div(conf->deltaMaxConduct*conf->adc_scalar).round_().mul_(conf->adc_scalar).index({Ellipsis, Slice(0, conf->usedCellsPerPhyRow)}); // 0---maxCurrentNum
+            out = mat.div(conf->deltaConduct*conf->adc_scalar).round_().mul_(conf->adc_scalar).index({Ellipsis, Slice(0, conf->usedCellsPerPhyRow)}); // 0---maxCurrentNum
         }
         else
-            out = mat.div(conf->deltaMaxConduct).round_().index({Ellipsis, Slice(0, conf->usedCellsPerPhyRow)}); //let out range from 0 -- maxCurrentNum, double
+            out = mat.div(conf->deltaConduct).round_().index({Ellipsis, Slice(0, conf->usedCellsPerPhyRow)}); //let out range from 0 -- maxCurrentNum, double
         at::Tensor output = torch::empty({mat.size(0), conf->inPluses, conf->unitsPerPhyRow}, mat.device());
         // at::Tensor unitScalar = torch::ones({nums, conf->usedCellsPerPhyRow}, TensorOptions(mat.device()).dtype(torch::kI32));
 

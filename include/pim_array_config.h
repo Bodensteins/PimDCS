@@ -29,7 +29,7 @@ struct pim_array_pro_config
     double writeV, readV, computeV;
     bool C2C_en, D2D_en, nonLinearIV_en, write_cnt_en;/*, energy_cal_en;*/
     double C2C_theta;
-    double minConduct, maxConduct, deltaMaxConduct;
+    double minConduct, maxConduct, deltaConduct;
     int maxCurrentNum;
     double adc_scalar;
     int32_t phyArrRowSize, phyArrColSize;           //  phy array size, a logic array is formed by one or multiple phy arrays.
@@ -148,7 +148,7 @@ struct pim_array_pro_config
         cellLevels = 1 << cellBits;
         minConduct = config["minConduct"].as<double>();
         maxConduct = config["maxConduct"].as<double>();
-        deltaMaxConduct = (maxConduct - minConduct)/(cellLevels-1);
+        deltaConduct = (maxConduct - minConduct) / (cellLevels-1);
 
         phyArrRowSize = config["phyArrRowSize"].as<int>();
         phyArrColSize = config["phyArrColSize"].as<int>();
@@ -171,7 +171,7 @@ struct pim_array_pro_config
         outLevels = 1 << outBits;
         unitLevels = 1 << unitBits;
 
-        maxCurrentNum = phyArrRowSize * (inVLevels-1) * maxConduct / deltaMaxConduct;
+        maxCurrentNum = phyArrRowSize * (inVLevels-1) * maxConduct / deltaConduct;
         {
             int bits = ceil(log(maxCurrentNum+1.0)/log(2.0));
             int delta_bits = bits - outBits;
@@ -371,7 +371,7 @@ struct pim_array_pro_config
                 {
                     average_conductance += i * energy.CellPD[i];
                 }
-                double deltaConduct = (maxConduct - minConduct) / (cellLevels - 1);
+
                 average_conductance *= deltaConduct;
                 average_conductance += minConduct;
 

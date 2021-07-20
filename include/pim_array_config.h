@@ -30,7 +30,9 @@ struct pim_array_pro_config
     double writeV, readV, computeV;
     bool C2C_en, D2D_en, nonLinearIV_en, write_cnt_en;/*, energy_cal_en;*/
     double C2C_theta;
-    double minConduct, maxConduct;
+    double minConduct, maxConduct, deltaConduct;
+    int maxCurrentNum;
+    double adc_scalar;
     int32_t phyArrRowSize, phyArrColSize;           //  phy array size, a logic array is formed by one or multiple phy arrays.
     int32_t inBits, inVBits, outBits, unitBits, cellBits;    /*  input/output data bits.  unit bits means precision of data in array. cell bits means one memory cell's precision
                                                         e.g. unitBits = 8, cellBits = 2.  we need 4 memory cell to represent 1 unit.
@@ -144,9 +146,10 @@ struct pim_array_pro_config
         //energy_cal_en = config["energy_cal_en"].as<bool>();
 
         cellBits = config["cellBits"].as<int>();
+        cellLevels = 1 << cellBits;
         minConduct = config["minConduct"].as<double>();
         maxConduct = config["maxConduct"].as<double>();
-
+        deltaConduct = (maxConduct - minConduct) / (cellLevels-1);
 
         phyArrRowSize = config["phyArrRowSize"].as<int>();
         phyArrColSize = config["phyArrColSize"].as<int>();
@@ -168,7 +171,13 @@ struct pim_array_pro_config
         inVLevels = 1 << inVBits;
         outLevels = 1 << outBits;
         unitLevels = 1 << unitBits;
-        cellLevels = 1 << cellBits;
+
+        maxCurrentNum = phyArrRowSize * (inVLevels-1) * maxConduct / deltaConduct;
+        {
+            int bits = ceil(log(maxCurrentNum+1.0)/log(2.0));
+            int delta_bits = bits - outBits;
+            adc_scalar = pow(2, delta_bits);
+        }
         // to calculate energy, we need write cnt
 //        if (energy_cal_en)
 //            write_cnt_en = true;
@@ -363,7 +372,7 @@ struct pim_array_pro_config
                 {
                     average_conductance += i * energy.CellPD[i];
                 }
-                double deltaConduct = (maxConduct - minConduct) / (cellLevels - 1);
+
                 average_conductance *= deltaConduct;
                 average_conductance += minConduct;
 
@@ -389,7 +398,7 @@ struct pim_array_pro_config
 
                     energy.averageEnergyPerWrite[i] = VoltageSquareMulTime * conductanceSum;
                 }
-                std::cout << "energy.averageEnergyPerWrite: " << energy.averageEnergyPerWrite << std::endl;
+                //std::cout << "energy.averageEnergyPerWrite: " << energy.averageEnergyPerWrite << std::endl;
 
             }
         }

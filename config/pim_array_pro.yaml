@@ -30,7 +30,7 @@ latency_area_cal:  #all latency is xx ns
     cell_area: 0.0081
 
 energy_cal:  #all energy is nJ
-    enable: true
+    enable: false
     readRowPeripheryEnergy: 0
     readColPeripheryEnergy: 0
     readUseProbability: false #use probability to calculate or not
@@ -78,9 +78,9 @@ minConduct: 1e-7
 maxConduct: 1e-5
 
 inVBits: 1
-inBits: 14
-outBits: 9
-unitBits: 14
+inBits: 8
+outBits: 13
+unitBits: 8
 cellBits: 2
 has_negative_input: true
 max_phy_input_value: 16

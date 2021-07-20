@@ -206,7 +206,7 @@ namespace PIM {
 
     void write_mat(const at::Tensor &mat) override {
 //    assert(torch::is_same_size(arr, mat));
-    arr = mat.clone();
+    arr = mat.clone().detach();
 //      arr = mat;
     }
 

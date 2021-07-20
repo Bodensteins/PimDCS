@@ -12,7 +12,7 @@
 #include "pim_linear.h"
 
 torch::nn::Sequential vgg_block(const int kNumConvs, int in_channels, int out_channels, bool use_pim,
-    std::vector<ExpandingArray<4>>& in_shapes ) {
+    std::vector<ExpandingArray<4>>& in_shapes, const pim_array_pro_config* pim_cfg) {
   torch::nn::Sequential vgg_layers;
   const int kKernelSize = 3;
 
@@ -20,7 +20,7 @@ torch::nn::Sequential vgg_block(const int kNumConvs, int in_channels, int out_ch
     if (use_pim) {
       vgg_layers->push_back(PIM::PimConv2d(
           ExpandingArray<4>(in_shapes[i]),
-          PIM::PimArrayType::simple_logic_array,
+          PIM::PimArrayType::simple_logic_array, pim_cfg,
           Conv2dOptions(in_channels, out_channels, kKernelSize).padding(1)
       ));
     } else {
@@ -39,7 +39,7 @@ torch::nn::Sequential vgg_block(const int kNumConvs, int in_channels, int out_ch
 class VGG : public torch::nn::Module {
 public:
   VGG(const std::vector<std::array<int, 2>>& conv_arch, bool use_pim, int64_t batch_size,
-      std::vector<std::vector<ExpandingArray<4>>>& in_shapes);
+      std::vector<std::vector<ExpandingArray<4>>>& in_shapes, const pim_array_pro_config* pim_cfg);
 
   torch::Tensor forward(torch::Tensor& input) {
     return VGGNetwork_->forward(input);
@@ -51,13 +51,15 @@ private:
   torch::nn::Sequential VGGNetwork_;
   bool use_pim;
   int64_t batch_size;
+  const pim_array_pro_config* pim_cfg;
 };
 
 VGG::VGG(const std::vector<std::array<int, 2>> &conv_arch, bool use_pim, int64_t batch_size,
-    std::vector<std::vector<ExpandingArray<4>>>& in_shapes)
+    std::vector<std::vector<ExpandingArray<4>>>& in_shapes, const pim_array_pro_config* pim_cfg)
     : conv_arch_(conv_arch),
       use_pim(use_pim),
-      batch_size(batch_size)
+      batch_size(batch_size),
+      pim_cfg(pim_cfg)
 {
   const int kModuleSize = conv_arch.size();
   int in_channels = 3;
@@ -67,18 +69,18 @@ VGG::VGG(const std::vector<std::array<int, 2>> &conv_arch, bool use_pim, int64_t
         /*The fully connected layer part*/
         torch::nn::Flatten(),
         // original: 512, 3 block: 2304
-        PIM::PimLinear(512, 4096, batch_size, PIM::PimArrayType::simple_logic_array),
+        PIM::PimLinear(512, 4096, batch_size, PIM::PimArrayType::simple_logic_array, pim_cfg),
         torch::nn::ReLU(),
         torch::nn::Dropout(/*p=*/0.4),
-        PIM::PimLinear(4096, 4096, batch_size, PIM::PimArrayType::simple_logic_array),
+        PIM::PimLinear(4096, 4096, batch_size, PIM::PimArrayType::simple_logic_array, pim_cfg),
         torch::nn::ReLU(),
         torch::nn::Dropout(/*p=*/0.4),
-        PIM::PimLinear(4096, 10, batch_size, PIM::PimArrayType::simple_logic_array)
+        PIM::PimLinear(4096, 10, batch_size, PIM::PimArrayType::simple_logic_array, pim_cfg)
     );
     for (int i = 0; i < kModuleSize; ++i) {
       int out_channels = conv_arch_[i][1];
       vgg_seq_layers_->extend(
-          *vgg_block(conv_arch_[i][0], in_channels, out_channels, true, in_shapes[i])
+          *vgg_block(conv_arch_[i][0], in_channels, out_channels, true, in_shapes[i], pim_cfg)
       );
       in_channels = out_channels;
     }
@@ -98,7 +100,7 @@ VGG::VGG(const std::vector<std::array<int, 2>> &conv_arch, bool use_pim, int64_t
     for (int i = 0; i < kModuleSize; ++i) {
       int out_channels = conv_arch_[i][1];
       vgg_seq_layers_->extend(
-          *vgg_block(conv_arch_[i][0], in_channels, out_channels, false, in_shapes[i])
+          *vgg_block(conv_arch_[i][0], in_channels, out_channels, false, in_shapes[i], pim_cfg)
       );
       in_channels = out_channels;
     }

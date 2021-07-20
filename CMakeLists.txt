@@ -88,7 +88,7 @@ set_property(TARGET pim_fc_xor PROPERTY CXX_STANDARD 14)
 
 
 # Test
-add_executable(logic_array_interface_test unittest/logic_array_interface_test.cpp unittest/mmtest.cpp)
+add_executable(logic_array_interface_test unittest/logic_array_interface_test.cpp)
 add_dependencies(logic_array_interface_test YAML_CPP_EXTERNAL_PROJECT)
 target_link_libraries(logic_array_interface_test "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
 set_property(TARGET logic_array_interface_test PROPERTY CXX_STANDARD 14)
@@ -113,6 +113,10 @@ add_dependencies(unittestFor_pimPro YAML_CPP_EXTERNAL_PROJECT)
 target_link_libraries(unittestFor_pimPro "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
 set_property(TARGET unittestFor_pimPro PROPERTY CXX_STANDARD 14)
 
+add_executable(mmtest unittest/mmtest.cpp)
+add_dependencies(mmtest YAML_CPP_EXTERNAL_PROJECT)
+target_link_libraries(mmtest "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
+set_property(TARGET mmtest PROPERTY CXX_STANDARD 14)
 
 # cifar-10
 add_executable(original_vgg test/vgg/original_vgg.cpp)

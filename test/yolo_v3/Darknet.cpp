@@ -258,8 +258,8 @@ struct DetectionLayer : torch::nn::Module {
 //---------------------------------------------------------------------------
 // Darknet
 //---------------------------------------------------------------------------
-Darknet::Darknet(YAML::Node &config, torch::Device &device, const pim_array_pro_config* pim_cfg)
-  : config(config), device(device), pim_cfg(pim_cfg){
+Darknet::Darknet(YAML::Node &config, torch::Device &device)
+  : config(config), device(device) {
   load_cfg();
   create_modules();
 }

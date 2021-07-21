@@ -18,7 +18,7 @@ class ONN : public torch::nn::Module {
 public:
   ONN(int features_size, int max_num_hidden_layers, int qtd_neuron_per_hidden_layer, int n_classes, int batch_size=1,
       double beta=0.99, double lr=0.01, double s=0.2, double freeze_threshold=0.005, int log_interval=1000,
-      bool use_cuda=false, bool use_pim=false, const pim_array_pro_config* pim_cfg=nullptr, Visdom *vis=nullptr,
+      bool use_cuda=false, bool use_pim=false, Visdom *vis=nullptr,
       Json::Value* root_ptr=nullptr)
       : features_size(features_size), max_num_hidden_layers(max_num_hidden_layers),
         qtd_neuron_per_hidden_layer(qtd_neuron_per_hidden_layer), n_classes(n_classes), batch_size(batch_size),
@@ -41,14 +41,14 @@ public:
       }
     } else {
       hidden_layers->push_back(PimLinear(features_size, qtd_neuron_per_hidden_layer,
-                                         batch_size, PimArrayType::pim_array_pro, pim_cfg, false, device));
+                                         batch_size, PimArrayType::pim_array_pro, false, device));
       for (int i = 0; i < max_num_hidden_layers - 1; i++) {
         hidden_layers->push_back(PimLinear(qtd_neuron_per_hidden_layer, qtd_neuron_per_hidden_layer,
-                                           batch_size, PimArrayType::pim_array_pro, pim_cfg, false, device));
+                                           batch_size, PimArrayType::pim_array_pro, false, device));
       }
       for (int i = 0; i < max_num_hidden_layers; i++) {
         output_layers->push_back(PimLinear(qtd_neuron_per_hidden_layer, n_classes,
-                                           batch_size, PimArrayType::pim_array_pro, pim_cfg, false, device));
+                                           batch_size, PimArrayType::pim_array_pro, false, device));
         freeze_steps.push_back(0);
       }
     }

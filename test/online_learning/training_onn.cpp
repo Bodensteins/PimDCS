@@ -180,7 +180,7 @@ int main(int argc, const char *argv[]) {
             config["freeze_threshold"].as<double>(),
             config["log_interval"].as<int>(),
             config["use_cuda"].as<bool>(),
-            config["use_pim"].as<bool>(), &pim_cfg, &vis);
+            config["use_pim"].as<bool>(), &vis);
   model.to(device);
 
   auto start = high_resolution_clock::now();

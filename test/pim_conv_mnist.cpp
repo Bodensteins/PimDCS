@@ -30,18 +30,16 @@ auto runDev = torch::kCPU;
 //auto type = PIM::PimArrayType::pim_array_pro;
 auto type = PIM::PimArrayType::pim_array_pro;
 
-// Config
-const pim_array_pro_config pim_cfg("../config/pim_array_pro.yaml");
 
 struct Net : torch::nn::Module {
   Net()
       : conv1(ExpandingArray<4>({kTrainBatchSize, 1, 28, 28}),
-              type, &pim_cfg,
+              type,
               Conv2dOptions(1, 10, {5, 5}), false, runDev),
         conv2(ExpandingArray<4>({kTrainBatchSize, 10, 24, 24}),
-              type, &pim_cfg,
+              type,
               Conv2dOptions(10, 20, {5, 5}), false, runDev),
-        pim_fc1(320, 10, kTrainBatchSize, type, &pim_cfg, false, runDev)
+        pim_fc1(320, 10, kTrainBatchSize, type, false, runDev)
        // fc2(50, 10)
   {
     register_module("conv1", conv1);

@@ -27,8 +27,6 @@ const int64_t kNumberOfEpochs = 1;
 const int64_t kLogInterval = 100;
 auto runDev = torch::kCPU;
 
-// Config
-const pim_array_pro_config pim_cfg("../config/pim_array_pro.yaml");
 
 const int trainTimes = 1000;
 const int train_dataset_size = 4 * trainTimes;
@@ -42,8 +40,8 @@ struct Net : torch::nn::Module {
     //fc = register_module("fc", PimLinear(2, 2, kTrainBatchSize, PimArrayType::pim_array_pro, runDev));
     //fc1 = register_module("fc1", torch::nn::Linear(2, 10));
     //fc2 = register_module("fc2", torch::nn::Linear(10, 2));
-    fc1 = register_module("fc1", PimLinear(2, 3, kTrainBatchSize, PimArrayType::pim_array_pro, &pim_cfg, false, runDev));
-    fc2 = register_module("fc2", PimLinear(3, 2, kTrainBatchSize, PimArrayType::pim_array_pro, &pim_cfg, false, runDev));
+    fc1 = register_module("fc1", PimLinear(2, 3, kTrainBatchSize, PimArrayType::pim_array_pro, false, runDev));
+    fc2 = register_module("fc2", PimLinear(3, 2, kTrainBatchSize, PimArrayType::pim_array_pro, false, runDev));
     //fc = register_module("fc", torch::nn::Linear(2, 2));
   }
 

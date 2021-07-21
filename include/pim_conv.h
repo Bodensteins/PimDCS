@@ -317,15 +317,14 @@ namespace PIM {
                   ExpandingArray<2> kernel_size,
                   int64_t output_channels,
                   PimArrayType pim_type,
-                  const pim_array_pro_config* pim_cfg,
                   bool fast_mode = false,
                   const torch::TensorOptions &op = {})
-        : PimConv2dImpl(input_shape, pim_type, pim_cfg,
+        : PimConv2dImpl(input_shape, pim_type,
                         Conv2dOptions((*input_shape)[1], output_channels, kernel_size), fast_mode, op) {}
 
-    explicit PimConv2dImpl(ExpandingArray<4> input_shape, PimArrayType pim_type, const pim_array_pro_config* pim_cfg,
+    explicit PimConv2dImpl(ExpandingArray<4> input_shape, PimArrayType pim_type,
                            const Conv2dOptions &options_, bool fast_mode = false, const torch::TensorOptions &op = {})
-        : input_shape(input_shape), pim_type(pim_type), pim_cfg(pim_cfg), options(options_), fast_mode(fast_mode){
+        : input_shape(input_shape), pim_type(pim_type), options(options_), fast_mode(fast_mode){
 
       ExpandingArray<2> kernel_size = options_.kernel_size();
       const int64_t n_input_plane = options_.in_channels();
@@ -336,13 +335,13 @@ namespace PIM {
       create_pim_array(wb_ptr, {
           options_.bias() ? (*kernel_size)[0] * (*kernel_size)[1] * n_input_plane + 1 :
           (*kernel_size)[0] * (*kernel_size)[1] * n_input_plane, n_output_plane
-      }, pim_type, pim_cfg, weight.options());
+      }, pim_type, weight.options());
       create_pim_array(wb_t_ptr, {
           (*kernel_size)[0] * (*kernel_size)[1] * n_output_plane, n_input_plane
-      }, pim_type, pim_cfg, weight.options());
+      }, pim_type, weight.options());
       create_pim_array_list(prev_ptrs, {
           (*input_shape)[0], (*input_shape)[2] * (*input_shape)[3], (*input_shape)[1]
-      }, pim_type, pim_cfg, weight.options());
+      }, pim_type, weight.options());
       sync_weight();
     }
 
@@ -477,7 +476,6 @@ namespace PIM {
     PimArrayPtr wb_t_ptr;
     PimArrayPtrList prev_ptrs;
     PimArrayType pim_type;
-    const pim_array_pro_config* pim_cfg;
     ExpandingArray<4> input_shape;
 
   };

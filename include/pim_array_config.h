@@ -177,8 +177,7 @@ struct pim_array_pro_config
             int bits = ceil(log(maxCurrentNum+1.0)/log(2.0));
             int delta_bits = bits - outBits;
             adc_scalar = pow(2, delta_bits);
-
-            std::cout << "need " << bits << " bits" << "adc, " << ", use " << outBits << " bits" << " adc." << std::endl;
+            std::cout << "need " << bits << " bits adc, use " << outBits << " bits adc." << std::endl;
         }
         // to calculate energy, we need write cnt
 //        if (energy_cal_en)

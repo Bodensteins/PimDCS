@@ -30,7 +30,7 @@ struct Darknet : torch::nn::Module {
 
 public:
 
-  Darknet(YAML::Node &config, torch::Device &device, const pim_array_pro_config* pim_cfg);
+  Darknet(YAML::Node &config, torch::Device &device);
 
  // static constexpr torch::DeviceType runDev = torch::kCUDA;
 
@@ -56,8 +56,6 @@ private:
   vector<torch::nn::Sequential> module_list;
 
   YAML::Node config;
-
-  const pim_array_pro_config* pim_cfg;
 
   // load YOLOv3
   void load_cfg();

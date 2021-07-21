@@ -4,9 +4,7 @@
 #include <torch/torch.h>
 #include "pim_array_example.h"
 #include "pim_array_config.h"
-#include <map>
 #include <vector>
-#include <cmath>
 #include <algorithm>
 
 using std::vector;
@@ -15,51 +13,40 @@ using std::endl;
 using std::pair;
 using std::make_pair;
 
-pair<double ,double> mvTest();
+double mvTest();
 double getMaxPrecision(const at::Tensor &stdOut, const at::Tensor &myOut);
-//void printPrecision(int index);
 
 int main()
 {
-    int testNum = 100;
+    int testNum = 1000;
 
-    double errLowADC = 0;
-    double errHighADC = 0;
+    double errMax = 0;
 
-    pair<double, double> err;
+    double err;
     for (int i = 0; i < testNum; ++i)
     {
         err = mvTest();
-        if (err.first > errLowADC)
+        if (err > errMax)
         {
-            errLowADC = err.first;
-        }
-        if (err.second > errHighADC)
-        {
-            errHighADC = err.second;
+            errMax = err;
         }
     }
 
     cout << endl << "final result:" << endl;
-    cout << "low adc precision: " << errLowADC << endl;
-    cout << "high adc precision: " << errHighADC << endl;
+    cout << "max err: " << errMax << endl;
     //printPrecision(errHighADC);
 
     return 0;
 }
 
-pair<double ,double> mvTest()
+double mvTest()
 {
-    pim_array_pro_config config_low("../config/lowadc.yaml");
-    pim_array_pro_config config_high("../config/highadc.yaml");
-
-    const int M = config_low.phyArrRowSize;  // array of M x N
-    const int N = config_low.phyArrColSize;  //
+    const int M = 64;  // array of M x N
+    const int N = 8;  //
 
     auto op = torch::TensorOptions(torch::kCPU).dtype(torch::kFloat64);
 
-    pimArrayPro lowArray(M, N, op, &config_low);
-    pimArrayPro highArray(M, N, op, &config_high);
+    pimArrayPro crossbarArray(M, N, op, &pro_decf());
 
     SimpleLogicArray softwareArray(M, N, op);
     at::Tensor v;
@@ -70,74 +57,33 @@ pair<double ,double> mvTest()
     softwareArray.write_mat(writemat);
 //    cout << "truearray:" << endl;
 //    cout << softwareArray.read_mat() << endl;
-    lowArray.write_mat(writemat);
-//    cout << "lowarray:" << endl;
-//    cout << lowArray.read_mat() << endl;
-    highArray.write_mat(writemat);
-//    cout << "higharray:" << endl;
-//    cout << highArray.read_mat() << endl;
+    crossbarArray.write_mat(writemat);
+//    cout << "crossbarArray:" << endl;
+//    cout << crossbarArray.read_mat() << endl;
 
     v = at::randn({1, M}, torch::kFloat64);
     v.div_(v.abs().max());
     //cout << v << endl;
     auto out = softwareArray.mm(v);
 
-    auto lowout = lowArray.mm(v);
-
-    auto highout = highArray.mm(v);
+    auto crossbarArrayOut = crossbarArray.mm(v);
 
     out = out.squeeze();
-    lowout = lowout.squeeze();
-    highout = highout.squeeze();
+    crossbarArrayOut = crossbarArrayOut.squeeze();
 
-    //cout << "true out:" << endl << out  << endl << "low out:" << endl << lowout  << endl << "high out:" << endl << highout << endl;
+    //cout << "true out:" << endl << out  << endl << "crossbarArrayOut out:" << endl << crossbarArrayOut << endl;
 
-    double err1 = getMaxPrecision(out, lowout);
-    double err2 = getMaxPrecision(out, highout);
-    //cout << "low adc precision bit: " << err1 << " high adc precision bit: " << err2 << endl;
+    double err = getMaxPrecision(out, crossbarArrayOut);
+    //cout << "err: " << err << endl;
 
-    return make_pair(err1, err2);
+    return err;
 }
 
-double getMaxPrecision(const at::Tensor &out, const at::Tensor &out1)
+double getMaxPrecision(const at::Tensor &stdOut, const at::Tensor &myOut)
 {
-    auto delta = out - out1;
+    auto delta = stdOut - myOut;
     double maxDistance  = delta.abs().max().item<double>();
 
     return maxDistance;
-
-//    int n = 10;
-//    for (int i = 0; ; ++i, n *= 10)
-//    {
-//        if (n * maxDistance >= 1)
-//        {
-//            return i;
-//        }
-//    }
 }
-
-//void printPrecision(int index)
-//{
-//    if (index < 0)
-//    {
-//        cout << "error! illegal precision!" << endl;
-//    }
-//    else if (index == 0)
-//    {
-//        cout << "1" << endl;
-//    }
-//    else
-//    {
-//        cout << "0.";
-//        for (int i = 0; i < index - 1; ++i)
-//        {
-//            cout << "0";
-//        }
-//        cout << "1" << endl;
-//    }
-//}
-
-//
-// Created by ubuntu on 5/11/21.
-//
 

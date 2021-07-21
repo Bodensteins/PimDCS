@@ -146,7 +146,3 @@ if (USE_OPENCV)
     target_link_libraries(yolo_v3 "${TORCH_LIBRARIES}" "${OpenCV_LIBS}" "${CURSES_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
     set_property(TARGET yolo_v3 PROPERTY CXX_STANDARD 14)
 endif ()
-
-
-# online learning
-add_subdirectory(test/online_learning)

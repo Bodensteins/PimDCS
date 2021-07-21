@@ -6,7 +6,7 @@ data_y: "/Users/zhouheng/Datasets/susy_y.bin"
 dataset_name: "mnist"
 j: 4
 batch_size: 1
-lr: 0.001
+lr: 0.01
 beta: 0.99
 s: 0.2
 hidden_layers: 8

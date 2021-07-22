@@ -87,7 +87,7 @@ VGG::VGG(const std::vector<std::array<int, 2>> &conv_arch, bool use_pim, int64_t
         /*The fully connected layer part*/
         torch::nn::Flatten(),
         // original: 512, 3 block: 2304
-        torch::nn::Linear(/*in_features=*/4096, /*out_features=*/4096),
+        torch::nn::Linear(/*in_features=*/512, /*out_features=*/4096),
         torch::nn::ReLU(),
         torch::nn::Dropout(/*p=*/0.4),
         torch::nn::Linear(/*in_features=*/4096, /*out_features=*/4096),

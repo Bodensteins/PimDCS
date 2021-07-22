@@ -187,8 +187,8 @@ auto main() -> int {
       {1, 64},
       {1, 128},
       {2, 256},
-    //  {2, 512},
-  //    {2, 512},
+      {2, 512},
+      {2, 512},
   };
 
 
@@ -203,8 +203,8 @@ auto main() -> int {
       {{kTrainBatchSize, 3, 32, 32}},
       {{kTrainBatchSize, 64, 16, 16}},
       {{kTrainBatchSize, 128, 8, 8}, {kTrainBatchSize, 256, 8, 8}},
-     // {{kTrainBatchSize, 256, 4, 4}, {kTrainBatchSize, 512, 4, 4}},
-      //{{kTrainBatchSize, 512, 2, 2}, {kTrainBatchSize, 512, 2, 2}},
+      {{kTrainBatchSize, 256, 4, 4}, {kTrainBatchSize, 512, 4, 4}},
+      {{kTrainBatchSize, 512, 2, 2}, {kTrainBatchSize, 512, 2, 2}},
   };
 
 

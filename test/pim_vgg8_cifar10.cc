@@ -19,6 +19,7 @@ auto pim_type = PimArrayType::pim_array_pro;
 //auto pim_type = PimArrayType::simple_logic_array;
 auto fast_mode = false;
 
+
 struct VGG8_Net: torch::nn::Module
 {
     VGG8_Net(): conv(7, nullptr), fc1(nullptr), fc2(nullptr)
@@ -30,10 +31,10 @@ struct VGG8_Net: torch::nn::Module
         //conv[4] = register_module("conv4", torch::nn::Conv2d(torch::nn::Conv2dOptions(256, 512, 3).padding(1)));
         //conv[5] = register_module("conv5", torch::nn::Conv2d(torch::nn::Conv2dOptions(512, 512, 3).padding(1)));
         // conv[6] = register_module("conv6", torch::nn::Conv2d(torch::nn::Conv2dOptions(512, 1024, 3).padding(1)));
-        conv[0] = register_module("conv0", PimConv2d(ExpandingArray<4>({kTrainBatchSize, 3, 32, 32}), pim_type, Conv2dOptions(3, 128, 3).padding(1), fast_mode, runDev));
+        conv[0] = register_module("conv0", PimConv2d(ExpandingArray<4>({kTrainBatchSize, 3, 32, 32}),pim_type, Conv2dOptions(3, 128, 3).padding(1), fast_mode, runDev));
 
         std::cout << "0" << std::endl;
-        conv[1] = register_module("conv1", PimConv2d(ExpandingArray<4>({kTrainBatchSize, 128, 32, 32}), pim_type, Conv2dOptions(128, 128, 3).padding(1), fast_mode, runDev)); 
+        conv[1] = register_module("conv1", PimConv2d(ExpandingArray<4>({kTrainBatchSize, 128, 32, 32}), pim_type, Conv2dOptions(128, 128, 3).padding(1), fast_mode, runDev));
         std::cout << "1" << std::endl;
         
         conv[2] = register_module("conv2", PimConv2d(ExpandingArray<4>({kTrainBatchSize, 128, 16, 16}), pim_type, Conv2dOptions(128, 256, 3).padding(1), fast_mode, runDev));

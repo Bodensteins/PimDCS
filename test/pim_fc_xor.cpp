@@ -27,6 +27,7 @@ const int64_t kNumberOfEpochs = 1;
 const int64_t kLogInterval = 100;
 auto runDev = torch::kCPU;
 
+
 const int trainTimes = 1000;
 const int train_dataset_size = 4 * trainTimes;
 

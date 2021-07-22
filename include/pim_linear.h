@@ -55,12 +55,12 @@ namespace PIM {
         prev.ptr->write_mat(input);
 
         // update parameters, note that weight shape is (out_features, in_features)
-        if (bias.has_value()) {
-          wb.ptr->write_mat(torch::cat({weight.t(), bias.value().unsqueeze(0)}, 0)); // write transposed weight
-        } else {
-          wb.ptr->write_mat(weight.t());
-        }
-        wb_t.ptr->write_mat(weight);
+//        if (bias.has_value()) {
+//          wb.ptr->write_mat(torch::cat({weight.t(), bias.value().unsqueeze(0)}, 0)); // write transposed weight
+//        } else {
+//          wb.ptr->write_mat(weight.t());
+//        }
+//        wb_t.ptr->write_mat(weight);
       }
 
       Tensor pim_input = input;
@@ -73,7 +73,6 @@ namespace PIM {
       // if (!torch::allclose(output, pim_output, 1e-05, 1e-06)) {
       //   TORCH_INTERNAL_ASSERT(false, "calculation error");
       // }
-
       return pim_output;
     }
 
@@ -109,9 +108,9 @@ namespace PIM {
         Tensor pim_grad_input = ctx->saved_data["wb_t_ptr"].toCustomClass<PimArrayPtr>()->ptr->mm(grad_output.detach());
         Tensor pim_grad_weight = ctx->saved_data["prev_ptr"].toCustomClass<PimArrayPtr>()->ptr->mm(grad_output.t().detach());
 
-        // if (!torch::allclose(grad_input, pim_grad_input, 1e-05, 1e-06)) {
-        //   TORCH_INTERNAL_ASSERT(false, "calculation error");
-        // }
+//        if (!torch::allclose(grad_input, pim_grad_input, 1e-05, 1e-06)) {
+//          TORCH_INTERNAL_ASSERT(false, "calculation error");
+//        }
 
         // if (!torch::allclose(grad_weight, pim_grad_weight, 1e-05, 1e-06)) {
         //   TORCH_INTERNAL_ASSERT(false, "calculation error");
@@ -130,8 +129,8 @@ namespace PIM {
                   bool fast_mode = false, const TensorOptions op = {})
         : PimLinearImpl(batch_size, pim_type, LinearOptions(in_features, out_features), fast_mode, op) {}
 
-    explicit PimLinearImpl(int64_t batch_size, PimArrayType pim_type, const LinearOptions &options_,
-                           bool fast_mode = false, const TensorOptions op = {})
+    explicit PimLinearImpl(int64_t batch_size, PimArrayType pim_type,
+                           const LinearOptions &options_, bool fast_mode = false, const TensorOptions op = {})
         : options(options_), batch_size(batch_size), pim_type(pim_type), fast_mode(fast_mode){
       reset();
       //if (op.device()==torch::kCUDA)
@@ -142,13 +141,15 @@ namespace PIM {
       create_pim_array(wb_ptr, {
           options_.bias() ? options_.in_features() + 1 : options_.in_features(), options_.out_features()
         }, pim_type, weight.options());
-      create_pim_array(wb_t_ptr, {options_.out_features(), options_.in_features()}, pim_type, weight.options());
-      create_pim_array(prev_ptr, {batch_size, options_.in_features()}, pim_type, weight.options());
+      create_pim_array(wb_t_ptr, {options_.out_features(), options_.in_features()}, pim_type,
+                       weight.options());
+      create_pim_array(prev_ptr, {batch_size, options_.in_features()}, pim_type,
+                       weight.options());
+      sync_weight();
     }
 
     void reset() override {
-      weight = register_parameter("weight",
-                                  torch::empty({options.out_features(), options.in_features()}));
+      weight = register_parameter("weight",torch::empty({options.out_features(), options.in_features()}));
       if (options.bias()) {
         bias = register_parameter("bias", torch::empty(options.out_features()));
       } else {
@@ -191,13 +192,13 @@ namespace PIM {
       switch (pim_type) {
         case PimArrayType::simple_logic_array:
           return PimLinearFunction<SimpleLogicArray>::apply(wb_ptr, wb_t_ptr, prev_ptr, input, weight,
-              options.bias() ? bias : c10::optional<Tensor>(), is_training_, fast_mode);
+              options.bias() ? bias : c10::optional<Tensor>(), is_training(), fast_mode);
         case PimArrayType::pim_array_pro:
           return PimLinearFunction<pimArrayPro>::apply(wb_ptr, wb_t_ptr, prev_ptr, input, weight,
-              options.bias() ? bias : c10::optional<Tensor>(), is_training_, fast_mode);
+              options.bias() ? bias : c10::optional<Tensor>(), is_training(), fast_mode);
         case PimArrayType::pim_array_fast:
           return PimLinearFunction<pimArrayFast>::apply(wb_ptr, wb_t_ptr, prev_ptr, input, weight,
-              options.bias() ? bias : c10::optional<Tensor>(), is_training_, fast_mode);
+              options.bias() ? bias : c10::optional<Tensor>(), is_training(), fast_mode);
         default:
           TORCH_INTERNAL_ASSERT(false, "pimlinear, forward type not support!")
       }
@@ -205,18 +206,26 @@ namespace PIM {
 
     void sync_weight() {
       if (bias.defined()) {
-        wb_ptr.ptr->write_mat(torch::cat({weight.t(), bias.unsqueeze(0)}, 0)); // write transposed weight
+          wb_ptr.ptr->write_mat(torch::cat({weight.t(), bias.unsqueeze(0)}, 0)); // write transposed weight
       } else {
         wb_ptr.ptr->write_mat(weight.t());
       }
+      wb_t_ptr.ptr->write_mat(weight);
     }
 
-    void train(bool on = true) override {
-      if (!on) {
-        sync_weight();
+
+    void check_weight_sync() {
+      if (!torch::allclose(weight, wb_t_ptr.ptr->read_mat(), 1e-05, 1e-06)) {
+        TORCH_INTERNAL_ASSERT(false, "wb_t_ptr not correct");
       }
-      is_training_ = on;
     }
+
+//    void train(bool on = true) override {
+//      if (!on) {
+//        sync_weight();
+//      }
+//      is_training_ = on;
+//    }
 
     void print_detail(bool on = true) {
       print_detail_ = on;
@@ -232,8 +241,8 @@ namespace PIM {
     /// undefined.
     Tensor bias;
 
-    /// Whether the module is in training mode.
-    bool is_training_{true};
+//    /// Whether the module is in training mode.
+//    bool is_training_{true};
 
     /// Whether the physical array is be printed.
     bool print_detail_{false};
@@ -245,7 +254,6 @@ namespace PIM {
     PimArrayPtr prev_ptr;
     PimArrayType pim_type;
     int64_t batch_size;
-
   };
 
 /// A `ModuleHolder` subclass for `LinearImpl`.

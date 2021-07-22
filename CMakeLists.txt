@@ -51,6 +51,15 @@ endif()
 include(yaml-cpp.cmake)
 include_directories(${YAML_CPP_INCLUDE_DIR})
 
+# -DPIM_ARRAY_CONFIG_PATH=/your/path
+if ("${PIM_ARRAY_CONFIG_PATH}" STREQUAL "")
+    message(WARNING "Using default config path: ../config/pim_array_pro.yaml")
+    set(PIM_ARRAY_CONFIG_PATH "../config/pim_array_pro.yaml")
+else()
+    message(STATUS "Using config path: ${PIM_ARRAY_CONFIG_PATH}")
+endif()
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/include/config_path.h.in ${CMAKE_CURRENT_SOURCE_DIR}/include/config_path.h)
+
 add_executable(pim_conv_mnist test/pim_conv_mnist.cpp)
 add_dependencies(pim_conv_mnist YAML_CPP_EXTERNAL_PROJECT)
 target_link_libraries(pim_conv_mnist "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
@@ -88,7 +97,7 @@ set_property(TARGET pim_fc_xor PROPERTY CXX_STANDARD 14)
 
 
 # Test
-add_executable(logic_array_interface_test unittest/logic_array_interface_test.cpp )
+add_executable(logic_array_interface_test unittest/logic_array_interface_test.cpp)
 add_dependencies(logic_array_interface_test YAML_CPP_EXTERNAL_PROJECT)
 target_link_libraries(logic_array_interface_test "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
 set_property(TARGET logic_array_interface_test PROPERTY CXX_STANDARD 14)
@@ -113,6 +122,10 @@ add_dependencies(unittestFor_pimPro YAML_CPP_EXTERNAL_PROJECT)
 target_link_libraries(unittestFor_pimPro "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
 set_property(TARGET unittestFor_pimPro PROPERTY CXX_STANDARD 14)
 
+add_executable(mmtest unittest/mmtest.cpp)
+add_dependencies(mmtest YAML_CPP_EXTERNAL_PROJECT)
+target_link_libraries(mmtest "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
+set_property(TARGET mmtest PROPERTY CXX_STANDARD 14)
 
 # cifar-10
 add_executable(original_vgg test/vgg/original_vgg.cpp)
@@ -133,4 +146,3 @@ if (USE_OPENCV)
     target_link_libraries(yolo_v3 "${TORCH_LIBRARIES}" "${OpenCV_LIBS}" "${CURSES_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
     set_property(TARGET yolo_v3 PROPERTY CXX_STANDARD 14)
 endif ()
-

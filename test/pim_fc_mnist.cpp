@@ -25,7 +25,10 @@ const int64_t kNumberOfEpochs = 1;
 
 // After how many batches to log a new update with the loss value.
 const int64_t kLogInterval = 10;
+
 auto runDev = torch::kCPU;
+
+
 // Define a new Module.
 struct Net : torch::nn::Module {
   Net() {
@@ -79,15 +82,23 @@ void train(
     size_t dataset_size) {
   model.train();
   size_t batch_idx = 0;
+
   for (auto& batch : data_loader) {
     //std::cout << batch_idx << std::endl;
-    auto data = batch.data.to(device, torch::kFloat64), targets = batch.target.to(device);
+    auto data = batch.data.to(device, torch::kFloat32), targets = batch.target.to(device);
     optimizer.zero_grad();
     auto output = model.forward(data);
     auto loss = torch::nll_loss(output, targets);
     AT_ASSERT(!std::isnan(loss.template item<float>()));
     loss.backward();
     optimizer.step();
+    // sync weights
+    model.apply([](nn::Module& module) {
+      PIM::PimLinearImpl* module_ptr = dynamic_cast<PIM::PimLinearImpl*>(&module);
+      if (module_ptr) {
+        module_ptr->sync_weight();
+      }
+    });
     if (batch_idx++ % kLogInterval == 0) {
       std::printf(
           "Train Epoch: %d [%5ld/%5ld] Loss: %.4f\n",
@@ -111,7 +122,7 @@ void test(
   double test_loss = 0;
   int32_t correct = 0;
   for (const auto& batch : data_loader) {
-    auto data = batch.data.to(device, torch::kFloat64), targets = batch.target.to(device);
+    auto data = batch.data.to(device, torch::kFloat32), targets = batch.target.to(device);
     auto output = model.forward(data);
     test_loss += torch::nll_loss(
         output,
@@ -145,9 +156,9 @@ auto main() -> int {
   torch::Device device(device_type);
 
   Net model;
-  model.to(device, torch::kFloat64);
-  pimArrayPro::phyArrManPro.printArea();
+  model.to(device, torch::kFloat32);
 
+  pimArrayPro::phyArrManPro.printArea(std::cout);
   auto start = high_resolution_clock::now();
 
   auto train_dataset = torch::data::datasets::MNIST(kDataRoot)
@@ -180,5 +191,8 @@ auto main() -> int {
   auto duration = duration_cast<milliseconds>(stop - start);
   std::cout << "Time: " << duration.count() / 1000. << " seconds" << std::endl;
   pimArrayPro::phyArrManPro.print_latency(std::cout);
+  pimArrayPro::phyArrManPro.print_op(std::cout);
+  pimArrayPro::phyArrManPro.print_energy(std::cout);
+  pimArrayPro::phyArrManPro.print_power_efficiency(std::cout);
   return 0;
 }

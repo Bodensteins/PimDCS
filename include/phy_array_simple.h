@@ -128,64 +128,74 @@ void phyArrayPro::writeMat(const at::Tensor &matin, int row, int col)
         //currently, cell write cnt is simply equal to whther it is wrriten or not, does not based on pluse number when cell bits >1
         at::Tensor add = (data.index({Slice(row, row + m), Slice(col, col + n)}) != mat);
         cellWrCnt.index({Slice(row, row + m), Slice(col, col + n)}).add_(add);
+
         totalCmpWrCnt += add.sum().item<int64_t>();
     }
 
     // remains future works
     if (conf->energy.enable)
     {
-        if (conf->wm == phy_array_writeMode::V_Div_2)
-        {
-            double energy = conf->writeV/2 * conf->writeV/2 * conf->latency.phyWrLatency/(conf->cellLevels - 1);
-            double cnt = 0;
+        at::Tensor diff = data.index({Slice(row, row + m), Slice(col, col + n)}) != mat;
+        int64_t cmpWriteNum = diff.sum().item<int64_t>();
 
-            if (conf->energy.writeUseProbability)
-            {
-                double average_conductance = 0;
-
-                for (int i = 0; i < conf->energy.CellPD.size(); ++i)
-                {
-                    average_conductance += i * conf->energy.CellPD[i];
-                }
-                average_conductance *= deltaConduct;
-                average_conductance += conf->minConduct;
-
-                cnt = m * n * ((rowSize + colSize - 2) * average_conductance + average_conductance * 4);
-
-                double average_delta = data.index({Slice(row, row + m), Slice(col, col + n)}).sub(mat)
-                        .abs().sum().div(m * n).item<double>();
-                cnt *= average_delta;
-            }
-            else
-            {
-                for (int i = 0; i < m; ++i)
-                {
-                    for (int j = 0; j < n; ++j)
-                    {
-                        cnt += ((data.index({row + i, Slice(0, col)}).sum().item<double>()
-                                 + mat.index({i, Slice(0, j)}).sum().item<double>()
-                                 + data.index({row + i, Slice(col + j + 1, colSize)}).sum().item<double>()
-                                 + data.index({Slice(0, row), col + j}).sum().item<double>()
-                                 + mat.index({Slice(0, i), j}).sum().item<double>()
-                                 + data.index({Slice(row + i + 1, rowSize), col + j}).sum().item<double>()
-                                 + (data[row + i][col + j].item<double>() + mat[i][j].item<double>())/2 * 4)
-                                * deltaConduct + (rowSize + colSize - 1) * conf->minConduct)
-                               * fabs(data[row + i][col + j].item<double>() - mat[i][j].item<double>());
-                    }
-                }
-            }
-
-            energy *= cnt;
-            //add circuit energy
-            energy += m * n * (rowSize * conf->energy.writeRowPeripheryEnergy
-                               + colSize * conf->energy.writeColPeripheryEnergy);
-
-            writeEnergy += energy;
-        }
-        else
-        {
-            std::cout << "we now don't support other write mode!" << std::endl;
-        }
+        int index = round(cmpWriteNum * 1.0 * conf->energy.writeParallelism / (rowSize * colSize));
+        double energy = rowSize * colSize * conf->energy.averageEnergyPerWrite[index] / conf->energy.writeParallelism;
+        writeEnergy += energy;
+//        if (conf->wm == phy_array_writeMode::V_Div_2)
+//        {
+//            double energy = conf->writeV/2 * conf->writeV/2 * conf->lat_area.phyWrLatency/(conf->cellLevels - 1);
+//            double cnt = 0;
+//
+//            if (conf->energy.writeUseProbability)
+//            {
+//                double average_conductance = 0;
+//
+//                for (int i = 0; i < conf->energy.CellPD.size(); ++i)
+//                {
+//                    average_conductance += i * conf->energy.CellPD[i];
+//                }
+//                average_conductance *= deltaConduct;
+//                average_conductance += conf->minConduct;
+//
+//                cnt = m * n * ((rowSize + colSize - 2) * average_conductance + average_conductance * 4);
+//
+//                double average_delta = data.index({Slice(row, row + m), Slice(col, col + n)}).sub(mat)
+//                        .abs().sum().div(m * n).item<double>();
+//                cnt *= average_delta;
+//            }
+//            else
+//            {
+//                //don't support it
+//                std::cerr << "sorry, we don't support it" << endl;
+//
+//                for (int i = 0; i < m; ++i)
+//                {
+//                    for (int j = 0; j < n; ++j)
+//                    {
+//                        cnt += ((data.index({row + i, Slice(0, col)}).sum().item<double>()
+//                                 + mat.index({i, Slice(0, j)}).sum().item<double>()
+//                                 + data.index({row + i, Slice(col + j + 1, colSize)}).sum().item<double>()
+//                                 + data.index({Slice(0, row), col + j}).sum().item<double>()
+//                                 + mat.index({Slice(0, i), j}).sum().item<double>()
+//                                 + data.index({Slice(row + i + 1, rowSize), col + j}).sum().item<double>()
+//                                 + (data[row + i][col + j].item<double>() + mat[i][j].item<double>())/2 * 4)
+//                                * deltaConduct + (rowSize + colSize - 1) * conf->minConduct)
+//                               * fabs(data[row + i][col + j].item<double>() - mat[i][j].item<double>());
+//                    }
+//                }
+//            }
+//
+//            energy *= cnt;
+//            //add circuit energy
+//            energy += m * n * (rowSize * conf->energy.writeRowPeripheryEnergy
+//                               + colSize * conf->energy.writeColPeripheryEnergy);
+//
+//            writeEnergy += energy;
+//        }
+//        else
+//        {
+//            std::cout << "we now don't support other write mode!" << std::endl;
+//        }
 
     }
 
@@ -217,7 +227,7 @@ at::Tensor phyArrayPro::readMat(int row, int col, int m, int n)
     {
         if (conf->rm == phy_array_readMode::Ground)
         {
-            double energy = conf->readV * conf->readV * conf->latency.phyReLatency;
+            double energy = conf->readV * conf->readV * conf->lat_area.phyRdLatency;
             int elementNum = m * colSize;
             double conductance;
 
@@ -264,7 +274,7 @@ at::Tensor phyArrayPro::mm(const at::Tensor &mat)
     // remains future works
     if (conf->energy.enable)
     {
-        double energy = conf->computeV * conf->computeV * conf->latency.phyMMLatency;
+        double energy = conf->computeV * conf->computeV * conf->lat_area.phyMMLatency;
         if (conf->energy.computeUseProbability)
         {
             double average_conductance = 0, average_V_square = 0;
@@ -326,7 +336,7 @@ at::Tensor phyArrayPro::mm(const at::Tensor &mat)
         }
     }*/
 
-    return torch::matmul(mat, data.index({Slice(0, mat.size(2))}).to(torch::kF64) * deltaConduct + conf->minConduct).div(rowSize*conf->maxConduct);
+    return torch::matmul(mat, data.index({Slice(0, mat.size(2))}).to(torch::kF64) * deltaConduct + conf->minConduct);
 }
 
 /**
@@ -398,7 +408,8 @@ at::Tensor phyArrayPro::preWorkForMM(const at::Tensor &mat, const pim_array_pro_
 
             out = out.view({out.size(0), out.size(1), 1});
             out = torch::cat({std::vector<at::Tensor>(conf->inPluses, out)}, 2);
-            output.index({Ellipsis}) = out.__irshift__(conf->rshift.to(mat.device())).bitwise_and_(mask).div((double)(conf->inVLevels - 1)).transpose_(1, 2);
+            //output.index({Ellipsis}) = out.__irshift__(conf->rshift.to(mat.device())).bitwise_and_(mask).div((double)(conf->inVLevels - 1)).transpose_(1, 2);
+            output.index({Ellipsis}) = out.__irshift__(conf->rshift.to(mat.device())).bitwise_and_(mask).transpose_(1, 2);
             /*at::parallel_for(0, conf->inPluses, 0, [&](int st, int ed) {
                 for (int i = st; i < ed; ++i)
                 {
@@ -440,7 +451,8 @@ at::Tensor phyArrayPro::preWorkForMM(const at::Tensor &mat, const pim_array_pro_
     int mask = conf->inVLevels - 1;
     out = out.view({out.size(0), out.size(1), 1});
     out = torch::cat({std::vector<at::Tensor>(conf->inPluses, out)}, 2);
-    output.index({Ellipsis}) = out.__irshift__(conf->rshift.to(mat.device())).bitwise_and_(mask).div((double)(conf->inVLevels -1)).transpose_(1, 2);
+    //output.index({Ellipsis}) = out.__irshift__(conf->rshift.to(mat.device())).bitwise_and_(mask).div((double)(conf->inVLevels -1)).transpose_(1, 2);
+    output.index({Ellipsis}) = out.__irshift__(conf->rshift.to(mat.device())).bitwise_and_(mask).transpose_(1, 2);
     /*at::parallel_for(0, conf->inPluses, 0, [&](int st, int ed) {
         for (int i = st; i < ed; ++i)
         {
@@ -460,13 +472,17 @@ at::Tensor phyArrayPro::preWorkForMM(const at::Tensor &mat, const pim_array_pro_
 at::Tensor phyArrayPro::postWorkForMM(const at::Tensor &mat, const pim_array_pro_config *conf, double &max_one)
 {
     // int nums = conf->inBits/conf->inVBits;
-    double scalar_value = max_one *conf->phyArrRowSize /(conf->unitLevels-1) * conf->max_weight_value /(conf->outLevels -1) *(conf->inVLevels-1) / (conf->inLevels-1) * (conf->cellLevels-1);
+    double scalar_value = max_one / (conf->unitLevels-1) * conf->max_weight_value / (conf->inLevels-1);
     at::Tensor out;
 
     if (conf->mode == 1) // ref col mode
     {
-        scalar_value *= conf->maxConduct/(conf->maxConduct-conf->minConduct);
-        out = mat.mul(conf->outLevels - 1).round_(); //let out range from 0 -- outLevels -1, double
+        if (conf->maxCurrentNum>=conf->outLevels)  
+        {
+            out = mat.div(conf->deltaConduct*conf->adc_scalar).round_().mul_(conf->adc_scalar); // 0---maxCurrentNum
+        }
+        else
+            out = mat.div(conf->deltaConduct).round_(); //let out range from 0 -- outLevels -1, double
 
         out.index({Ellipsis, Slice(0, conf->phyArrColSize+1)}).subtract_(out.index({Ellipsis, Slice(conf->phyArrColSize+1)}));
         
@@ -518,7 +534,12 @@ at::Tensor phyArrayPro::postWorkForMM(const at::Tensor &mat, const pim_array_pro
     else // postive & negative array mode,  in this single array, normal calculation.
     {
 
-        out = mat.mul(conf->outLevels - 1).round_().index({Ellipsis, Slice(0, conf->usedCellsPerPhyRow)}); //let out range from 0 -- outLevels -1, double
+        if (conf->maxCurrentNum>=conf->outLevels)
+        {
+            out = mat.div(conf->deltaConduct*conf->adc_scalar).round_().mul_(conf->adc_scalar).index({Ellipsis, Slice(0, conf->usedCellsPerPhyRow)}); // 0---maxCurrentNum
+        }
+        else
+            out = mat.div(conf->deltaConduct).round_().index({Ellipsis, Slice(0, conf->usedCellsPerPhyRow)}); //let out range from 0 -- maxCurrentNum, double
         at::Tensor output = torch::empty({mat.size(0), conf->inPluses, conf->unitsPerPhyRow}, mat.device());
         // at::Tensor unitScalar = torch::ones({nums, conf->usedCellsPerPhyRow}, TensorOptions(mat.device()).dtype(torch::kI32));
 

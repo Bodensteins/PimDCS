@@ -8,8 +8,6 @@
 *
 *******************************************************************************/
 #include "Darknet.h"
-#include "pim_conv.h"
-#include "pim_linear.h"
 #include <stdio.h>
 #include <iostream>
 #include <typeinfo>
@@ -261,7 +259,7 @@ struct DetectionLayer : torch::nn::Module {
 // Darknet
 //---------------------------------------------------------------------------
 Darknet::Darknet(YAML::Node &config, torch::Device &device)
-  : config(config), device(device){
+  : config(config), device(device) {
   load_cfg();
   create_modules();
 }
@@ -346,6 +344,7 @@ void Darknet::create_modules() {
       PIM::PimConv2d pim_conv = PIM::PimConv2d(
           ExpandingArray<4>(in_shape),
           PIM::PimArrayType::pim_array_pro,
+          pim_cfg,
           Conv2dOptions(in_shape[1], filters, kernel_size).stride(stride).padding(pad).bias(with_bias), false, runDev);
       module->push_back(pim_conv);
 

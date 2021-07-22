@@ -20,7 +20,7 @@ const int64_t kTrainBatchSize = 64;
 const int64_t kTestBatchSize = 1000;
 
 // The number of epochs to train.
-const int64_t kNumberOfEpochs = 10;
+const int64_t kNumberOfEpochs = 1;
 
 // After how many batches to log a new update with the loss value.
 const int64_t kLogInterval = 10;
@@ -28,7 +28,8 @@ const int64_t kLogInterval = 10;
 auto runDev = torch::kCPU;
 
 //auto type = PIM::PimArrayType::pim_array_pro;
-auto type = PIM::PimArrayType::simple_logic_array;
+auto type = PIM::PimArrayType::pim_array_pro;
+
 
 struct Net : torch::nn::Module {
   Net()
@@ -81,14 +82,21 @@ void train(
   model.train();
   size_t batch_idx = 0;
   for (auto& batch : data_loader) {
-    auto data = batch.data.to(device, torch::kFloat64), targets = batch.target.to(device);
+    auto data = batch.data.to(device, torch::kFloat32), targets = batch.target.to(device);
     optimizer.zero_grad();
     auto output = model.forward(data);
     auto loss = torch::nll_loss(output, targets);
     AT_ASSERT(!std::isnan(loss.template item<float>()));
     loss.backward();
     optimizer.step();
-
+    // sync weights
+    model.apply([](nn::Module& module) {
+      if (PIM::PimLinearImpl* module_ptr = dynamic_cast<PIM::PimLinearImpl*>(&module)) {
+        module_ptr->sync_weight();
+      } else if (PIM::PimConv2dImpl* module_ptr = dynamic_cast<PIM::PimConv2dImpl*>(&module)) {
+        module_ptr->sync_weight();
+      }
+    });
     if (batch_idx++ % kLogInterval == 0) {
       std::printf(
           "Train Epoch: %ld [%5ld/%5ld] Loss: %.4f\n",
@@ -112,7 +120,7 @@ void test(
   double test_loss = 0;
   int32_t correct = 0;
   for (const auto& batch : data_loader) {
-    auto data = batch.data.to(device, torch::kFloat64), targets = batch.target.to(device);
+    auto data = batch.data.to(device, torch::kFloat32), targets = batch.target.to(device);
     auto output = model.forward(data);
     test_loss += torch::nll_loss(
         output,
@@ -145,7 +153,7 @@ auto main() -> int {
   torch::Device device(device_type);
 
   Net model;
-  model.to(device, torch::kFloat64);
+  model.to(device, torch::kFloat32);
   std::cout << model << std::endl;
 
   auto start = high_resolution_clock::now();

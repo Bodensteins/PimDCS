@@ -78,10 +78,8 @@ void mmTest()
 
     pimArrayPro test(2, 2);
     auto data = torch::rand({2, 2}, torch::kF64)*-1;
-    cout << "true=" << matmul(mat, data) << endl;
+    cout << "true:"  << endl << matmul(mat, data) << endl << "data: " << endl << data << endl;
     test.write_mat(data);
-    cout << test.read_mat() << endl;
-    cout << test.mm(mat) << endl;
-    
-
+    cout << "read data: " << endl << test.read_mat() << endl;
+    cout << "mm: " << endl << test.mm(mat) << endl;
 }

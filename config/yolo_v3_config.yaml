@@ -18,7 +18,7 @@ output_dir:
   '/Users/zhouheng/Downloads/datasets/新建文件夹/imgs/outputs'
 
 pim_config_path:
-  '../yolo_v3/models/pim_array_config.yaml'
+  '../config/pim_array_config.yaml'
 conv_in_shapes:
   - [1, 3, 416, 416]
   - [1, 32, 416, 416]

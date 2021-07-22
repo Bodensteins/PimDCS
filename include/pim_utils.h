@@ -61,7 +61,8 @@ namespace PIM
                 at::parallel_for(0, (*arr_shape)[0], 0, [&](int64_t start, int64_t end) {
                     for (int64_t i = start; i < end; i++)
                     {
-                        array_ptrs.ptrs[i] = std::make_shared<pimArrayPro>((*arr_shape)[1], (*arr_shape)[2], options);
+                        array_ptrs.ptrs[i] = std::make_shared<pimArrayPro>(
+                            (*arr_shape)[1], (*arr_shape)[2], options);
                     }
                 });
                 break;
@@ -70,7 +71,8 @@ namespace PIM
                 at::parallel_for(0, (*arr_shape)[0], 0, [&](int64_t start, int64_t end) {
                     for (int64_t i = start; i < end; i++)
                     {
-                        array_ptrs.ptrs[i] = std::make_shared<pimArrayFast>((*arr_shape)[1], (*arr_shape)[2], options);
+                        array_ptrs.ptrs[i] = std::make_shared<pimArrayFast>(
+                            (*arr_shape)[1], (*arr_shape)[2], options);
                     }
                 });
                 break;

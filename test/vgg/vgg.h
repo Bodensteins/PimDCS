@@ -12,7 +12,7 @@
 #include "pim_linear.h"
 
 torch::nn::Sequential vgg_block(const int kNumConvs, int in_channels, int out_channels, bool use_pim,
-    std::vector<ExpandingArray<4>>& in_shapes ) {
+    std::vector<ExpandingArray<4>>& in_shapes) {
   torch::nn::Sequential vgg_layers;
   const int kKernelSize = 3;
 

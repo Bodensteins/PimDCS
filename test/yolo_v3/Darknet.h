@@ -14,6 +14,8 @@
 #include <vector>
 #include <map>
 #include "yaml-cpp/yaml.h"
+#include "pim_conv.h"
+#include "pim_linear.h"
 
 using namespace std;
 

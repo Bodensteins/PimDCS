@@ -3,7 +3,7 @@
 #include <string>
 #include <ctime>
 
-auto runDev = torch::kCPU;
+auto runDev = torch::Device(torch::kCUDA, 2);
 
 struct VGG8_Net: torch::nn::Module
 {
@@ -195,7 +195,7 @@ void mytrain(std::shared_ptr<VGG8_Net> &net,
 int main(int argc, char *argv[])
 {
     auto net = std::make_shared<VGG8_Net>();
-    std::string tr_data_path = "/home/bing/HDD/mysoft/test/cifar10/dataset/";
+    std::string tr_data_path = "/home/chenghuan/Code/pimtorch/data/cifar-10-batches-bin/";
     
     cifar10Dataset train_data(tr_data_path+"data_batch_1.bin");
     train_data.add(tr_data_path+"data_batch_2.bin");
@@ -206,16 +206,19 @@ int main(int argc, char *argv[])
     std::cout << "train data read end" << std::endl;
 
 
-    std::string test_data_path = "/home/bing/HDD/mysoft/test/cifar10/dataset/";
+    std::string test_data_path = "/home/chenghuan/Code/pimtorch/data/cifar-10-batches-bin/";
     cifar10Dataset test_data(test_data_path+"test_batch.bin");
     std::cout << "test data read end" << std::endl;
 
-    torch::DeviceType device = at::kCPU;
-    if (torch::cuda::is_available() && runDev!=torch::kCPU)
+    if (torch::cuda::is_available() && runDev.is_cuda())
     {
         std::cout << "gpu enabled" << std::endl;
-        device = at::kCUDA;
-    }
+    } 
+    else
+    {
+        std::cout << "on cpu" << std::endl;
+        runDev = torch::Device(torch::kCPU);
+    } 
 
     int batch_size = 64;
     
@@ -224,7 +227,7 @@ int main(int argc, char *argv[])
 
     torch::optim::SGD optimizer(net->parameters(), /*lr=*/0.01);
 
-    net->to(device);
+    net->to(runDev);
     bool going_on = false;  
     if (argc>1 && std::string(argv[1])=="GO_ON")
     {
@@ -234,8 +237,8 @@ int main(int argc, char *argv[])
     start = time(0);
     for (int epoch=1; epoch<=50; ++epoch)
     {
-        mytrain(net, *tr_data_loader, device, train_data.size().value(), batch_size, optimizer, epoch, going_on);
-        mytest(net, *te_data_loader, device, test_data.size().value());
+        mytrain(net, *tr_data_loader, runDev, train_data.size().value(), batch_size, optimizer, epoch, going_on);
+        mytest(net, *te_data_loader, runDev, test_data.size().value());
     }  
 
     time_t now = time(0);

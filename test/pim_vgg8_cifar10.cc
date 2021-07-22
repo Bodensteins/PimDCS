@@ -11,7 +11,7 @@ using namespace PIM;
 
 
 int kTestBatchSize = 32;
-int kTrainBatchSize = 32;
+int kTrainBatchSize = 16;
 int kNumberOfEpochs = 10;
 auto runDev = torch::Device(torch::kCUDA, 1);
 std::string out_string = "pim_vgg8_cifar10_out";

@@ -71,17 +71,17 @@ SAF:
     pSA1: 0.0005
 
 
-phyArrRowSize: 64
-phyArrColSize: 64
+phyArrRowSize: 128
+phyArrColSize: 128
 
 minConduct: 1e-7
 maxConduct: 1e-5
 
 inVBits: 1
 inBits: 8
-outBits: 8
-unitBits: 9
-cellBits: 3
+outBits: 9
+unitBits: 8
+cellBits: 2
 has_negative_input: true
 max_phy_input_value: 16
 max_weight_value: 4

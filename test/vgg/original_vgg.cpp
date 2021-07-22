@@ -182,29 +182,39 @@ auto main() -> int {
   }
   torch::Device device(device_type);
 
-
-  std::vector<std::array<int, 2>> conv_arch_shape = {
-      {2, 64},
-      {2, 128},
-      {3, 256},
-      {3, 512},
-      {3, 512},
-  };
-
-
-//  std::vector<std::vector<ExpandingArray<4>>> in_shapes = {
-//      {{kTrainBatchSize, 1, 28, 28}},
-//      {{kTrainBatchSize, 64, 14, 14}},
-//      {{kTrainBatchSize, 128, 7, 7}, {kTrainBatchSize, 256, 7, 7}},
+//  //vgg16
+//  std::vector<std::array<int, 2>> conv_arch_shape = {
+//      {2, 64},
+//      {2, 128},
+//      {3, 256},
+//      {3, 512},
+//      {3, 512},
 //  };
+
+    //vgg11
+    std::vector<std::array<int, 2>> conv_arch_shape = {
+            {1, 64},
+            {1, 128},
+            {2, 256},
+            {2, 512},
+            {2, 512},
+    };
+
 
   std::vector<std::vector<ExpandingArray<4>>> in_shapes = 
   {
-      {{kTrainBatchSize, 3, 32, 32}, {kTrainBatchSize, 64, 32, 32}},
-      {{kTrainBatchSize, 64, 16, 16}, {kTrainBatchSize, 128, 16, 16}},
-      {{kTrainBatchSize, 128, 8, 8}, {kTrainBatchSize, 256, 8, 8}, {kTrainBatchSize, 256, 8, 8}},
-      {{kTrainBatchSize, 256, 4, 4}, {kTrainBatchSize, 512, 4, 4}, {kTrainBatchSize, 512, 4, 4}},
-      {{kTrainBatchSize, 512, 2, 2}, {kTrainBatchSize, 512, 2, 2}, {kTrainBatchSize, 512, 2, 2}},
+      //vgg16
+//      {{kTrainBatchSize, 3, 32, 32}, {kTrainBatchSize, 64, 32, 32}},
+//      {{kTrainBatchSize, 64, 16, 16}, {kTrainBatchSize, 128, 16, 16}},
+//      {{kTrainBatchSize, 128, 8, 8}, {kTrainBatchSize, 256, 8, 8}, {kTrainBatchSize, 256, 8, 8}},
+//      {{kTrainBatchSize, 256, 4, 4}, {kTrainBatchSize, 512, 4, 4}, {kTrainBatchSize, 512, 4, 4}},
+//      {{kTrainBatchSize, 512, 2, 2}, {kTrainBatchSize, 512, 2, 2}, {kTrainBatchSize, 512, 2, 2}},
+      //vgg11
+      {{kTrainBatchSize, 3, 32, 32}},
+      {{kTrainBatchSize, 64, 16, 16}},
+      {{kTrainBatchSize, 128, 8, 8}, {kTrainBatchSize, 256, 8, 8}},
+      {{kTrainBatchSize, 256, 4, 4}, {kTrainBatchSize, 512, 4, 4}},
+      {{kTrainBatchSize, 512, 2, 2}, {kTrainBatchSize, 512, 2, 2}},
   };
 
 

@@ -316,6 +316,16 @@ at::Tensor phyArrayPro::mm(const at::Tensor &mat)
             return ir_drop_solve_acc(matin*conf->computeV, data.to(torch::kF64) * deltaConduct + conf->minConduct, rowSize, colSize).div(rowSize*conf->maxConduct*conf->computeV);
 
     }
+
+    /*{
+        static int flag = 1;
+        if (flag)
+        {
+            std::cout << "mat index:" << mat.device().str() << "data index: " << data.device().str() << std::endl;
+            flag = 0;
+        }
+    }*/
+
     return torch::matmul(mat, data.index({Slice(0, mat.size(2))}).to(torch::kF64) * deltaConduct + conf->minConduct).div(rowSize*conf->maxConduct);
 }
 

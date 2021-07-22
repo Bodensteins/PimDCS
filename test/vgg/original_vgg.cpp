@@ -10,7 +10,7 @@ using namespace std::chrono;
 using namespace torch::nn;
 
 // Where to find the CIFAR10 dataset.
-std::string kDataRoot = "/home/chenghuan/Code/pimtorch/data/cifar-10-batches-bin/";
+std::string kDataRoot = "../data/cifar-10-batches-bin/";
 //std::string kDataRoot = "../data";
 
 // The batch size for training.
@@ -180,15 +180,15 @@ auto main() -> int {
     std::cout << "Training on CPU." << std::endl;
     device_type = torch::kCPU;
   }
-  torch::Device device(device_type, 2);
+  torch::Device device(device_type);
 
 
   std::vector<std::array<int, 2>> conv_arch_shape = {
-      {1, 64},
-      {1, 128},
-      {2, 256},
-    //  {2, 512},
-  //    {2, 512},
+      {2, 64},
+      {2, 128},
+      {3, 256},
+      {3, 512},
+      {3, 512},
   };
 
 
@@ -200,11 +200,11 @@ auto main() -> int {
 
   std::vector<std::vector<ExpandingArray<4>>> in_shapes = 
   {
-      {{kTrainBatchSize, 3, 32, 32}},
-      {{kTrainBatchSize, 64, 16, 16}},
-      {{kTrainBatchSize, 128, 8, 8}, {kTrainBatchSize, 256, 8, 8}},
-     // {{kTrainBatchSize, 256, 4, 4}, {kTrainBatchSize, 512, 4, 4}},
-      //{{kTrainBatchSize, 512, 2, 2}, {kTrainBatchSize, 512, 2, 2}},
+      {{kTrainBatchSize, 3, 32, 32}, {kTrainBatchSize, 64, 32, 32}},
+      {{kTrainBatchSize, 64, 16, 16}, {kTrainBatchSize, 128, 16, 16}},
+      {{kTrainBatchSize, 128, 8, 8}, {kTrainBatchSize, 256, 8, 8}, {kTrainBatchSize, 256, 8, 8}},
+      {{kTrainBatchSize, 256, 4, 4}, {kTrainBatchSize, 512, 4, 4}, {kTrainBatchSize, 512, 4, 4}},
+      {{kTrainBatchSize, 512, 2, 2}, {kTrainBatchSize, 512, 2, 2}, {kTrainBatchSize, 512, 2, 2}},
   };
 
 

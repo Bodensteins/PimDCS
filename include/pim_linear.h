@@ -133,10 +133,11 @@ namespace PIM {
                            const LinearOptions &options_, bool fast_mode = false, const TensorOptions op = {})
         : options(options_), batch_size(batch_size), pim_type(pim_type), fast_mode(fast_mode){
       reset();
-      if (op.device()==torch::kCUDA)
-      {
-        this->to(torch::kCUDA);
-      }
+      //if (op.device()==torch::kCUDA)
+      //{
+        //this->to(torch::kCUDA);
+      //}
+      this->to(op.device());
       create_pim_array(wb_ptr, {
           options_.bias() ? options_.in_features() + 1 : options_.in_features(), options_.out_features()
         }, pim_type, weight.options());

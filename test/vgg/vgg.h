@@ -89,10 +89,10 @@ VGG::VGG(const std::vector<std::array<int, 2>> &conv_arch, bool use_pim, int64_t
         // original: 512, 3 block: 2304
         torch::nn::Linear(/*in_features=*/512, /*out_features=*/512),
         torch::nn::ReLU(),
-        //torch::nn::Dropout(/*p=*/0.4),
+        torch::nn::Dropout(/*p=*/0.4),
         torch::nn::Linear(/*in_features=*/512, /*out_features=*/512),
         torch::nn::ReLU(),
-        //torch::nn::Dropout(/*p=*/0.4),
+        torch::nn::Dropout(/*p=*/0.4),
         torch::nn::Linear(/*in_features=*/512, /*out_features=*/10)
     );
     for (int i = 0; i < kModuleSize; ++i) {

@@ -182,39 +182,39 @@ auto main() -> int {
   }
   torch::Device device(device_type);
 
-//  //vgg16
-//  std::vector<std::array<int, 2>> conv_arch_shape = {
-//      {2, 64},
-//      {2, 128},
-//      {3, 256},
-//      {3, 512},
-//      {3, 512},
-//  };
+  //vgg16
+  std::vector<std::array<int, 2>> conv_arch_shape = {
+      {2, 64},
+      {2, 128},
+      {3, 256},
+      {3, 512},
+      {3, 512},
+  };
 
     //vgg11
-    std::vector<std::array<int, 2>> conv_arch_shape = {
-            {1, 64},
-            {1, 128},
-            {2, 256},
-            {2, 512},
-            {2, 512},
-    };
+   // std::vector<std::array<int, 2>> conv_arch_shape = {
+   //         {1, 64},
+   //         {1, 128},
+   //         {2, 256},
+   //         {2, 512},
+   //         {2, 512},
+   // };
 
 
   std::vector<std::vector<ExpandingArray<4>>> in_shapes = 
   {
       //vgg16
-//      {{kTrainBatchSize, 3, 32, 32}, {kTrainBatchSize, 64, 32, 32}},
-//      {{kTrainBatchSize, 64, 16, 16}, {kTrainBatchSize, 128, 16, 16}},
-//      {{kTrainBatchSize, 128, 8, 8}, {kTrainBatchSize, 256, 8, 8}, {kTrainBatchSize, 256, 8, 8}},
-//      {{kTrainBatchSize, 256, 4, 4}, {kTrainBatchSize, 512, 4, 4}, {kTrainBatchSize, 512, 4, 4}},
-//      {{kTrainBatchSize, 512, 2, 2}, {kTrainBatchSize, 512, 2, 2}, {kTrainBatchSize, 512, 2, 2}},
+      {{kTrainBatchSize, 3, 32, 32}, {kTrainBatchSize, 64, 32, 32}},
+      {{kTrainBatchSize, 64, 16, 16}, {kTrainBatchSize, 128, 16, 16}},
+      {{kTrainBatchSize, 128, 8, 8}, {kTrainBatchSize, 256, 8, 8}, {kTrainBatchSize, 256, 8, 8}},
+      {{kTrainBatchSize, 256, 4, 4}, {kTrainBatchSize, 512, 4, 4}, {kTrainBatchSize, 512, 4, 4}},
+      {{kTrainBatchSize, 512, 2, 2}, {kTrainBatchSize, 512, 2, 2}, {kTrainBatchSize, 512, 2, 2}},
       //vgg11
-      {{kTrainBatchSize, 3, 32, 32}},
-      {{kTrainBatchSize, 64, 16, 16}},
-      {{kTrainBatchSize, 128, 8, 8}, {kTrainBatchSize, 256, 8, 8}},
-      {{kTrainBatchSize, 256, 4, 4}, {kTrainBatchSize, 512, 4, 4}},
-      {{kTrainBatchSize, 512, 2, 2}, {kTrainBatchSize, 512, 2, 2}},
+//      {{kTrainBatchSize, 3, 32, 32}},
+//      {{kTrainBatchSize, 64, 16, 16}},
+//      {{kTrainBatchSize, 128, 8, 8}, {kTrainBatchSize, 256, 8, 8}},
+//      {{kTrainBatchSize, 256, 4, 4}, {kTrainBatchSize, 512, 4, 4}},
+//      {{kTrainBatchSize, 512, 2, 2}, {kTrainBatchSize, 512, 2, 2}},
   };
 
 
@@ -264,9 +264,8 @@ auto main() -> int {
 //      torch::data::make_data_loader(std::move(test_dataset), kTestBatchSize);
 
 
-  torch::optim::SGD optimizer(
-      model.parameters(), torch::optim::SGDOptions(0.05).momentum(0.3));
-//  torch::optim::Adam optimizer(model.parameters(), torch::optim::AdamOptions(1e-3));
+  torch::optim::SGD optimizer(model.parameters(), torch::optim::SGDOptions(0.001).momentum(0.5));
+  //torch::optim::Adam optimizer(model.parameters(), torch::optim::AdamOptions(1e-3));
 
   for (size_t epoch = 1; epoch <= kNumberOfEpochs; ++epoch) {
     train(epoch, model, device, *train_loader, optimizer, train_dataset_size);

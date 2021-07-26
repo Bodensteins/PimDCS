@@ -6,11 +6,12 @@
 #include <string>
 #include <ctime>
 
-auto runDev = torch::Device(torch::kCUDA, 2);
+//auto runDev = torch::Device(torch::kCUDA, 2);
+auto runDev = torch::Device(torch::kCPU);
 
 struct VGG16_Net: torch::nn::Module
 {
-    VGG16_Net(): conv(5, nullptr), fc1(nullptr), fc2(nullptr), fc3(nullptr)
+    VGG16_Net(): conv(13, nullptr), fc1(nullptr), fc2(nullptr), fc3(nullptr)
     {
         conv[0] = register_module("conv0", torch::nn::Conv2d(torch::nn::Conv2dOptions(3, 64, 3).padding(1)));
         conv[1] = register_module("conv1", torch::nn::Conv2d(torch::nn::Conv2dOptions(64, 64, 3).padding(1)));

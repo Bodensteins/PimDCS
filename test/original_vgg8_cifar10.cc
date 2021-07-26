@@ -7,17 +7,17 @@ auto runDev = torch::Device(torch::kCUDA, 2);
 
 struct VGG8_Net: torch::nn::Module
 {
-    VGG8_Net(): conv(6, nullptr), fc1(nullptr), fc2(nullptr)
+    VGG8_Net(): conv(5, nullptr), fc1(nullptr), fc2(nullptr), fc3(nullptr)
     {
-        conv[0] = register_module("conv0", torch::nn::Conv2d(torch::nn::Conv2dOptions(3, 128, 3).padding(1)));
-        conv[1] = register_module("conv1", torch::nn::Conv2d(torch::nn::Conv2dOptions(128, 128, 3).padding(1)));
+        conv[0] = register_module("conv0", torch::nn::Conv2d(torch::nn::Conv2dOptions(3, 64, 3).padding(1)));
+        conv[1] = register_module("conv1", torch::nn::Conv2d(torch::nn::Conv2dOptions(64, 128, 3).padding(1)));
         conv[2] = register_module("conv2", torch::nn::Conv2d(torch::nn::Conv2dOptions(128, 256, 3).padding(1)));
-        conv[3] = register_module("conv3", torch::nn::Conv2d(torch::nn::Conv2dOptions(256, 256, 3).padding(1)));
-        conv[4] = register_module("conv4", torch::nn::Conv2d(torch::nn::Conv2dOptions(256, 512, 3).padding(1)));
-        conv[5] = register_module("conv5", torch::nn::Conv2d(torch::nn::Conv2dOptions(512, 512, 3).padding(1)));
-        // conv[6] = register_module("conv6", torch::nn::Conv2d(torch::nn::Conv2dOptions(512, 1024, 3).padding(1)));
-        fc1 = register_module("fc1", torch::nn::Linear(8192, 512));
-        fc2 = register_module("fc2", torch::nn::Linear(512, 10));
+        conv[3] = register_module("conv3", torch::nn::Conv2d(torch::nn::Conv2dOptions(256, 512, 3).padding(1)));
+        conv[4] = register_module("conv4", torch::nn::Conv2d(torch::nn::Conv2dOptions(512, 512, 3).padding(1)));
+
+        fc1 = register_module("fc1", torch::nn::Linear(512, 512));
+        fc2 = register_module("fc2", torch::nn::Linear(512, 512));
+        fc3 = register_module("fc3", torch::nn::Linear(512, 10));
     }
 
     // Implement the Net's algorithm.
@@ -25,25 +25,31 @@ struct VGG8_Net: torch::nn::Module
     {
         using torch::relu;      
         namespace F = torch::nn::functional;
-        x = F::max_pool2d( relu(conv[1](relu(conv[0](x)))), F::MaxPool2dFuncOptions(2).stride(2) ); 
+        x = F::max_pool2d( (relu(conv[0](x))), F::MaxPool2dFuncOptions(2).stride(2));
 
-        x = F::max_pool2d( relu(conv[3](relu(conv[2](x)))), F::MaxPool2dFuncOptions(2).stride(2) );  
+        x = F::max_pool2d( (relu(conv[1](x))), F::MaxPool2dFuncOptions(2).stride(2));
 
-        x = F::max_pool2d( relu(conv[5](relu(conv[4](x)))), F::MaxPool2dFuncOptions(2).stride(2) ); 
+        x = F::max_pool2d( (relu(conv[2](x))), F::MaxPool2dFuncOptions(2).stride(2));
+
+        x = F::max_pool2d( (relu(conv[3](x))), F::MaxPool2dFuncOptions(2).stride(2));
+
+        x = F::max_pool2d( (relu(conv[4](x))), F::MaxPool2dFuncOptions(2).stride(2));
 
         // x = F::max_pool2d( relu(conv[6](x)), F::MaxPool2dFuncOptions(2).stride(2) );
         x = x.view({x.size(0), -1});
-        x = torch::dropout(x, /*p=*/0.6, /*training=*/is_training());
+       // x = torch::dropout(x, /*p=*/0.6, /*training=*/is_training());
         x = torch::relu(fc1(x));
-        x = torch::dropout(x, /*p=*/0.6, /*training=*/is_training());
-        x = fc2(x);
+        //x = torch::dropout(x, /*p=*/0.6, /*training=*/is_training());
+        x = torch::relu(fc2(x));
+        //x = torch::dropout(x, /*p=*/0.6, /*training=*/is_training());
+        x = fc3(x);
         x = torch::log_softmax(x, 1);
         return x;
     }
 
     // Use one of many "standard library" modules.
     std::vector<torch::nn::Conv2d> conv;
-    torch::nn::Linear fc1, fc2;
+    torch::nn::Linear fc1, fc2, fc3;
 };
 
 
@@ -195,7 +201,7 @@ void mytrain(std::shared_ptr<VGG8_Net> &net,
 int main(int argc, char *argv[])
 {
     auto net = std::make_shared<VGG8_Net>();
-    std::string tr_data_path = "/home/chenghuan/Code/pimtorch/data/cifar-10-batches-bin/";
+    std::string tr_data_path = "../data/cifar-10-batches-bin/";
     
     cifar10Dataset train_data(tr_data_path+"data_batch_1.bin");
     train_data.add(tr_data_path+"data_batch_2.bin");
@@ -206,7 +212,7 @@ int main(int argc, char *argv[])
     std::cout << "train data read end" << std::endl;
 
 
-    std::string test_data_path = "/home/chenghuan/Code/pimtorch/data/cifar-10-batches-bin/";
+    std::string test_data_path = "../data/cifar-10-batches-bin/";
     cifar10Dataset test_data(test_data_path+"test_batch.bin");
     std::cout << "test data read end" << std::endl;
 

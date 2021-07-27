@@ -7,23 +7,47 @@
 #include <string>
 #include <ctime>
 #include "pim_saver_and_loader.h"
+#include "pim_conv.h"
+#include "pim_linear.h"
 
 auto runDev = torch::Device(torch::kCUDA, 2);
+int kTestBatchSize = 32;
+//int kTrainBatchSize = 16;
+//int kNumberOfEpochs = 10;
+std::string out_string = "pim_vgg8_cifar10_out";
+auto pim_type = PimArrayType::pim_array_pro;
+//auto pim_type = PimArrayType::simple_logic_array;
+auto fast_mode = false;
 std::string weight_path = "../log/original_vgg8_cifar10.weight";
 //todo::need to modify
 struct VGG8_Net: torch::nn::Module
 {
     VGG8_Net(): conv(5, nullptr), fc1(nullptr), fc2(nullptr), fc3(nullptr)
     {
-        conv[0] = register_module("conv0", torch::nn::Conv2d(torch::nn::Conv2dOptions(3, 64, 3).padding(1)));
-        conv[1] = register_module("conv1", torch::nn::Conv2d(torch::nn::Conv2dOptions(64, 128, 3).padding(1)));
-        conv[2] = register_module("conv2", torch::nn::Conv2d(torch::nn::Conv2dOptions(128, 256, 3).padding(1)));
-        conv[3] = register_module("conv3", torch::nn::Conv2d(torch::nn::Conv2dOptions(256, 512, 3).padding(1)));
-        conv[4] = register_module("conv4", torch::nn::Conv2d(torch::nn::Conv2dOptions(512, 512, 3).padding(1)));
+        //conv[0] = register_module("conv0", torch::nn::Conv2d(torch::nn::Conv2dOptions(3, 64, 3).padding(1)));
+        conv[0] = register_module("conv0", PimConv2d(ExpandingArray<4>({kTestBatchSize, 3, 32, 32}), pim_type, Conv2dOptions(3, 64, 3).padding(1), fast_mode, runDev));
 
-        fc1 = register_module("fc1", torch::nn::Linear(512, 512));
-        fc2 = register_module("fc2", torch::nn::Linear(512, 512));
-        fc3 = register_module("fc3", torch::nn::Linear(512, 10));
+        //conv[1] = register_module("conv1", torch::nn::Conv2d(torch::nn::Conv2dOptions(64, 128, 3).padding(1)));
+        conv[1] = register_module("conv1", PimConv2d(ExpandingArray<4>({kTestBatchSize, 64, 16, 16}), pim_type, Conv2dOptions(64, 128, 3).padding(1), fast_mode, runDev));
+
+        //conv[2] = register_module("conv2", torch::nn::Conv2d(torch::nn::Conv2dOptions(128, 256, 3).padding(1)));
+        conv[2] = register_module("conv2", PimConv2d(ExpandingArray<4>({kTestBatchSize, 128, 8, 8}), pim_type, Conv2dOptions(128, 256, 3).padding(1), fast_mode, runDev));
+
+        //conv[3] = register_module("conv3", torch::nn::Conv2d(torch::nn::Conv2dOptions(256, 512, 3).padding(1)));
+        conv[3] = register_module("conv3", PimConv2d(ExpandingArray<4>({kTestBatchSize, 256, 4, 4}), pim_type, Conv2dOptions(256, 512, 3).padding(1), fast_mode, runDev));
+
+        //conv[4] = register_module("conv4", torch::nn::Conv2d(torch::nn::Conv2dOptions(512, 512, 3).padding(1)));
+        conv[4] = register_module("conv4", PimConv2d(ExpandingArray<4>({kTestBatchSize, 512, 2, 2}), pim_type, Conv2dOptions(512, 512, 3).padding(1), fast_mode, runDev));
+
+
+        //fc1 = register_module("fc1", torch::nn::Linear(512, 512));
+        fc1 = register_module("fc1", PimLinear(512, 512, kTestBatchSize, pim_type, fast_mode, runDev));
+
+        //fc2 = register_module("fc2", torch::nn::Linear(512, 512));
+        fc2 = register_module("fc2", PimLinear(512, 512, kTestBatchSize, pim_type, fast_mode, runDev));
+
+        //fc3 = register_module("fc3", torch::nn::Linear(512, 10));
+        fc3 = register_module("fc3", PimLinear(512, 10, kTestBatchSize, pim_type, fast_mode, runDev));
     }
 
     // Implement the Net's algorithm.
@@ -54,8 +78,10 @@ struct VGG8_Net: torch::nn::Module
     }
 
     // Use one of many "standard library" modules.
-    std::vector<torch::nn::Conv2d> conv;
-    torch::nn::Linear fc1, fc2, fc3;
+    //std::vector<torch::nn::Conv2d> conv;
+    std::vector<PimConv2d> conv;
+    PimLinear fc1, fc2, fc3;
+    //torch::nn::Linear fc1, fc2, fc3;
 };
 
 
@@ -152,70 +178,70 @@ void mytest(std::shared_ptr<VGG8_Net> &net,
     std::cout << "Test datasize= " << data_size << ",  Accuracy: " << 1.0 * correct / data_size << std::endl;
 }
 
-template<typename DataLoader>
-void mytrain(std::shared_ptr<VGG8_Net> &net,
-             DataLoader &data_loader,
-             torch::Device device,
-             size_t data_size,
-             size_t batch_size,
-             torch::optim::Optimizer& optimizer,
-             int epoch//,
-        //bool going_on
-)
-{
-    size_t batch_index = 0;
-    int correct = 0;
-    int ssize = 0;
-    // Iterate the data loader to yield batches from the dataset.
-    for (auto &batch : data_loader)
-    {
-        // Reset gradients.
-        optimizer.zero_grad();
-        // Execute the model on the input data.
-        torch::Tensor prediction = net->forward(batch.data.to(device));
-
-        auto out = prediction.argmax(1);
-        correct += out.eq(batch.target.to(device).view({-1})).sum().template item<int64_t>();
-
-        ssize += batch_size;
-        torch::Tensor loss = torch::nll_loss(prediction, batch.target.to(device).to(torch::kLong).view({-1}));
-        // Compute gradients of the loss w.r.t. the parameters of our model.
-        loss.backward();
-        // Update the parameters based on the calculated gradients.
-        optimizer.step();
-        // Output the loss and checkpoint every 100 batches.
-        if (++batch_index % 2 == 0)
-        {
-            std::cout << "Epoch: " << epoch << " | Batch: " << batch_index
-                      << " | Loss: " << loss.template item<float>()
-                      << " | correcct = " << correct << " size = " << ssize << " accuracy = " << 1.0*correct/ssize << std::endl;
-            // Serialize your model periodically as a checkpoint.
-            correct = 0, ssize = 0;
-        }
-        if (batch_index%500==0)
-        {
-            // if (!going_on)
-            //     torch::save(net, "net.pt");
-            // else
-            //     torch::save(net, "net_go.pt");
-            time_t now = time(0);
-            std::cout << "Already cost " << difftime(now, start) << " seconds" << std::endl;
-        }
-    }
-}
+//template<typename DataLoader>
+//void mytrain(std::shared_ptr<VGG8_Net> &net,
+//             DataLoader &data_loader,
+//             torch::Device device,
+//             size_t data_size,
+//             size_t batch_size,
+//             torch::optim::Optimizer& optimizer,
+//             int epoch//,
+//        //bool going_on
+//)
+//{
+//    size_t batch_index = 0;
+//    int correct = 0;
+//    int ssize = 0;
+//    // Iterate the data loader to yield batches from the dataset.
+//    for (auto &batch : data_loader)
+//    {
+//        // Reset gradients.
+//        optimizer.zero_grad();
+//        // Execute the model on the input data.
+//        torch::Tensor prediction = net->forward(batch.data.to(device));
+//
+//        auto out = prediction.argmax(1);
+//        correct += out.eq(batch.target.to(device).view({-1})).sum().template item<int64_t>();
+//
+//        ssize += batch_size;
+//        torch::Tensor loss = torch::nll_loss(prediction, batch.target.to(device).to(torch::kLong).view({-1}));
+//        // Compute gradients of the loss w.r.t. the parameters of our model.
+//        loss.backward();
+//        // Update the parameters based on the calculated gradients.
+//        optimizer.step();
+//        // Output the loss and checkpoint every 100 batches.
+//        if (++batch_index % 2 == 0)
+//        {
+//            std::cout << "Epoch: " << epoch << " | Batch: " << batch_index
+//                      << " | Loss: " << loss.template item<float>()
+//                      << " | correcct = " << correct << " size = " << ssize << " accuracy = " << 1.0*correct/ssize << std::endl;
+//            // Serialize your model periodically as a checkpoint.
+//            correct = 0, ssize = 0;
+//        }
+//        if (batch_index%500==0)
+//        {
+//            // if (!going_on)
+//            //     torch::save(net, "net.pt");
+//            // else
+//            //     torch::save(net, "net_go.pt");
+//            time_t now = time(0);
+//            std::cout << "Already cost " << difftime(now, start) << " seconds" << std::endl;
+//        }
+//    }
+//}
 
 int main(int argc, char *argv[])
 {
     auto net = std::make_shared<VGG8_Net>();
     std::string tr_data_path = "../data/cifar-10-batches-bin/";
 
-    cifar10Dataset train_data(tr_data_path+"data_batch_1.bin");
-    train_data.add(tr_data_path+"data_batch_2.bin");
-    train_data.add(tr_data_path+"data_batch_3.bin");
-    train_data.add(tr_data_path+"data_batch_4.bin");
-    train_data.add(tr_data_path+"data_batch_5.bin");
-
-    std::cout << "train data read end" << std::endl;
+//    cifar10Dataset train_data(tr_data_path+"data_batch_1.bin");
+//    train_data.add(tr_data_path+"data_batch_2.bin");
+//    train_data.add(tr_data_path+"data_batch_3.bin");
+//    train_data.add(tr_data_path+"data_batch_4.bin");
+//    train_data.add(tr_data_path+"data_batch_5.bin");
+//
+//    std::cout << "train data read end" << std::endl;
 
 
     std::string test_data_path = "../data/cifar-10-batches-bin/";
@@ -234,12 +260,14 @@ int main(int argc, char *argv[])
 
     int batch_size = 64;
 
-    auto tr_data_loader = torch::data::make_data_loader(train_data.map(torch::data::transforms::Normalize<>({0.485, 0.456, 0.406}, {0.229, 0.224, 0.225})).map(torch::data::transforms::Stack<>()), batch_size);
+    //auto tr_data_loader = torch::data::make_data_loader(train_data.map(torch::data::transforms::Normalize<>({0.485, 0.456, 0.406}, {0.229, 0.224, 0.225})).map(torch::data::transforms::Stack<>()), batch_size);
     auto te_data_loader = torch::data::make_data_loader(test_data.map(torch::data::transforms::Normalize<>({0.485, 0.456, 0.406}, {0.229, 0.224, 0.225})).map(torch::data::transforms::Stack<>()), batch_size);
 
-    torch::optim::SGD optimizer(net->parameters(), /*lr=*/0.01);
+    //torch::optim::SGD optimizer(net->parameters(), /*lr=*/0.01);
 
     net->to(runDev);
+
+    PIM::pim_loader(*net, weight_path);
 //    bool going_on = false;
 //    if (argc>1 && std::string(argv[1])=="GO_ON")
 //    {
@@ -249,14 +277,14 @@ int main(int argc, char *argv[])
     start = time(0);
     for (int epoch=1; epoch<=50; ++epoch)
     {
-        mytrain(net, *tr_data_loader, runDev, train_data.size().value(), batch_size, optimizer, epoch/*, going_on*/);
+        //mytrain(net, *tr_data_loader, runDev, train_data.size().value(), batch_size, optimizer, epoch/*, going_on*/);
         mytest(net, *te_data_loader, runDev, test_data.size().value());
     }
 
     time_t now = time(0);
-    std::cout << "train finish! Cost " << difftime(now, start) << " seconds" << std::endl;
+    std::cout << "test finish! Cost " << difftime(now, start) << " seconds" << std::endl;
 
-    PIM::pim_saver(*net, weight_path);
+//    PIM::pim_saver(*net, weight_path);
 
 //    if (!going_on)
 //        torch::save(net, "net.pt");

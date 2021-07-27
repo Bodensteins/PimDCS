@@ -170,12 +170,13 @@ void mytest(std::shared_ptr<VGG8_Net> &net,
     int correct = 0;
     //change to inference
     net->eval();
+    int i = 0;
     for (auto &batch : data_loader)
     {
         torch::Tensor prediction = net->forward(batch.data.to(device));
         auto out = prediction.argmax(1);
         correct += out.eq(batch.target.to(device).view({-1})).sum().template item<int64_t>();
-
+        std::cout << "batch :" << i << std::endl;
     }
     std::cout << "Test datasize= " << data_size << ",  Accuracy: " << 1.0 * correct / data_size << std::endl;
 }

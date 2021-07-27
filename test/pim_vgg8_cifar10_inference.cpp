@@ -10,9 +10,9 @@
 #include "pim_conv.h"
 #include "pim_linear.h"
 
-//auto runDev = torch::Device(torch::kCUDA, 2);
-auto runDev = torch::Device(torch::kCPU);
-int kTestBatchSize = 32;
+auto runDev = torch::Device(torch::kCUDA, 2);
+//auto runDev = torch::Device(torch::kCPU);
+int kTestBatchSize = 64;
 //int kTrainBatchSize = 16;
 //int kNumberOfEpochs = 10;
 std::string out_string = "pim_vgg8_cifar10_out";
@@ -177,6 +177,7 @@ void mytest(std::shared_ptr<VGG8_Net> &net,
         auto out = prediction.argmax(1);
         correct += out.eq(batch.target.to(device).view({-1})).sum().template item<int64_t>();
         std::cout << "batch :" << i << std::endl;
+        i++;
     }
     std::cout << "Test datasize= " << data_size << ",  Accuracy: " << 1.0 * correct / data_size << std::endl;
 }

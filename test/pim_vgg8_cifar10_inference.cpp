@@ -12,7 +12,7 @@
 
 //auto runDev = torch::Device(torch::kCUDA, 2);
 auto runDev = torch::Device(torch::kCPU);
-int kTestBatchSize = 32;
+int kBatchSize = 64;
 //int kTrainBatchSize = 16;
 //int kNumberOfEpochs = 10;
 std::string out_string = "pim_vgg8_cifar10_out";
@@ -26,29 +26,29 @@ struct VGG8_Net: torch::nn::Module
     VGG8_Net(): conv(5, nullptr), fc1(nullptr), fc2(nullptr), fc3(nullptr)
     {
         //conv[0] = register_module("conv0", torch::nn::Conv2d(torch::nn::Conv2dOptions(3, 64, 3).padding(1)));
-        conv[0] = register_module("conv0", PimConv2d(ExpandingArray<4>({kTestBatchSize, 3, 32, 32}), pim_type, Conv2dOptions(3, 64, 3).padding(1), fast_mode, runDev));
+        conv[0] = register_module("conv0", PimConv2d(ExpandingArray<4>({kBatchSize, 3, 32, 32}), pim_type, Conv2dOptions(3, 64, 3).padding(1), fast_mode, runDev));
 
         //conv[1] = register_module("conv1", torch::nn::Conv2d(torch::nn::Conv2dOptions(64, 128, 3).padding(1)));
-        conv[1] = register_module("conv1", PimConv2d(ExpandingArray<4>({kTestBatchSize, 64, 16, 16}), pim_type, Conv2dOptions(64, 128, 3).padding(1), fast_mode, runDev));
+        conv[1] = register_module("conv1", PimConv2d(ExpandingArray<4>({kBatchSize, 64, 16, 16}), pim_type, Conv2dOptions(64, 128, 3).padding(1), fast_mode, runDev));
 
         //conv[2] = register_module("conv2", torch::nn::Conv2d(torch::nn::Conv2dOptions(128, 256, 3).padding(1)));
-        conv[2] = register_module("conv2", PimConv2d(ExpandingArray<4>({kTestBatchSize, 128, 8, 8}), pim_type, Conv2dOptions(128, 256, 3).padding(1), fast_mode, runDev));
+        conv[2] = register_module("conv2", PimConv2d(ExpandingArray<4>({kBatchSize, 128, 8, 8}), pim_type, Conv2dOptions(128, 256, 3).padding(1), fast_mode, runDev));
 
         //conv[3] = register_module("conv3", torch::nn::Conv2d(torch::nn::Conv2dOptions(256, 512, 3).padding(1)));
-        conv[3] = register_module("conv3", PimConv2d(ExpandingArray<4>({kTestBatchSize, 256, 4, 4}), pim_type, Conv2dOptions(256, 512, 3).padding(1), fast_mode, runDev));
+        conv[3] = register_module("conv3", PimConv2d(ExpandingArray<4>({kBatchSize, 256, 4, 4}), pim_type, Conv2dOptions(256, 512, 3).padding(1), fast_mode, runDev));
 
         //conv[4] = register_module("conv4", torch::nn::Conv2d(torch::nn::Conv2dOptions(512, 512, 3).padding(1)));
-        conv[4] = register_module("conv4", PimConv2d(ExpandingArray<4>({kTestBatchSize, 512, 2, 2}), pim_type, Conv2dOptions(512, 512, 3).padding(1), fast_mode, runDev));
+        conv[4] = register_module("conv4", PimConv2d(ExpandingArray<4>({kBatchSize, 512, 2, 2}), pim_type, Conv2dOptions(512, 512, 3).padding(1), fast_mode, runDev));
 
 
         //fc1 = register_module("fc1", torch::nn::Linear(512, 512));
-        fc1 = register_module("fc1", PimLinear(512, 512, kTestBatchSize, pim_type, fast_mode, runDev));
+        fc1 = register_module("fc1", PimLinear(512, 512, kBatchSize, pim_type, fast_mode, runDev));
 
         //fc2 = register_module("fc2", torch::nn::Linear(512, 512));
-        fc2 = register_module("fc2", PimLinear(512, 512, kTestBatchSize, pim_type, fast_mode, runDev));
+        fc2 = register_module("fc2", PimLinear(512, 512, kBatchSize, pim_type, fast_mode, runDev));
 
         //fc3 = register_module("fc3", torch::nn::Linear(512, 10));
-        fc3 = register_module("fc3", PimLinear(512, 10, kTestBatchSize, pim_type, fast_mode, runDev));
+        fc3 = register_module("fc3", PimLinear(512, 10, kBatchSize, pim_type, fast_mode, runDev));
     }
 
     // Implement the Net's algorithm.
@@ -261,10 +261,10 @@ int main(int argc, char *argv[])
         runDev = torch::Device(torch::kCPU);
     }
 
-    int batch_size = 64;
+    //int batch_size = 64;
 
     //auto tr_data_loader = torch::data::make_data_loader(train_data.map(torch::data::transforms::Normalize<>({0.485, 0.456, 0.406}, {0.229, 0.224, 0.225})).map(torch::data::transforms::Stack<>()), batch_size);
-    auto te_data_loader = torch::data::make_data_loader(test_data.map(torch::data::transforms::Normalize<>({0.485, 0.456, 0.406}, {0.229, 0.224, 0.225})).map(torch::data::transforms::Stack<>()), batch_size);
+    auto te_data_loader = torch::data::make_data_loader(test_data.map(torch::data::transforms::Normalize<>({0.485, 0.456, 0.406}, {0.229, 0.224, 0.225})).map(torch::data::transforms::Stack<>()), kBatchSize);
 
     //torch::optim::SGD optimizer(net->parameters(), /*lr=*/0.01);
 

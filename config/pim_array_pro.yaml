@@ -78,13 +78,13 @@ minConduct: 1e-7
 maxConduct: 1e-5
 
 inVBits: 1
-inBits: 8
+inBits: 16
 outBits: 9
-unitBits: 8
+unitBits: 16
 cellBits: 2
 has_negative_input: true
 max_phy_input_value: 16
 max_weight_value: 4
 trunc_input: true
 dynamic_max_input: true
-mode: 1  #0:p&n 1:ref
+mode: 0  #0:p&n 1:ref

@@ -85,6 +85,11 @@ add_dependencies(original_vgg8_cifar10 YAML_CPP_EXTERNAL_PROJECT)
 target_link_libraries(original_vgg8_cifar10 "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
 set_property(TARGET original_vgg8_cifar10 PROPERTY CXX_STANDARD 14)
 
+add_executable(pim_vgg8_cifar10_inference test/pim_vgg8_cifar10_inference.cpp)
+add_dependencies(pim_vgg8_cifar10_inference YAML_CPP_EXTERNAL_PROJECT)
+target_link_libraries(pim_vgg8_cifar10_inference "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
+set_property(TARGET pim_vgg8_cifar10_inference PROPERTY CXX_STANDARD 14)
+
 add_executable(original_vgg16_cifar10 test/original_vgg16_cifar10.cc)
 add_dependencies(original_vgg16_cifar10 YAML_CPP_EXTERNAL_PROJECT)
 target_link_libraries(original_vgg16_cifar10 "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")

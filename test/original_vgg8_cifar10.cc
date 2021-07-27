@@ -2,8 +2,10 @@
 #include <iostream>
 #include <string>
 #include <ctime>
+#include "pim_saver_and_loader.h"
 
 auto runDev = torch::Device(torch::kCUDA, 2);
+std::string weight_path = "../log/original_vgg8_cifar10.weight";
 
 struct VGG8_Net: torch::nn::Module
 {
@@ -153,8 +155,8 @@ void mytrain(std::shared_ptr<VGG8_Net> &net,
             size_t data_size,
             size_t batch_size,
             torch::optim::Optimizer& optimizer,
-            int epoch,
-            bool going_on
+            int epoch//,
+            //bool going_on
             )
 {
     size_t batch_index = 0;
@@ -234,24 +236,27 @@ int main(int argc, char *argv[])
     torch::optim::SGD optimizer(net->parameters(), /*lr=*/0.01);
 
     net->to(runDev);
-    bool going_on = false;  
-    if (argc>1 && std::string(argv[1])=="GO_ON")
-    {
-        going_on = true;
-        torch::load(net, "net.pt");
-    }
+//    bool going_on = false;
+//    if (argc>1 && std::string(argv[1])=="GO_ON")
+//    {
+//        going_on = true;
+//        torch::load(net, "net.pt");
+//    }
     start = time(0);
     for (int epoch=1; epoch<=50; ++epoch)
     {
-        mytrain(net, *tr_data_loader, runDev, train_data.size().value(), batch_size, optimizer, epoch, going_on);
+        mytrain(net, *tr_data_loader, runDev, train_data.size().value(), batch_size, optimizer, epoch/*, going_on*/);
         mytest(net, *te_data_loader, runDev, test_data.size().value());
     }  
 
     time_t now = time(0);
     std::cout << "train finish! Cost " << difftime(now, start) << " seconds" << std::endl;
-    if (!going_on)
-        torch::save(net, "net.pt");
-    else
-        torch::save(net, "net_go.pt");  
+
+    PIM::pim_saver(*net, weight_path);
+
+//    if (!going_on)
+//        torch::save(net, "net.pt");
+//    else
+//        torch::save(net, "net_go.pt");
     return 0;
 }

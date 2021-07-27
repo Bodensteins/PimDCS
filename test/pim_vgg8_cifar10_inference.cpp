@@ -10,7 +10,8 @@
 #include "pim_conv.h"
 #include "pim_linear.h"
 
-auto runDev = torch::Device(torch::kCUDA, 2);
+//auto runDev = torch::Device(torch::kCUDA, 2);
+auto runDev = torch::Device(torch::kCPU);
 int kTestBatchSize = 32;
 //int kTrainBatchSize = 16;
 //int kNumberOfEpochs = 10;
@@ -167,7 +168,8 @@ void mytest(std::shared_ptr<VGG8_Net> &net,
 )
 {
     int correct = 0;
-
+    //change to inference
+    net->eval();
     for (auto &batch : data_loader)
     {
         torch::Tensor prediction = net->forward(batch.data.to(device));
@@ -275,11 +277,13 @@ int main(int argc, char *argv[])
 //        torch::load(net, "net.pt");
 //    }
     start = time(0);
-    for (int epoch=1; epoch<=50; ++epoch)
-    {
-        //mytrain(net, *tr_data_loader, runDev, train_data.size().value(), batch_size, optimizer, epoch/*, going_on*/);
-        mytest(net, *te_data_loader, runDev, test_data.size().value());
-    }
+
+    mytest(net, *te_data_loader, runDev, test_data.size().value());
+//    for (int epoch=1; epoch<=50; ++epoch)
+//    {
+//        //mytrain(net, *tr_data_loader, runDev, train_data.size().value(), batch_size, optimizer, epoch/*, going_on*/);
+//        mytest(net, *te_data_loader, runDev, test_data.size().value());
+//    }
 
     time_t now = time(0);
     std::cout << "test finish! Cost " << difftime(now, start) << " seconds" << std::endl;

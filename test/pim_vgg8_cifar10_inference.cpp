@@ -10,15 +10,10 @@
 #include "pim_conv.h"
 #include "pim_linear.h"
 
-<<<<<<< HEAD
 auto runDev = torch::Device(torch::kCUDA, 2);
 //auto runDev = torch::Device(torch::kCPU);
-int kTestBatchSize = 64;
-=======
-//auto runDev = torch::Device(torch::kCUDA, 2);
-auto runDev = torch::Device(torch::kCPU);
 int kBatchSize = 64;
->>>>>>> 07246b11d834270d4143a218cc624de30e62ddf5
+
 //int kTrainBatchSize = 16;
 //int kNumberOfEpochs = 10;
 std::string out_string = "pim_vgg8_cifar10_out";

@@ -38,8 +38,8 @@ energy_cal:  #all energy is nJ
     writeColPeripheryEnergy: 0
     writeParallelism: 8 #now we don't support it
     writeUseProbability: true
-    DACEnergy: 0.00390625 #mW 1bit DAC
-    ADCEnergy: 0.15625 #mW 8bits ADC
+    DACPower: 0.00390625 #mW 1bit DAC
+    ADCPower: 0.15625 #mW 8bits ADC
     computeRowPeripheryEnergy: 0 #
     computeColPeripheryEnergy: 0
     adderEnergy: 0  #add vertical out

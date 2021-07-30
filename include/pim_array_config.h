@@ -27,7 +27,7 @@ struct pim_array_pro_config
 {
     phy_array_readMode rm;
     phy_array_writeMode wm;
-    double writeV, readV, computeV;
+    double writeV, readV, computeUnitV;
     bool C2C_en, D2D_en, nonLinearIV_en, write_cnt_en;/*, energy_cal_en;*/
     double C2C_theta;
     double minConduct, maxConduct, deltaConduct;
@@ -135,7 +135,7 @@ struct pim_array_pro_config
 
         writeV = config["writeV"].as<double>();
         readV = config["readV"].as<double>();
-        computeV = config["computeV"].as<double>();
+        computeUnitV = config["computeUnitV"].as<double>();
 
         C2C_en = config["C2C_en"]["enable"].as<bool>();
         if (C2C_en)

@@ -274,7 +274,7 @@ at::Tensor phyArrayPro::mm(const at::Tensor &mat)
     // remains future works
     if (conf->energy.enable)
     {
-        double energy = conf->computeV * conf->computeV * conf->lat_area.phyMMLatency;
+        double energy = conf->computeUnitV * conf->computeUnitV * conf->lat_area.phyMMLatency;
         if (conf->energy.computeUseProbability)
         {
             double average_conductance = 0, average_V_square = 0;
@@ -290,7 +290,7 @@ at::Tensor phyArrayPro::mm(const at::Tensor &mat)
             {
                 average_V_square += i * i * conf->energy.inVPD[i];
             }
-            average_V_square /= conf->inVLevels * conf->inVLevels;
+            //average_V_square /= conf->inVLevels * conf->inVLevels;
 
             //array energy
             energy *= average_V_square * average_conductance * mat.size(2) * colSize * mat.size(0) * mat.size(1);
@@ -320,10 +320,10 @@ at::Tensor phyArrayPro::mm(const at::Tensor &mat)
         }
         if (conf->ir_drop.fast_mode)
         {
-            return ir_drop_solve_fast(matin*conf->computeV, data.to(torch::kF64) * deltaConduct + conf->minConduct, rowSize, colSize, conf->ir_drop.times).div(rowSize*conf->maxConduct*conf->computeV);
+            return ir_drop_solve_fast(matin*conf->computeUnitV, data.to(torch::kF64) * deltaConduct + conf->minConduct, rowSize, colSize, conf->ir_drop.times).div(rowSize*conf->maxConduct*conf->computeUnitV);
         }
         else
-            return ir_drop_solve_acc(matin*conf->computeV, data.to(torch::kF64) * deltaConduct + conf->minConduct, rowSize, colSize).div(rowSize*conf->maxConduct*conf->computeV);
+            return ir_drop_solve_acc(matin*conf->computeUnitV, data.to(torch::kF64) * deltaConduct + conf->minConduct, rowSize, colSize).div(rowSize*conf->maxConduct*conf->computeUnitV);
 
     }
 

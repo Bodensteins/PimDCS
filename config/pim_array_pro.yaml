@@ -2,7 +2,7 @@ phy_array_readMode: 2
 phy_array_writeMode: 0
 writeV: 3
 readV: 1
-computeV: 1
+computeUnitV: 1
 # C2C variation, r = Rtarget * exp(q);  q ~ N(0, theta)   
 C2C_en: 
     enable: false

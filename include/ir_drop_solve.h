@@ -328,7 +328,7 @@ bool ir_drop_fastMode_check(int times, double percent)
 {
     for (int i=0; i<times; ++i)
     {
-        at::Tensor inV = torch::randn({1, 1, ir_solver.rowSize}, torch::kF64).abs()*ir_solver.conf->computeV;
+        at::Tensor inV = torch::randn({1, 1, ir_solver.rowSize}, torch::kF64).abs()*ir_solver.conf->computeUnitV * ir_solver.conf->inVLevels;
         at::Tensor G = torch::ones({ir_solver.rowSize, ir_solver.colSize}, torch::kF64)*ir_solver.conf->maxConduct;
         auto ori = ir_solver.solve(inV, G);
         auto loss = (ir_solver.solve_fast(inV, G, ir_solver.conf->ir_drop.times)-ori)/ori;
@@ -339,7 +339,7 @@ bool ir_drop_fastMode_check(int times, double percent)
     }
     for (int i=0; i<times; ++i)
     {
-        at::Tensor inV = torch::randn({1, 1, ir_solver.rowSize}, torch::kF64).abs()*ir_solver.conf->computeV;
+        at::Tensor inV = torch::randn({1, 1, ir_solver.rowSize}, torch::kF64).abs()*ir_solver.conf->computeUnitV * ir_solver.conf->inVLevels;
         at::Tensor G = torch::randn({ir_solver.rowSize, ir_solver.colSize}, torch::kF64).abs()*(ir_solver.conf->maxConduct-ir_solver.conf->minConduct)+ir_solver.conf->minConduct;
         auto ori = ir_solver.solve(inV, G);
         auto loss = (ir_solver.solve_fast(inV, G, ir_solver.conf->ir_drop.times)-ori)/ori;

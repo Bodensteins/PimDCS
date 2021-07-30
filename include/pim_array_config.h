@@ -83,8 +83,8 @@ struct pim_array_pro_config
         double readColPeripheryEnergy;
         double writeRowPeripheryEnergy;
         double writeColPeripheryEnergy;
-        double DACEnergy;
-        double ADCEnergy;
+        double DACPower;
+        double ADCPower;
         double computeRowPeripheryEnergy;
         double computeColPeripheryEnergy;
         double adderEnergy;
@@ -263,8 +263,8 @@ struct pim_array_pro_config
             energy.writeColPeripheryEnergy = config["energy_cal"]["writeColPeripheryEnergy"].as<double>();
             energy.computeRowPeripheryEnergy = config["energy_cal"]["computeRowPeripheryEnergy"].as<double>();
             energy.computeColPeripheryEnergy = config["energy_cal"]["computeColPeripheryEnergy"].as<double>();
-            energy.DACEnergy = config["energy_cal"]["DACEnergy"].as<double>();
-            energy.ADCEnergy = config["energy_cal"]["ADCEnergy"].as<double>();
+            energy.DACPower = config["energy_cal"]["DACPower"].as<double>();
+            energy.ADCPower = config["energy_cal"]["ADCPower"].as<double>();
             energy.computeRowPeripheryEnergy = config["energy_cal"]["computeRowPeripheryEnergy"].as<double>();
             energy.computeColPeripheryEnergy = config["energy_cal"]["computeColPeripheryEnergy"].as<double>();
             energy.readUseProbability = config["energy_cal"]["readUseProbability"].as<bool>();

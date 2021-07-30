@@ -284,9 +284,9 @@ int main(int argc, char *argv[])
     if (!going_on)
         torch::save(net, "net.pt");
     else
-        torch::save(net, "net_go.pt");  
-    
+        torch::save(net, "net_go.pt");
+
     std::ofstream out(out_string);
-    out << *net << std::endl; 
+    out << *net << std::endl;
     return 0;
 }

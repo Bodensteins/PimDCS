@@ -164,6 +164,10 @@ struct pim_array_pro_config
         mode = config["mode"].as<int>();
         inVBits = config["inVBits"].as<int>();
 
+        if(unitBits % cellBits != 0)
+        {
+            std::cout << "illegal unitbits, it should be multiple of cellbits!" << std::endl;
+        }
         cellsPerUnit = unitBits / cellBits;
         unitsPerPhyRow = phyArrColSize / cellsPerUnit;
         usedCellsPerPhyRow = unitsPerPhyRow * cellsPerUnit;

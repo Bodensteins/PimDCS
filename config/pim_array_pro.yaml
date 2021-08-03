@@ -80,7 +80,7 @@ maxConduct: 1e-5
 inVBits: 1
 inBits: 16
 outBits: 9
-unitBits: 16
+unitBits: 9
 cellBits: 2
 has_negative_input: true
 max_phy_input_value: 16

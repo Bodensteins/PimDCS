@@ -26,8 +26,8 @@ const int64_t kNumberOfEpochs = 1;
 // After how many batches to log a new update with the loss value.
 const int64_t kLogInterval = 10;
 
-auto runDev = torch::kCPU;
-
+auto runDev = torch::Device(torch::kCUDA, 1);
+//auto runDev = torch::Device(torch::kCPU);
 
 // Define a new Module.
 struct Net : torch::nn::Module {
@@ -144,19 +144,19 @@ void test(
 auto main() -> int {
   torch::manual_seed(1);
   
-  torch::DeviceType device_type;
-  if (runDev == torch::kCUDA && torch::cuda::is_available()) {
-     std::cout << "CUDA available! Training on GPU." << std::endl;
-     device_type = torch::kCUDA;
-   } else {
-    std::cout << "Training on CPU." << std::endl;
-    device_type = torch::kCPU;
-    runDev = torch::kCPU;
-  }
-  torch::Device device(device_type);
+  if (torch::cuda::is_available() && runDev.is_cuda())
+  {
+      std::cout << "gpu enabled" << std::endl;
+  } 
+  else
+  {
+      std::cout << "on cpu" << std::endl;
+      runDev = torch::Device(torch::kCPU);
+  }   
 
   Net model;
-  model.to(device, torch::kFloat32);
+
+  model.to(runDev, torch::kFloat32);
 
   pimArrayPro::phyArrManPro.printArea(std::cout);
   auto start = high_resolution_clock::now();
@@ -183,8 +183,8 @@ auto main() -> int {
 
   // torch::optim::Adam optimizer( model.parameters(), torch::optim::AdamOptions(lr));
   for (size_t epoch = 1; epoch <= kNumberOfEpochs; ++epoch) {
-    train(epoch, model, device, *train_loader, optimizer, train_dataset_size);
-    test(model, device, *test_loader, test_dataset_size);
+    train(epoch, model, runDev, *train_loader, optimizer, train_dataset_size);
+    test(model, runDev, *test_loader, test_dataset_size);
   }
 
   auto stop = high_resolution_clock::now();

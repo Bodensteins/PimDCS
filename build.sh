@@ -8,6 +8,6 @@ fi
 TORCH_LIBRARY=/opt/libtorch
 cd $build_dir
 
-cmake .. -DCMAKE_PREFIX_PATH=$TORCH_LIBRARY -DCMAKE_BUILD_TYPE=Release
+cmake .. -DCMAKE_PREFIX_PATH=$TORCH_LIBRARY -DCMAKE_BUILD_TYPE=Debug
 make -j
 

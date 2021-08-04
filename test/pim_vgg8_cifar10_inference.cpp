@@ -10,8 +10,8 @@
 #include "pim_conv.h"
 #include "pim_linear.h"
 
-//auto runDev = torch::Device(torch::kCUDA, 2);
-auto runDev = torch::Device(torch::kCPU);
+auto runDev = torch::Device(torch::kCUDA, 2);
+//auto runDev = torch::Device(torch::kCPU);
 int kBatchSize = 64;
 
 //int kTrainBatchSize = 16;

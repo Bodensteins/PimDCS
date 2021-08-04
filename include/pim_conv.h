@@ -342,7 +342,6 @@ namespace PIM {
             create_pim_array_list(prev_ptrs, {
                 (*input_shape)[0], (*input_shape)[2] * (*input_shape)[3], (*input_shape)[1]
                 }, pim_type, weight.options());
-            std::cout << weight << std::endl;
             sync_weight();
         }
 

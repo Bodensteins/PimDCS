@@ -203,7 +203,7 @@ namespace PIM {
         void sync_weight() {
             if (bias.defined()) {
                 wb_ptr.ptr->write_mat(torch::cat({weight.t(), bias.unsqueeze(0)}, 0)); // write transposed weight
-                torch::Tensor w_idx = torch::arange(weight.size(1), torch::kLong);
+                torch::Tensor w_idx = torch::arange(weight.size(1), TensorOptions(torch::kLong).device(weight.device()));
                 weight.data() = wb_ptr.ptr->read_mat().index_select(0,w_idx).t();
                 bias.data() = wb_ptr.ptr->read_row(weight.size(1), 0, weight.size(0));
             } else {

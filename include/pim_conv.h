@@ -437,7 +437,7 @@ namespace PIM {
                 wb_ptr.ptr->write_mat(torch::cat({
                     weight.permute({1, 2, 3, 0}).reshape({-1, options.out_channels()}),
                     bias.unsqueeze(0)}, 0));
-                torch::Tensor w_idx = torch::arange(wb_ptr.ptr->sizes()[0]-1, torch::kLong);
+                torch::Tensor w_idx = torch::arange(wb_ptr.ptr->sizes()[0]-1, TensorOptions(torch::kLong).device(weight.device()));
                 weight.data() = wb_ptr.ptr->read_mat().index_select(0,w_idx).reshape({
                     weight.size(1), weight.size(2), weight.size(3), options.out_channels()}).permute({3, 0, 1, 2});
                 bias.data() = wb_ptr.ptr->read_row(wb_ptr.ptr->sizes()[0]-1, 0, wb_ptr.ptr->sizes()[1]);

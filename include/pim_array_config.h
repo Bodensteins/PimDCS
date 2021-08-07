@@ -43,6 +43,14 @@ struct pim_array_pro_config
     double max_weight_value;                        // weight value has its maximum, we will use this maximum to regionalizatoin weight value by unitBits.
     bool trunc_input;                               // if true, the value > max_phy_input_value, will trunc to the max_phy_input_value. if false, if will reprot error if value>max_phy_input
     bool dynamic_max_input;                         // if true, we will dynamic get max_input rather than use max_phy_input_value
+    bool weights_sync_with_pim;                 
+    //if true, weights are sync by the analog value sotred in pim (which is unitBits)
+    //if false, weights are stored by tensor (double or float)
+
+    bool weights_tensor_trunc;
+    // only when weights_sync_with_pim is false, this option is workable
+    // true -> weight tensor is trunc according to max_weight_value
+    // false -> weight tensor not trunc (but you should know the weight stored in pim is always trunc)
 
     int mode;   
     int cellsPerUnit, unitsPerPhyRow, usedCellsPerPhyRow;
@@ -163,6 +171,9 @@ struct pim_array_pro_config
         dynamic_max_input = config["dynamic_max_input"].as<bool>();
         mode = config["mode"].as<int>();
         inVBits = config["inVBits"].as<int>();
+
+        weights_sync_with_pim = config["weights_sync_with_pim"].as<bool>();
+        weights_tensor_trunc = config["weights_tensor_trunc"].as<bool>();
 
         if(unitBits % cellBits != 0)
         {

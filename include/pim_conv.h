@@ -432,21 +432,48 @@ namespace PIM {
 
         void sync_weight() {
             // update parameters, note that weight shape is (Cin * H * W, Cout)
-            if (bias.defined()) {
-                wb_ptr.ptr->write_mat(torch::cat({
-                    weight.permute({1, 2, 3, 0}).reshape({-1, options.out_channels()}),
-                    bias.unsqueeze(0)}, 0));
-                torch::Tensor w_idx = torch::arange(wb_ptr.ptr->sizes()[0]-1, TensorOptions(torch::kLong).device(weight.device()));
-                weight.data() = wb_ptr.ptr->read_mat().index_select(0,w_idx).reshape({
-                    weight.size(1), weight.size(2), weight.size(3), options.out_channels()}).permute({3, 0, 1, 2});
-                bias.data() = wb_ptr.ptr->read_row(wb_ptr.ptr->sizes()[0]-1, 0, wb_ptr.ptr->sizes()[1]);
-            } else {
-                wb_ptr.ptr->write_mat(weight.permute({1, 2, 3, 0}).reshape({-1, options.out_channels()}));
-                weight.data() = wb_ptr.ptr->read_mat().reshape({
-                    weight.size(1), weight.size(2), weight.size(3), options.out_channels()}).permute({3, 0, 1, 2});
-            }
+            if (pro_decf().weights_sync_with_pim)
+            {
+                if (bias.defined()) {
+                    wb_ptr.ptr->write_mat(torch::cat({
+                        weight.permute({1, 2, 3, 0}).reshape({-1, options.out_channels()}),
+                        bias.unsqueeze(0)}, 0));
+                    torch::Tensor w_idx = torch::arange(wb_ptr.ptr->sizes()[0]-1, TensorOptions(torch::kLong).device(weight.device()));
+                    weight.data() = wb_ptr.ptr->read_mat().index_select(0,w_idx).reshape({
+                        weight.size(1), weight.size(2), weight.size(3), options.out_channels()}).permute({3, 0, 1, 2});
+                    bias.data() = wb_ptr.ptr->read_row(wb_ptr.ptr->sizes()[0]-1, 0, wb_ptr.ptr->sizes()[1]);
+                } else {
+                    wb_ptr.ptr->write_mat(weight.permute({1, 2, 3, 0}).reshape({-1, options.out_channels()}));
+                    weight.data() = wb_ptr.ptr->read_mat().reshape({
+                        weight.size(1), weight.size(2), weight.size(3), options.out_channels()}).permute({3, 0, 1, 2});
+                }   
             // flip kernel
-            wb_t_ptr.ptr->write_mat(weight.flip({2, 3}).permute({1, 0, 2, 3}).reshape({options.in_channels(), -1}).t());
+                wb_t_ptr.ptr->write_mat(weight.flip({2, 3}).permute({1, 0, 2, 3}).reshape({options.in_channels(), -1}).t());
+            }
+            else
+            {
+                double max_weights = pro_decf().max_weight_value;
+                if (bias.defined()) 
+                {
+                    wb_ptr.ptr->write_mat(torch::cat({
+                        weight.permute({1, 2, 3, 0}).reshape({-1, options.out_channels()}),
+                        bias.unsqueeze(0)}, 0));
+                    if (pro_decf().weights_tensor_trunc)
+                    {
+                        weight = limit_weight_with_max(weight, max_weights);
+                        bias = limit_weight_with_max(bias, max_weights);
+                    }
+                } else {
+                    wb_ptr.ptr->write_mat(weight.permute({1, 2, 3, 0}).reshape({-1, options.out_channels()}));
+                    if (pro_decf().weights_tensor_trunc)
+                    {
+                        weight = limit_weight_with_max(weight, max_weights);
+                    }   
+                }
+            // flip kernel
+                wb_t_ptr.ptr->write_mat(weight.flip({2, 3}).permute({1, 0, 2, 3}).reshape({options.in_channels(), -1}).t());
+
+            }
         }
 
         //    void train(bool on = true) override {

@@ -201,16 +201,42 @@ namespace PIM {
         }
 
         void sync_weight() {
-            if (bias.defined()) {
-                wb_ptr.ptr->write_mat(torch::cat({weight.t(), bias.unsqueeze(0)}, 0)); // write transposed weight
-                torch::Tensor w_idx = torch::arange(weight.size(1), TensorOptions(torch::kLong).device(weight.device()));
-                weight.data() = wb_ptr.ptr->read_mat().index_select(0,w_idx).t();
-                bias.data() = wb_ptr.ptr->read_row(weight.size(1), 0, weight.size(0));
-            } else {
-                wb_ptr.ptr->write_mat(weight.t());
-                weight.data() =  wb_ptr.ptr->read_mat().t();
+            if (pro_decf().weights_sync_with_pim)
+            {
+                if (bias.defined()) {
+                    wb_ptr.ptr->write_mat(torch::cat({weight.t(), bias.unsqueeze(0)}, 0)); // write transposed weight
+                    torch::Tensor w_idx = torch::arange(weight.size(1), TensorOptions(torch::kLong).device(weight.device()));
+                    weight.data() = wb_ptr.ptr->read_mat().index_select(0,w_idx).t();
+                    bias.data() = wb_ptr.ptr->read_row(weight.size(1), 0, weight.size(0));
+                } else {
+                    wb_ptr.ptr->write_mat(weight.t());
+                    weight.data() =  wb_ptr.ptr->read_mat().t();
+                }
+                wb_t_ptr.ptr->write_mat(weight);
             }
-            wb_t_ptr.ptr->write_mat(weight);
+            else
+            {
+                double max_weights = pro_decf().max_weight_value;
+
+                if (bias.defined())
+                {
+                    wb_ptr.ptr->write_mat(torch::cat({weight.t(), bias.unsqueeze(0)}, 0)); // write transposed weight
+                    if (pro_decf().weights_tensor_trunc)
+                    {
+                        weight.data() = limit_weight_with_max(weight, max_weights);
+                        bias.data() = limit_weight_with_max(bias, max_weights);
+                    }
+                }
+                else
+                {
+                    wb_ptr.ptr->write_mat(weight.t());
+                    if (pro_decf().weights_tensor_trunc)
+                    {
+                        weight.data() = limit_weight_with_max(weight, max_weights);
+                    }
+                }
+                wb_t_ptr.ptr->write_mat(weight);
+            }
         }
 
 

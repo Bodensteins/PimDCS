@@ -82,5 +82,11 @@ namespace PIM
         }
     }
 
+    at::Tensor limit_weight_with_max(at::Tensor w, double mx)
+    {
+        w = w.clone().index_put_({w>mx}, mx);
+        w.index_put_({w<-mx}, -mx);
+        return w;
+    }
 } // namespace PIM
 #endif

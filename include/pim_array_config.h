@@ -175,6 +175,18 @@ struct pim_array_pro_config
         weights_sync_with_pim = config["weights_sync_with_pim"].as<bool>();
         weights_tensor_trunc = config["weights_tensor_trunc"].as<bool>();
 
+		{
+			std::cout << "phy arr size = " << phyArrRowSize << 'x' << phyArrColSize << std::endl;
+			std::cout << "in bits = " << inBits << std::endl;
+			std::cout << "unit bits = " << unitBits << std::endl;
+			std::cout << "in voltage pulse bit = " << inVBits << std::endl;
+			std::cout << "cell bits  = " << cellBits << std::endl;
+			std::cout << "dynamic_max_input = " << dynamic_max_input << std::endl;
+			std::cout << "weights_sync_with_pim = " << weights_sync_with_pim << std::endl;
+			std::cout << "has_neg_input = " << has_negative_input << std::endl;
+			std::cout << "max input/weight value = " << max_phy_input_value << ' ' << max_weight_value << std::endl;
+			std::cout << (mode==0? "pos/neg mode" : "ref column mode") << std::endl;
+		}
         if(unitBits % cellBits != 0)
         {
             std::cout << "illegal unitbits, it should be multiple of cellbits!" << std::endl;

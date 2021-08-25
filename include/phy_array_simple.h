@@ -201,7 +201,7 @@ void phyArrayPro::writeMat(const at::Tensor &matin, int row, int col)
 
     if (conf->C2C_en)
     {
-        //1/(delta*data + minConduct) = Rtarget * exp(q);  q ~ N(0, theta)   
+        //1/(delta*data + minConduct) = Rtarget * exp(q);  q ~ N(0, theta^2)   
         // data = (exp(-q) * Ctarget - minConduct)/deltaConduct;   
         at::Tensor nol = torch::normal(0, conf->C2C_theta, {m, n}, {}, op.dtype(torch::kF32)).mul(-1).exp(); 
         at::Tensor wr = ((mat.to(torch::kF32)*deltaConduct+conf->minConduct)*nol-conf->minConduct)/deltaConduct;

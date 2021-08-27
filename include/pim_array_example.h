@@ -36,8 +36,8 @@ struct PE_info
             //by assuming the PE can work paralleling, we only need to calculate the time of PE with largest amount of calculation
             //we simply assume the first PE of the logic array is the largest amount of calculation
             double num = min(arrX_size*arrY_size, cf->lat_area.phyArrayNum); 
-            double sclar_da = (cf->lat_area.phyArrayNum/cf->lat_area.dac_shared_ratio);
-            double sclar_ad = (cf->lat_area.phyArrayNum/cf->lat_area.adc_shared_ratio);
+            double sclar_da = (1.0*cf->lat_area.phyArrayNum/cf->lat_area.dac_shared_ratio);
+            double sclar_ad = (1.0*cf->lat_area.phyArrayNum/cf->lat_area.adc_shared_ratio);
             double outI_latency = std::ceil(num/sclar_da)*(cf->lat_area.dac_latency+cf->lat_area.phyMMLatency);
             // all outI is sample & hold
 

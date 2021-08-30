@@ -29,6 +29,7 @@ struct PE_info
     const pim_array_pro_config *cf;
     PE_info(const pim_array_pro_config *conf = &pro_decf()): cf(conf) {}
 
+
     double cal_lat(int arrX_size, int arrY_size, int type)
     {
         if (type == 0) // mm latency
@@ -44,8 +45,7 @@ struct PE_info
             double adc_latency = std::ceil(num/sclar_ad)*cf->lat_area.adc_latency;
 
             double add_all_latency = (num-1)*cf->lat_area.adder_latency;
-
-            return (outI_latency+adc_latency+add_all_latency)*cf->inBits/cf->inVBits;
+            return (outI_latency+adc_latency+add_all_latency)*cf->inPluses;
         }
         else if (type == 1)
         {
@@ -53,12 +53,29 @@ struct PE_info
             num = num%cf->lat_area.parWrPhyNum? num/cf->lat_area.parWrPhyNum+1 : num/cf->lat_area.parWrPhyNum;
             return num*cf->lat_area.latencyWrSinglePhyArr;
         }
+		else if (type>=3 && type<=5)
+		{
+			double num = min(arrX_size*arrY_size, cf->lat_area.phyArrayNum); 
+            double sclar_da = (1.0*cf->lat_area.phyArrayNum/cf->lat_area.dac_shared_ratio);
+            double sclar_ad = (1.0*cf->lat_area.phyArrayNum/cf->lat_area.adc_shared_ratio);
+            double outI_latency = std::ceil(num/sclar_da)*(cf->lat_area.dac_latency+cf->lat_area.phyMMLatency);
+            // all outI is sample & hold
+
+            double adc_latency = std::ceil(num/sclar_ad)*cf->lat_area.adc_latency;
+
+            double add_all_latency = (num-1)*cf->lat_area.adder_latency;
+			if (type == 3)
+				return adc_latency*cf->inPluses;
+			if (type == 4)
+				return outI_latency*cf->inPluses;
+			if (type == 5)
+				return add_all_latency*cf->inPluses;
+		}
         else
         {
             return 0;
         }    
     }
-
 };
 
 class phyArrayManagerPro
@@ -160,7 +177,8 @@ public:
 
     /**
  *  @param time_ns: latency_add in unit of nano second
- *  @param type: 0 --> mm latency added,  1 --> write latency added, 2 --> read latency added
+ *  @param type: 0 --> mm latency added,  1 --> write latency added, 2 --> read latency added 
+ *  3--> mm adc, 4-->mm dac+mm+s&h , 5-->mm adder
  */
     void latency_add(double time_ns, int type)
     {
@@ -187,9 +205,19 @@ public:
             all.latency_add(lat[i]);
         os << "model write latency = ";
         lat[1].print_latency(os);
+
         os << "\r\nmodel mm latency = ";
         lat[0].print_latency(os);
-        os << "\r\nmodel running (all) latency = ";
+		
+		os << "\r\n model mm breakdown latency " << std::endl;
+		os << "adc latency = " << std::endl;
+		lat[3].print_latency(os);
+  		os << "dac mm s&h latency = " << std::endl;
+		lat[4].print_latency(os);    	
+		os << "adder latency = " << std::endl;
+		lat[5].print_latency(os);
+	
+		os << "\r\nmodel running (all) latency = ";
         all.print_latency(os);
         os << std::endl;
     }
@@ -343,12 +371,12 @@ public:
         adder_energy += deltaE;
     }
 
+    static PE_info peInfo;
 private:
     std::vector<phyArrayPro *> arrList;
     static std::mutex mu;
-    static PE_info peInfo;
     int64_t pe_size;
-    pim_latency lat[3];    //0-> mm_latency, 1->wr_latency, 2->rd_latency
+    pim_latency lat[6];    //0-> mm_latency, 1->wr_latency, 2->rd_latency
     operation_count op[2]; //0-> read/write #operation,  1-> calculation #operation
     //energy info
     double adder_energy;
@@ -902,6 +930,9 @@ at::Tensor pimArrayPro::mm(const at::Tensor &matin)
         {
             phyArrManPro.add_adder_energy(2 * (arrY_size - 1) * arrY_size * phyArrManPro.access(0).colSize * conf->energy.adderEnergy);
             phyArrManPro.latency_add(batch_size*phyArrManPro.calculate_latency(2*arrX_size, arrY_size, 0), 0);
+            phyArrManPro.latency_add(batch_size*phyArrManPro.calculate_latency(2*arrX_size, arrY_size, 3), 3);
+            phyArrManPro.latency_add(batch_size*phyArrManPro.calculate_latency(2*arrX_size, arrY_size, 4), 4);
+            phyArrManPro.latency_add(batch_size*phyArrManPro.calculate_latency(2*arrX_size, arrY_size, 5), 5);
             at::Tensor nout = torch::zeros({arrX_size, batch_size, arrY_size * conf->unitsPerPhyRow}, op.dtype(torch::kF64));
             at::parallel_for(0, arrX_size * arrY_size, 0, [&](int st, int ed)
                              {
@@ -925,6 +956,9 @@ at::Tensor pimArrayPro::mm(const at::Tensor &matin)
                 phyArrManPro.add_adder_energy((arrY_size - 1) * arrY_size * phyArrManPro.access(0).colSize * conf->energy.adderEnergy);
             }
             phyArrManPro.latency_add(batch_size*phyArrManPro.calculate_latency(arrX_size, arrY_size, 0), 0);
+            phyArrManPro.latency_add(batch_size*phyArrManPro.calculate_latency(arrX_size, arrY_size, 3), 3);
+            phyArrManPro.latency_add(batch_size*phyArrManPro.calculate_latency(arrX_size, arrY_size, 4), 4);
+            phyArrManPro.latency_add(batch_size*phyArrManPro.calculate_latency(arrX_size, arrY_size, 5), 5);
             at::parallel_for(0, arrX_size * arrY_size, 0, [&](int st, int ed)
                              {
                                  for (int k = st; k < ed; ++k)

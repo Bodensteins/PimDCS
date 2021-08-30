@@ -113,7 +113,10 @@ public:
     void printAllInfo(std::ostream &os)
     {
         for (auto &i : arrList)
+        {
+            if (i==nullptr) continue;
             i->print(os);
+        }
     }
 
     void printArea(std::ostream &os)
@@ -304,6 +307,27 @@ public:
 
         return computeEnergy;
     }
+
+	double print_compute_all_energy(std::ostream &os)
+	{
+		double computeEnergy = adder_energy;
+
+		double totalDACEnergy, totalADCEnergy, totalXbarComputeEnergy;
+		totalDACEnergy = totalADCEnergy = totalXbarComputeEnergy = 0;
+		for (auto &i : arrList)
+		{
+			if (i==nullptr) continue;
+			computeEnergy += i->computeEnergy;
+			totalDACEnergy += i->totalDACEnergy;
+			totalADCEnergy += i->totalADCEnergy;
+			totalXbarComputeEnergy += i->totalXbarComputeEnergy;
+		}
+		os << "all compute energy = " << computeEnergy/1e9 << "J" << std::endl;
+		os << "all DAC energy = " << totalDACEnergy/1e9 << "J" << std::endl;
+		os << "all ADC energy = " << totalADCEnergy/1e9 << "J" << std::endl;
+		os << "all xbar compute energy = " << totalXbarComputeEnergy/1e9 << "J" << std::endl;
+		os << "all adder energy = " << adder_energy/1e9 << "J" << std::endl;
+	}
 
     //    void add_compute_energy(double deltaE)
     //    {

@@ -19,6 +19,7 @@ struct phyArrayPro
         this->rowSize = rowSize;
         this->colSize = colSize;
         readEnergy = writeEnergy = computeEnergy = 0;
+		totalDACEnergy = totalADCEnergy = totalXbarComputeEnergy = 0;
         deltaConduct = (conf->maxConduct - conf->minConduct) / (conf->cellLevels-1);
         this->op = op;
         if (!conf->C2C_en)
@@ -83,6 +84,7 @@ struct phyArrayPro
     int rowSize, colSize;
     double deltaConduct;
     double readEnergy, writeEnergy, computeEnergy;
+	double totalADCEnergy, totalDACEnergy, totalXbarComputeEnergy;
     // double area; not support area now
     // int64_t latency; not support latency now
 
@@ -305,11 +307,15 @@ at::Tensor phyArrayPro::mm(const at::Tensor &mat)
             energy *= mat.pow(2).matmul(G_matrix).sum().item<double>();
         }
 
+		totalXbarComputeEnergy += energy;
         //add circuit energy
         double DACEnergy = conf->lat_area.dac_latency * conf->energy.DACPower * 1e-3;//nJ
         double ADCEnergy = conf->lat_area.adc_latency * conf->energy.ADCPower * 1e-3;//nJ
         energy += (mat.size(2) * (conf->energy.computeRowPeripheryEnergy + DACEnergy) + colSize * (conf->energy.computeColPeripheryEnergy + ADCEnergy))* mat.size(0) * mat.size(1);
         computeEnergy += energy;
+
+		totalADCEnergy += ADCEnergy * colSize *mat.size(0) *mat.size(1);
+		totalDACEnergy += DACEnergy * mat.size(2) *mat.size(0)*mat.size(1);
         //todo:
     }
     if (conf->ir_drop.enable)

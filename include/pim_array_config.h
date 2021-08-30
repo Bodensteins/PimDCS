@@ -245,12 +245,12 @@ struct pim_array_pro_config
             lat_area.dac_shared_ratio = config["latency_area_cal"]["dac_shared_ratio"].as<int>();
             lat_area.adc_shared_ratio = config["latency_area_cal"]["adc_shared_ratio"].as<int>();
             
-            if (lat_area.phyArrayNum%lat_area.dac_shared_ratio!=0 \
+            /*if (lat_area.phyArrayNum%lat_area.dac_shared_ratio!=0 \
                 ||lat_area.phyArrayNum%lat_area.adc_shared_ratio!=0)
             {
                 std::cerr << "phyArrayNum should be divided by addaSharedRatio" << std::endl;
                 exit(-1);
-            }
+            }*/
             lat_area.adc_latency = config["latency_area_cal"]["adc_latency"].as<double>();
             lat_area.dac_latency = config["latency_area_cal"]["dac_latency"].as<double>();
 

@@ -210,11 +210,11 @@ public:
         lat[0].print_latency(os);
 		
 		os << "\r\n model mm breakdown latency " << std::endl;
-		os << "adc latency = " << std::endl;
+		os << "\r\nadc latency = " << std::endl;
 		lat[3].print_latency(os);
-  		os << "dac mm s&h latency = " << std::endl;
+  		os << "\r\ndac mm s&h latency = " << std::endl;
 		lat[4].print_latency(os);    	
-		os << "adder latency = " << std::endl;
+		os << "\r\nadder latency = " << std::endl;
 		lat[5].print_latency(os);
 	
 		os << "\r\nmodel running (all) latency = ";

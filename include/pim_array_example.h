@@ -371,10 +371,10 @@ public:
         adder_energy += deltaE;
     }
 
-    static PE_info peInfo;
 private:
     std::vector<phyArrayPro *> arrList;
     static std::mutex mu;
+    static PE_info peInfo;
     int64_t pe_size;
     pim_latency lat[6];    //0-> mm_latency, 1->wr_latency, 2->rd_latency
     operation_count op[2]; //0-> read/write #operation,  1-> calculation #operation

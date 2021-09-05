@@ -1,34 +1,33 @@
-phy_array_readMode: 2
-phy_array_writeMode: 0
+phy_array_readMode: 2  # not  used now
+phy_array_writeMode: 0  #not used now
 writeV: 3
 readV: 1
 computeUnitV: 1
-# C2C variation, r = Rtarget * exp(q);  q ~ N(0, theta)   
+# C2C variation, r = Rtarget * exp(q);  q ~ N(0, theta^2)   
 C2C_en: 
     enable: false
-    theta: 0.1
-D2D_en: false
+    theta: 1
+D2D_en: false #not used now
 # I = k*sinh(a*v)
-nonLinearIV_en: false
+nonLinearIV_en: false #not used now
 write_cnt_en: false
 latency_area_cal:  #all latency is xx ns 
-    phyArrayNum: 16
-    dac_shared_ratio: 4
-    adc_shared_ratio: 4
-    dac_latency: 10
-    adc_latency: 20
-    phyMMLatency: 50
-    phyRdLatency: 50
-    phyWrLatency: 500
-    parWrPhyNum: 16
-    parPhyWrSize: 16
-    adder_area: 10  # um^2
-    adder_latency: 5
-    single_dac_area: 0.16
-    single_adc_area: 9.3
-    single_SH_area: 0.03
-    cell_area: 0.0081
-
+    phyArrayNum: 8
+    dac_shared_ratio: 1
+    adc_shared_ratio: 128
+    dac_latency: 1
+    adc_latency: 6.25
+    phyMMLatency: 10
+    phyRdLatency: 10
+    phyWrLatency: 50
+    parWrPhyNum: 8
+    parPhyWrSize: 128
+    adder_area: 0
+    adder_latency: 1
+    single_dac_area: 0.166015625
+    single_adc_area: 1200
+    single_SH_area: 0.0224609375
+    cell_area: 0.004096
 energy_cal:  #all energy is nJ
     enable: false
     readRowPeripheryEnergy: 0
@@ -36,14 +35,14 @@ energy_cal:  #all energy is nJ
     readUseProbability: false #use probability to calculate or not
     writeRowPeripheryEnergy: 0
     writeColPeripheryEnergy: 0
-    writeParallelism: 8 #now we don't support it
+    writeParallelism: 128 #now we don't support it
     writeUseProbability: true
-    DACPower: 0.00390625 #mW 1bit DAC
-    ADCPower: 0.15625 #mW 8bits ADC
+    DACPower: 0.00390625
+    ADCPower: 2
     computeRowPeripheryEnergy: 0 #
     computeColPeripheryEnergy: 0
     adderEnergy: 0  #add vertical out
-    computeUseProbability: false
+    computeUseProbability: true
 #    CellPD: #read probability distribution, if not illegal, exit
 #      - 0.25
 #      - 0.25
@@ -54,37 +53,37 @@ energy_cal:  #all energy is nJ
 #      - 0.5
 #      - 0.5
     inVPDDefault: 0 #0:equal probabilty 1:100% max value
-    
 ir_drop:
     enable: false
     fast_mode: true
     times: 6
-    g_load: 0.5
-    g_wire: 0.5
-
+    g_load: 0.366
+    g_wire: 0.366
 SAF:
     enable: false
     runtime_en: true
-    init_pSA0: 0.05
-    init_pSA1: 0.05
-    pSA0: 0.0005
-    pSA1: 0.0005
-
-
+    init_pSA0: 0.1
+    init_pSA1: 0.1
+    pSA0: 5e-4
+    pSA1: 5e-4
 phyArrRowSize: 128
 phyArrColSize: 128
-
 minConduct: 1e-7
 maxConduct: 1e-5
-
 inVBits: 1
-inBits: 12
-outBits: 9
-unitBits: 12
-cellBits: 2
+inBits: 10
+outBits: 8
+unitBits: 6
+cellBits: 1
 has_negative_input: true
-max_phy_input_value: 16
+max_phy_input_value: 1
 max_weight_value: 4
 trunc_input: true
-dynamic_max_input: true
-mode: 0  #0:p&n 1:ref
+dynamic_max_input: false
+mode: 0 #0:p&n 1:ref
+weights_sync_with_pim: false
+                     #false --> weights in fact is stored by tensor(double or float
+weights_tensor_trunc: true
+# only when weights_sync_with_pim is false, this option is workable
+# true -> weight tensor is trunc according to max_weight_value
+# false -> weight tensor not trunc (you should know the weight stored in pim is always trunced)

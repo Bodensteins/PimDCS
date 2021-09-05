@@ -7,6 +7,7 @@
 #include <chrono>
 #include "pim_linear.h"
 #include "omp.h"
+#include "pim_saver_and_loader.h"
 
 using namespace std::chrono;
 using namespace PIM;
@@ -18,35 +19,22 @@ const char* kDataRoot = "../data";
 const int64_t kTrainBatchSize = 64;
 
 // The batch size for testing.
-const int64_t kTestBatchSize = 1000;
+const int64_t kTestBatchSize = 100;
 
 // The number of epochs to train.
-const int64_t kNumberOfEpochs = 1;
+const int64_t kNumberOfEpochs = 50;
 
 // After how many batches to log a new update with the loss value.
 const int64_t kLogInterval = 10;
 
-auto runDev = torch::Device(torch::kCUDA, 1);
+auto runDev = torch::Device(torch::kCUDA);
 //auto runDev = torch::Device(torch::kCPU);
-
+auto fastmode = false;
 // Define a new Module.
 struct Net : torch::nn::Module {
   Net() {
-    // Construct and register two Linear submodules.
-//    fc1 = register_module("fc1", torch::nn::Linear(784, 64));
-//    fc2 = register_module("fc2", torch::nn::Linear(64, 32));
-//    fc3 = register_module("fc3", torch::nn::Linear(32, 10));
-    //fc1 = register_module("fc1", PimLinear(784, 64, kTrainBatchSize, PimArrayType::only_counters_pim_array, runDev));
-    //fc2 = register_module("fc2", PimLinear(64, 10, kTrainBatchSize, PimArrayType::only_counters_pim_array, runDev));
-    fc1 = register_module("fc1", PimLinear(784, 64, kTrainBatchSize, PimArrayType::pim_array_pro, false, runDev));
-    fc2 = register_module("fc2", PimLinear(64, 10, kTrainBatchSize, PimArrayType::pim_array_pro, false, runDev));
-// fc3 = register_module("fc3", PimLinear(32, 10, kTrainBatchSize, PimArrayType::wb_logic_array, runDev));
-//    fc1 = register_module("fc1", PimLinear(kTrainBatchSize, PimArrayType::simple_logic_array,
-//        LinearOptions(784, 64).bias(false)));
-//    fc2 = register_module("fc2", PimLinear(kTrainBatchSize, PimArrayType::simple_logic_array,
-//        LinearOptions(64, 32).bias(false)));
-//    fc3 = register_module("fc3", PimLinear(kTrainBatchSize, PimArrayType::simple_logic_array,
-//        LinearOptions(32, 10).bias(false)));
+    fc1 = register_module("fc1", PimLinear(784, 64, kTrainBatchSize, PimArrayType::pim_array_pro, fastmode, TensorOptions(torch::kF32).device(runDev)));
+    fc2 = register_module("fc2", PimLinear(64, 10, kTrainBatchSize, PimArrayType::pim_array_pro, fastmode, TensorOptions(torch::kF32).device(runDev)));
   }
 
   // Implement the Net's algorithm.
@@ -141,8 +129,8 @@ void test(
       static_cast<double>(correct) / dataset_size);
 }
 
-auto main() -> int {
-  torch::manual_seed(1);
+auto main(int argc, char *argv[]) -> int {
+  //torch::manual_seed(1);
   
   if (torch::cuda::is_available() && runDev.is_cuda())
   {
@@ -182,9 +170,18 @@ auto main() -> int {
       model.parameters(), torch::optim::SGDOptions(lr).momentum(0.5));
 
   // torch::optim::Adam optimizer( model.parameters(), torch::optim::AdamOptions(lr));
+  if (argc>1 && std::string(argv[1])=="GO_ON")
+  {
+	  PIM::pim_loader(model, "net_pim_logicArray_fc_mnist.pt");
+      test(model, runDev, *test_loader, test_dataset_size);
+  }
+  else  
+  {
   for (size_t epoch = 1; epoch <= kNumberOfEpochs; ++epoch) {
     train(epoch, model, runDev, *train_loader, optimizer, train_dataset_size);
     test(model, runDev, *test_loader, test_dataset_size);
+  }
+ // PIM::pim_saver(model, "net_pim_logicArray_fc_mnist.pt");
   }
 
   auto stop = high_resolution_clock::now();
@@ -194,5 +191,9 @@ auto main() -> int {
   pimArrayPro::phyArrManPro.print_op(std::cout);
   pimArrayPro::phyArrManPro.print_energy(std::cout);
   pimArrayPro::phyArrManPro.print_power_efficiency(std::cout);
+  pimArrayPro::phyArrManPro.print_compute_all_energy(std::cout);
+  //std::ofstream of("pim_fc_phyArray_weight.out");
+  //pimArrayPro::phyArrManPro.printAllInfo(of);
+  //of.close();
   return 0;
 }

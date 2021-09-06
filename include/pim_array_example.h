@@ -64,12 +64,20 @@ struct PE_info
             double adc_latency = std::ceil(num/sclar_ad)*cf->lat_area.adc_latency;
 
             double add_all_latency = (num-1)*cf->lat_area.adder_latency;
-			if (type == 3)
-				return adc_latency*cf->inPluses;
-			if (type == 4)
-				return outI_latency*cf->inPluses;
-			if (type == 5)
-				return add_all_latency*cf->inPluses;
+
+            if (type == 3)
+            {
+                return adc_latency*cf->inPluses;
+            }
+            else if(type == 4)
+            {
+                return outI_latency*cf->inPluses;
+            }
+            else
+            {
+                //type == 5
+                return add_all_latency*cf->inPluses;
+            }
 		}
         else
         {
@@ -336,7 +344,7 @@ public:
         return computeEnergy;
     }
 
-	double print_compute_all_energy(std::ostream &os)
+	void print_compute_all_energy(std::ostream &os)
 	{
 		double computeEnergy = adder_energy;
 

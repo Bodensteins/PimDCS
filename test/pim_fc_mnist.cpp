@@ -60,6 +60,8 @@ struct Net : torch::nn::Module {
   // }
 };
 
+bool skip = false;
+
 template <typename DataLoader>
 void train(
     int32_t epoch,
@@ -112,13 +114,7 @@ void test(
   double test_loss = 0;
   int32_t correct = 0;
   static int inTestCnt = 0;
-  static bool skip = false;
 
-  if (skip) 
-  {
-	  std::cout << "due to accuracy is always decreasing for 5 epochs, training is skip to the end." << std::endl;
-	  return;
-  }
   inTestCnt++;
 
   for (const auto& batch : data_loader) {
@@ -205,7 +201,12 @@ auto main(int argc, char *argv[]) -> int {
   }
   else  
   {
-  for (size_t epoch = 1; epoch <= kNumberOfEpochs; ++epoch) {
+  	for (size_t epoch = 1; epoch <= kNumberOfEpochs; ++epoch) {
+	    if (skip) 
+  		{
+	  		std::cout << "due to accuracy is always decreasing for 5 epochs, training is skip to the end." << std::endl;
+	  		return;
+  		}
     train(epoch, model, runDev, *train_loader, optimizer, train_dataset_size);
     test(model, runDev, *test_loader, test_dataset_size);
   }

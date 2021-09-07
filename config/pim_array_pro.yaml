@@ -35,7 +35,7 @@ energy_cal:  #all energy is nJ
     readUseProbability: false #use probability to calculate or not
     writeRowPeripheryEnergy: 0
     writeColPeripheryEnergy: 0
-    writeParallelism: 128 #now we don't support it
+    writeParallelism: 128
     writeUseProbability: true
     DACPower: 0.00390625
     ADCPower: 2

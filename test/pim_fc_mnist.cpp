@@ -205,7 +205,7 @@ auto main(int argc, char *argv[]) -> int {
 	    if (skip) 
   		{
 	  		std::cout << "due to accuracy is always decreasing for 5 epochs, training is skip to the end." << std::endl;
-	  		return;
+	  		break;
   		}
     train(epoch, model, runDev, *train_loader, optimizer, train_dataset_size);
     test(model, runDev, *test_loader, test_dataset_size);

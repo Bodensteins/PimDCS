@@ -136,11 +136,11 @@ namespace PIM {
             this->to(op.device());
             create_pim_array(wb_ptr, {
                 options_.bias() ? options_.in_features() + 1 : options_.in_features(), options_.out_features()
-                }, pim_type, weight.options());
+                }, pim_type, op);
             create_pim_array(wb_t_ptr, {options_.out_features(), options_.in_features()}, pim_type,
-                             weight.options());
+                             op);
             create_pim_array(prev_ptr, {batch_size, options_.in_features()}, pim_type,
-                             weight.options());
+                             op);
             sync_weight();
         }
 

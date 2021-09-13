@@ -37,13 +37,13 @@ namespace PIM {
         static Tensor forward(
                 AutogradContext *ctx, PimArrayPtr &wb, PimArrayPtr &wb_t, PimArrayPtr &prev,
                 const Tensor &input, const Tensor &weight, const c10::optional<Tensor> &bias,
-                bool is_training, bool fast_mode = false) {
+                bool is_training, PIMRunMode train_mode = PIMRunMode::train) {
             ctx->save_for_backward({input, weight, bias.has_value() ? bias.value() : Tensor()});
 
             // ctx->saved_data["wb_ptr"] = c10::make_intrusive<PimArrayPtr>(wb);
             ctx->saved_data["wb_t_ptr"] = c10::make_intrusive<PimArrayPtr>(wb_t);
             ctx->saved_data["prev_ptr"] = c10::make_intrusive<PimArrayPtr>(prev);
-            ctx->saved_data["fast_mode"] = fast_mode;
+            ctx->saved_data["train_mode"] = int(train_mode);
 
             //      Tensor output = input.mm(weight.t());
             //      if (bias.has_value()) {
@@ -51,7 +51,7 @@ namespace PIM {
             //      }
 
             // write parameters to PIM if is trainable
-            if (is_training && weight.requires_grad()) {
+            if (is_training && train_mode != PIMRunMode::inference && weight.requires_grad()) {
                 prev.ptr->write_mat(input);
 
                 // update parameters, note that weight shape is (out_features, in_features)
@@ -91,7 +91,7 @@ namespace PIM {
             auto input = saved[0];
             auto weight = saved[1];
             auto bias = saved[2];
-            bool fast_mode = ctx->saved_data["fast_mode"].toBool();
+            PIMRunMode train_mode = static_cast<PIMRunMode>(ctx->saved_data["train_mode"].toInt());
 
             Tensor grad_output = grad_outputs[0];
             Tensor grad_bias = Tensor();
@@ -99,7 +99,7 @@ namespace PIM {
                 grad_bias = grad_output.sum(0);
             }
 
-            if (fast_mode) {
+            if (train_mode==PIMRunMode::fast_mode_train) {
                 Tensor grad_input = grad_output.mm(weight);
                 Tensor grad_weight = grad_output.t().mm(input);
                 return {Tensor(), Tensor(), Tensor(), grad_input, grad_weight, grad_bias, Tensor(), Tensor()};
@@ -126,21 +126,23 @@ namespace PIM {
     class TORCH_API PimLinearImpl : public Cloneable<PimLinearImpl> {
     public:
         PimLinearImpl(int64_t in_features, int64_t out_features, int64_t batch_size, PimArrayType pim_type,
-                      bool fast_mode = false, const TensorOptions op = {})
-                      : PimLinearImpl(batch_size, pim_type, LinearOptions(in_features, out_features), fast_mode, op) {}
+                      PIMRunMode train_mode, const TensorOptions op = {})
+                      : PimLinearImpl(batch_size, pim_type, LinearOptions(in_features, out_features), train_mode, op) {}
 
-                      explicit PimLinearImpl(int64_t batch_size, PimArrayType pim_type,
-                                             const LinearOptions &options_, bool fast_mode = false, const TensorOptions op = {})
-                                             : options(options_), batch_size(batch_size), pim_type(pim_type), fast_mode(fast_mode){
+        explicit PimLinearImpl(int64_t batch_size, PimArrayType pim_type,
+                               const LinearOptions &options_, PIMRunMode train_mode, const TensorOptions op = {})
+            : options(options_), batch_size(batch_size), pim_type(pim_type), train_mode(train_mode)
+        {
             reset();
             this->to(op.device());
-            create_pim_array(wb_ptr, {
-                options_.bias() ? options_.in_features() + 1 : options_.in_features(), options_.out_features()
-                }, pim_type, op);
-            create_pim_array(wb_t_ptr, {options_.out_features(), options_.in_features()}, pim_type,
-                             op);
-            create_pim_array(prev_ptr, {batch_size, options_.in_features()}, pim_type,
-                             op);
+            create_pim_array(wb_ptr, {options_.bias() ? options_.in_features() + 1 : options_.in_features(), options_.out_features()}, pim_type, op);
+            if (train_mode != PIMRunMode::inference)
+            {
+                create_pim_array(wb_t_ptr, {options_.out_features(), options_.in_features()}, pim_type,
+                                 op);
+                create_pim_array(prev_ptr, {batch_size, options_.in_features()}, pim_type,
+                                 op);
+            }
             sync_weight();
         }
 
@@ -176,7 +178,7 @@ namespace PIM {
                 stream << "array" << std::endl;
                 wb_ptr.ptr->print(stream);
                 stream << "array_t" << std::endl;
-                wb_t_ptr.ptr->print(stream);
+                if (wb_t_ptr.ptr!=nullptr) wb_t_ptr.ptr->print(stream);
                 stream << "prev" << std::endl;
                 prev_ptr.ptr->print(stream);
             }
@@ -184,19 +186,21 @@ namespace PIM {
 
         /// Transforms the `input` tensor by multiplying with the `weight` and
         /// optionally adding the `bias`, if `with_bias` is true in the options.
-        Tensor forward(const Tensor &input) {
-            switch (pim_type) {
-                case PimArrayType::simple_logic_array:
-                    return PimLinearFunction<SimpleLogicArray>::apply(wb_ptr, wb_t_ptr, prev_ptr, input, weight,
-                                                                      options.bias() ? bias : c10::optional<Tensor>(), is_training(), fast_mode);
-                    case PimArrayType::pim_array_pro:
-                        return PimLinearFunction<pimArrayPro>::apply(wb_ptr, wb_t_ptr, prev_ptr, input, weight,
-                                                                     options.bias() ? bias : c10::optional<Tensor>(), is_training(), fast_mode);
-                        case PimArrayType::pim_array_fast:
-                            return PimLinearFunction<pimArrayFast>::apply(wb_ptr, wb_t_ptr, prev_ptr, input, weight,
-                                                                          options.bias() ? bias : c10::optional<Tensor>(), is_training(), fast_mode);
-                            default:
-                                TORCH_INTERNAL_ASSERT(false, "pimlinear, forward type not support!")
+        Tensor forward(const Tensor &input)
+        {
+            switch (pim_type)
+            {
+            case PimArrayType::simple_logic_array:
+                return PimLinearFunction<SimpleLogicArray>::apply(wb_ptr, wb_t_ptr, prev_ptr, input, weight,
+                                                                  options.bias() ? bias : c10::optional<Tensor>(), is_training(), train_mode);
+            case PimArrayType::pim_array_pro:
+                return PimLinearFunction<pimArrayPro>::apply(wb_ptr, wb_t_ptr, prev_ptr, input, weight,
+                                                             options.bias() ? bias : c10::optional<Tensor>(), is_training(), train_mode);
+            case PimArrayType::pim_array_fast:
+                return PimLinearFunction<pimArrayFast>::apply(wb_ptr, wb_t_ptr, prev_ptr, input, weight,
+                                                              options.bias() ? bias : c10::optional<Tensor>(), is_training(), train_mode);
+            default:
+                TORCH_INTERNAL_ASSERT(false, "pimlinear, forward type not support!")
             }
         }
 
@@ -212,7 +216,7 @@ namespace PIM {
                     wb_ptr.ptr->write_mat(weight.t());
                     weight.data() =  wb_ptr.ptr->read_mat().t();
                 }
-                wb_t_ptr.ptr->write_mat(weight);
+                if (wb_t_ptr.ptr!=nullptr) wb_t_ptr.ptr->write_mat(weight);
             }
             else
             {
@@ -235,7 +239,7 @@ namespace PIM {
                     }
                     wb_ptr.ptr->write_mat(weight.t());
                 }
-                wb_t_ptr.ptr->write_mat(weight);
+                if (wb_t_ptr.ptr!=nullptr) wb_t_ptr.ptr->write_mat(weight);
             }
         }
 
@@ -273,7 +277,7 @@ namespace PIM {
         /// Whether the physical array is be printed.
         bool print_detail_{false};
 
-        bool fast_mode;
+        PIMRunMode train_mode;
 
         PimArrayPtr wb_ptr;
         PimArrayPtr wb_t_ptr;

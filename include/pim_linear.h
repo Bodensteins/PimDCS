@@ -136,11 +136,11 @@ namespace PIM {
             this->to(op.device());
             create_pim_array(wb_ptr, {
                 options_.bias() ? options_.in_features() + 1 : options_.in_features(), options_.out_features()
-                }, pim_type, weight.options());
+                }, pim_type, op);
             create_pim_array(wb_t_ptr, {options_.out_features(), options_.in_features()}, pim_type,
-                             weight.options());
+                             op);
             create_pim_array(prev_ptr, {batch_size, options_.in_features()}, pim_type,
-                             weight.options());
+                             op);
             sync_weight();
         }
 
@@ -220,20 +220,20 @@ namespace PIM {
 
                 if (bias.defined())
                 {
-                    wb_ptr.ptr->write_mat(torch::cat({weight.t(), bias.unsqueeze(0)}, 0)); // write transposed weight
                     if (pro_decf().weights_tensor_trunc)
                     {
                         weight.data() = limit_weight_with_max(weight, max_weights);
                         bias.data() = limit_weight_with_max(bias, max_weights);
                     }
+                    wb_ptr.ptr->write_mat(torch::cat({weight.t(), bias.unsqueeze(0)}, 0)); // write transposed weight
                 }
                 else
                 {
-                    wb_ptr.ptr->write_mat(weight.t());
                     if (pro_decf().weights_tensor_trunc)
                     {
                         weight.data() = limit_weight_with_max(weight, max_weights);
                     }
+                    wb_ptr.ptr->write_mat(weight.t());
                 }
                 wb_t_ptr.ptr->write_mat(weight);
             }

@@ -220,6 +220,8 @@ namespace PIM {
                     //          pim_output[i] = wb.ptr->mm(pim_input[i].detach());   // shape of wb_ptr: (in_features, out_features)
                     //        }
                     //      });
+                    //std::cout << pim_input.dtype() << std::endl;
+                    
                     auto pim_output = wb.ptr->mm(pim_input.detach());
                     pim_output.transpose_(1, 2);
                     pim_output = F::fold(pim_output, FoldOptions({output_width, output_height}, {1, 1}));
@@ -335,13 +337,13 @@ namespace PIM {
             create_pim_array(wb_ptr, {
                 options_.bias() ? (*kernel_size)[0] * (*kernel_size)[1] * n_input_plane + 1 :
                 (*kernel_size)[0] * (*kernel_size)[1] * n_input_plane, n_output_plane
-                }, pim_type, weight.options());
+                }, pim_type, op);
             create_pim_array(wb_t_ptr, {
                 (*kernel_size)[0] * (*kernel_size)[1] * n_output_plane, n_input_plane
-                }, pim_type, weight.options());
+                }, pim_type, op);
             create_pim_array_list(prev_ptrs, {
                 (*input_shape)[0], (*input_shape)[2] * (*input_shape)[3], (*input_shape)[1]
-                }, pim_type, weight.options());
+                }, pim_type, op);
             sync_weight();
         }
 
@@ -455,20 +457,20 @@ namespace PIM {
                 double max_weights = pro_decf().max_weight_value;
                 if (bias.defined()) 
                 {
+                    if (pro_decf().weights_tensor_trunc)
+                    {
+                        weight.data() = limit_weight_with_max(weight, max_weights);
+                        bias.data() = limit_weight_with_max(bias, max_weights);
+                    }
                     wb_ptr.ptr->write_mat(torch::cat({
                         weight.permute({1, 2, 3, 0}).reshape({-1, options.out_channels()}),
                         bias.unsqueeze(0)}, 0));
-                    if (pro_decf().weights_tensor_trunc)
-                    {
-                        weight = limit_weight_with_max(weight, max_weights);
-                        bias = limit_weight_with_max(bias, max_weights);
-                    }
                 } else {
-                    wb_ptr.ptr->write_mat(weight.permute({1, 2, 3, 0}).reshape({-1, options.out_channels()}));
                     if (pro_decf().weights_tensor_trunc)
                     {
-                        weight = limit_weight_with_max(weight, max_weights);
+                        weight.data() = limit_weight_with_max(weight, max_weights);
                     }   
+                    wb_ptr.ptr->write_mat(weight.permute({1, 2, 3, 0}).reshape({-1, options.out_channels()}));
                 }
             // flip kernel
                 wb_t_ptr.ptr->write_mat(weight.flip({2, 3}).permute({1, 0, 2, 3}).reshape({options.in_channels(), -1}).t());

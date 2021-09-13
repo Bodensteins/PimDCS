@@ -8,6 +8,7 @@
 
 namespace PIM
 {
+
     /**
    * Creates a PIM array which contains a 2D Tensor.
    * @param arr shared_ptr of LogicArrayInterface

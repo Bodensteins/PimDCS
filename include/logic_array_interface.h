@@ -11,6 +11,12 @@ namespace PIM {
   enum class PimArrayType {
     simple_logic_array, pim_array_pro, pim_array_fast
   };
+    enum class PIMRunMode 
+    {
+        train,
+        fast_mode_train, // backend is digital
+        inference
+    };
 
  std::ostream &operator << ( std::ostream& stream, const PimArrayType &type)
  {

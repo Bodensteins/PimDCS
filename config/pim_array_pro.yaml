@@ -71,17 +71,17 @@ phyArrColSize: 128
 minConduct: 1e-7
 maxConduct: 1e-5
 inVBits: 1
-inBits: 10
+inBits: 16
 outBits: 8
-unitBits: 6
+unitBits: 16
 cellBits: 1
 has_negative_input: true
 max_phy_input_value: 1
 max_weight_value: 4
 trunc_input: true
 dynamic_max_input: false
-mode: 0 #0:p&n 1:ref
-weights_sync_with_pim: false
+mode: 1 #0:p&n 1:ref
+weights_sync_with_pim: true
                      #false --> weights in fact is stored by tensor(double or float
 weights_tensor_trunc: true
 # only when weights_sync_with_pim is false, this option is workable

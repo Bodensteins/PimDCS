@@ -1,10 +1,10 @@
-#include "pim_utils.h"
 #include <iostream>
 #include <string>
 #include <ctime>
-#include "pim_saver_and_loader.h"
+#include <torch/torch.h>
+#include <torch/custom_class.h>
 
-auto runDev = torch::Device(torch::kCUDA, 2);
+auto runDev = torch::Device(torch::kCUDA);
 std::string weight_path = "../log/original_vgg8_cifar10.weight";
 int epochSize = 250;
 int batch_size = 64;
@@ -14,17 +14,36 @@ int lr_decay_epoch = 50;
 
 struct VGG8_Net: torch::nn::Module
 {
-    VGG8_Net(): conv(5, nullptr), fc1(nullptr), fc2(nullptr), fc3(nullptr)
+    VGG8_Net(): conv({
+		Conv2d(Conv2dOptions(3, 128, 3).padding(1)),
+		Conv2d(Conv2dOptions(128, 256, 3).padding(1)),
+		Conv2d(Conv2dOptions(256, 256, 3).padding(1)),
+		Conv2d(Conv2dOptions(256, 512, 3).padding(1)),
+		Conv2d(Conv2dOptions(512, 512, 3).padding(1)),
+	}), 
+//	BN({
+		//BatchNorm2d(128), BatchNorm2d(256), 
+		//BatchNorm2d(256), BatchNorm2d(512), BatchNorm2d(512)}),
+	fc1(Linear(8192, 1024)), 
+	fc2(Linear(1024, 10))
     {
-        conv[0] = register_module("conv0", torch::nn::Conv2d(torch::nn::Conv2dOptions(3, 64, 3).padding(1)));
-        conv[1] = register_module("conv1", torch::nn::Conv2d(torch::nn::Conv2dOptions(64, 128, 3).padding(1)));
-        conv[2] = register_module("conv2", torch::nn::Conv2d(torch::nn::Conv2dOptions(128, 256, 3).padding(1)));
-        conv[3] = register_module("conv3", torch::nn::Conv2d(torch::nn::Conv2dOptions(256, 512, 3).padding(1)));
-        conv[4] = register_module("conv4", torch::nn::Conv2d(torch::nn::Conv2dOptions(512, 512, 3).padding(1)));
+        register_module("conv0", conv[0]); 
+		//register_module("bn0", BN[0]); 
 
-        fc1 = register_module("fc1", torch::nn::Linear(512, 512));
-        fc2 = register_module("fc2", torch::nn::Linear(512, 512));
-        fc3 = register_module("fc3", torch::nn::Linear(512, 10));
+        register_module("conv1", conv[1]); 
+//		register_module("bn1", BN[1]); 
+  
+        register_module("conv2", conv[2]); 
+		//register_module("bn2", BN[2]); 
+  
+        register_module("conv3", conv[3]); 
+		//register_module("bn3", BN[3]); 
+  
+        register_module("conv4", conv[4]); 
+		//register_module("bn4", BN[4]); 
+
+        register_module("fc1", fc1);
+        register_module("fc2", fc2);
     }
 
     // Implement the Net's algorithm.
@@ -32,17 +51,27 @@ struct VGG8_Net: torch::nn::Module
     {
         using torch::relu;      
         namespace F = torch::nn::functional;
-        x = F::max_pool2d( (relu(conv[0](x))), F::MaxPool2dFuncOptions(2).stride(2));
+		x = conv[0](x);
+//		x = BN[0](x);
+		x = relu(x);
+		x = conv[1](x);
+		//x = BN[1](x);
+		x = relu(x);
+		x = F::max_pool2d( x, F::MaxPool2dFuncOptions(2).stride(2));
 
-        x = F::max_pool2d( (relu(conv[1](x))), F::MaxPool2dFuncOptions(2).stride(2));
+		x = conv[2](x);
+//		x = BN[2](x);
+		x = relu(x);
+		x = conv[3](x);
+		//x = BN[3](x);
+		x = relu(x);
+		x = F::max_pool2d( x, F::MaxPool2dFuncOptions(2).stride(2));
 
-        x = F::max_pool2d( (relu(conv[2](x))), F::MaxPool2dFuncOptions(2).stride(2));
+		x = conv[4](x);
+//		x = BN[4](x);
+		x = relu(x);
+		x = F::max_pool2d( x, F::MaxPool2dFuncOptions(2).stride(2));
 
-        x = F::max_pool2d( (relu(conv[3](x))), F::MaxPool2dFuncOptions(2).stride(2));
-
-        x = F::max_pool2d( (relu(conv[4](x))), F::MaxPool2dFuncOptions(2).stride(2));
-
-        // x = F::max_pool2d( relu(conv[6](x)), F::MaxPool2dFuncOptions(2).stride(2) );
         x = x.view({x.size(0), -1});
         x = torch::dropout(x, /*p=*/0.5, /*training=*/is_training());
         x = torch::relu(fc1(x));
@@ -55,8 +84,9 @@ struct VGG8_Net: torch::nn::Module
     }
 
     // Use one of many "standard library" modules.
-    std::vector<torch::nn::Conv2d> conv;
-    torch::nn::Linear fc1, fc2, fc3;
+    std::vector<Conv2d> conv;
+//    std::vector<BatchNorm2d> BN;
+	Linear fc1, fc2;
 };
 
 
@@ -145,7 +175,7 @@ void mytest(std::shared_ptr<VGG8_Net> &net,
 
     for (auto &batch : data_loader)
     {
-         torch::Tensor prediction = net->forward(batch.data.to(device));
+         torch::Tensor prediction = net->forward(batch.data.to(device).to(torch::kF64));
          auto out = prediction.argmax(1);
          correct += out.eq(batch.target.to(device).view({-1})).sum().template item<int64_t>();
         
@@ -173,7 +203,7 @@ void mytrain(std::shared_ptr<VGG8_Net> &net,
         // Reset gradients.
         optimizer.zero_grad();
         // Execute the model on the input data.
-        torch::Tensor prediction = net->forward(batch.data.to(device));
+        torch::Tensor prediction = net->forward(batch.data.to(device).to(torch::kF64));
 
         auto out = prediction.argmax(1);
         correct += out.eq(batch.target.to(device).view({-1})).sum().template item<int64_t>();
@@ -185,7 +215,7 @@ void mytrain(std::shared_ptr<VGG8_Net> &net,
         // Update the parameters based on the calculated gradients.
         optimizer.step();
         // Output the loss and checkpoint every 100 batches.
-        if (++batch_index % 2 == 0)
+        if (++batch_index % print_batch == 0)
         {
             std::cout << "Epoch: " << epoch << " | Batch: " << batch_index
                         << " | Loss: " << loss.template item<float>() 
@@ -251,6 +281,7 @@ int main(int argc, char *argv[])
     start = time(0);
     for (int epoch=1; epoch<=epochSize; ++epoch)
     {
+
         mytrain(net, *tr_data_loader, runDev, train_data.size().value(), batch_size, optimizer, epoch/*, going_on*/);
         mytest(net, *te_data_loader, runDev, test_data.size().value());
         PIM::lr_decay<torch::optim::SGD, torch::optim::SGDOptions>(optimizer, lr_decay_epoch, lr_decay_rate);
@@ -259,7 +290,8 @@ int main(int argc, char *argv[])
     time_t now = time(0);
     std::cout << "train finish! Cost " << difftime(now, start) << " seconds" << std::endl;
 
-    PIM::pim_saver(*net, weight_path);
+	torch::save(net->parameters(), weight_path);
+    std::cout << "Save model parameters to " << weight_path << std::endl;
 
 //    if (!going_on)
 //        torch::save(net, "net.pt");

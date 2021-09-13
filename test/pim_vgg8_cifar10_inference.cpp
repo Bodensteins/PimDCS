@@ -10,7 +10,7 @@
 #include "pim_conv.h"
 #include "pim_linear.h"
 
-auto runDev = torch::Device(torch::kCUDA, 2);
+auto runDev = torch::Device(torch::kCUDA);
 //auto runDev = torch::Device(torch::kCPU);
 int kBatchSize = 64;
 

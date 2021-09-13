@@ -220,20 +220,20 @@ namespace PIM {
 
                 if (bias.defined())
                 {
-                    wb_ptr.ptr->write_mat(torch::cat({weight.t(), bias.unsqueeze(0)}, 0)); // write transposed weight
                     if (pro_decf().weights_tensor_trunc)
                     {
                         weight.data() = limit_weight_with_max(weight, max_weights);
                         bias.data() = limit_weight_with_max(bias, max_weights);
                     }
+                    wb_ptr.ptr->write_mat(torch::cat({weight.t(), bias.unsqueeze(0)}, 0)); // write transposed weight
                 }
                 else
                 {
-                    wb_ptr.ptr->write_mat(weight.t());
                     if (pro_decf().weights_tensor_trunc)
                     {
                         weight.data() = limit_weight_with_max(weight, max_weights);
                     }
+                    wb_ptr.ptr->write_mat(weight.t());
                 }
                 wb_t_ptr.ptr->write_mat(weight);
             }

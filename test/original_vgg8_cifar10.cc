@@ -9,7 +9,7 @@ std::string weight_path = "../log/original_vgg8_cifar10.weight";
 int epochSize = 250;
 int batch_size = 64;
 double lr_decay_rate = 0.5;
-int lr_decay_epoch = 1;
+int lr_decay_epoch = 50;
 
 
 struct VGG8_Net: torch::nn::Module

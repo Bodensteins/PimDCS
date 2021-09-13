@@ -457,20 +457,20 @@ namespace PIM {
                 double max_weights = pro_decf().max_weight_value;
                 if (bias.defined()) 
                 {
+                    if (pro_decf().weights_tensor_trunc)
+                    {
+                        weight.data() = limit_weight_with_max(weight, max_weights);
+                        bias.data() = limit_weight_with_max(bias, max_weights);
+                    }
                     wb_ptr.ptr->write_mat(torch::cat({
                         weight.permute({1, 2, 3, 0}).reshape({-1, options.out_channels()}),
                         bias.unsqueeze(0)}, 0));
-                    if (pro_decf().weights_tensor_trunc)
-                    {
-                        weight = limit_weight_with_max(weight, max_weights);
-                        bias = limit_weight_with_max(bias, max_weights);
-                    }
                 } else {
-                    wb_ptr.ptr->write_mat(weight.permute({1, 2, 3, 0}).reshape({-1, options.out_channels()}));
                     if (pro_decf().weights_tensor_trunc)
                     {
-                        weight = limit_weight_with_max(weight, max_weights);
+                        weight.data() = limit_weight_with_max(weight, max_weights);
                     }   
+                    wb_ptr.ptr->write_mat(weight.permute({1, 2, 3, 0}).reshape({-1, options.out_channels()}));
                 }
             // flip kernel
                 wb_t_ptr.ptr->write_mat(weight.flip({2, 3}).permute({1, 0, 2, 3}).reshape({options.in_channels(), -1}).t());

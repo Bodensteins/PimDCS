@@ -18,7 +18,7 @@ const int64_t kTrainBatchSize = 64;
 const int64_t kTestBatchSize = 1000;
 
 // The number of epochs to train.
-const int64_t kNumberOfEpochs = 5;
+const int64_t kNumberOfEpochs = 100;
 
 // After how many batches to log a new update with the loss value.
 const int64_t kLogInterval = 10;
@@ -29,17 +29,17 @@ struct Net : torch::nn::Module {
   Net() {
     // Construct and register two Linear submodules.
     fc1 = register_module("fc1", torch::nn::Linear(784, 64));
-    fc2 = register_module("fc2", torch::nn::Linear(64, 32));
-    fc3 = register_module("fc3", torch::nn::Linear(32, 10));
+    fc2 = register_module("fc2", torch::nn::Linear(64, 10));
+   // fc3 = register_module("fc3", torch::nn::Linear(32, 10));
   }
 
   // Implement the Net's algorithm.
   torch::Tensor forward(torch::Tensor x) {
     // Use one of many tensor manipulation functions.
     x = torch::relu(fc1->forward(x.reshape({x.size(0), 784})));
-    x = torch::dropout(x, /*p=*/0.5, /*train=*/is_training());
-    x = torch::relu(fc2->forward(x));
-    x = torch::log_softmax(fc3->forward(x), /*dim=*/1);
+    //x = torch::dropout(x, /*p=*/0.5, /*train=*/is_training());
+    //x = torch::relu(fc2->forward(x));
+    x = torch::log_softmax(fc2->forward(x), /*dim=*/1);
     return x;
   }
 
@@ -62,7 +62,6 @@ void train(
     optimizer.zero_grad();
     auto output = model.forward(data);
     auto loss = torch::nll_loss(output, targets);
-    std::cout << output.sizes() << std::endl;
     AT_ASSERT(!std::isnan(loss.template item<float>()));
     loss.backward();
     optimizer.step();
@@ -153,4 +152,9 @@ auto main() -> int {
   auto stop = high_resolution_clock::now();
   auto duration = duration_cast<milliseconds>(stop - start);
   std::cout << "Time: " << duration.count() / 1000. << " seconds" << std::endl;
+  std::cout << model.fc1->weight.abs().max() << std::endl;
+  std::cout << model.fc2->weight.abs().max() << std::endl;
+  std::cout << model.fc1->weight.abs().sum()/(784*64) << std::endl;
+  std::cout << model.fc2->weight.abs().sum()/(64*10) << std::endl;
+  return 0;
 }

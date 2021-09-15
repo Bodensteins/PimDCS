@@ -13,11 +13,11 @@ using namespace PIM;
 int kTestBatchSize = 32;
 int kTrainBatchSize = 16;
 int kNumberOfEpochs = 10;
-auto runDev = torch::Device(torch::kCUDA, 1);
+auto runDev = torch::Device(torch::kCUDA);
 std::string out_string = "pim_vgg8_cifar10_out";
 auto pim_type = PimArrayType::pim_array_pro;
 //auto pim_type = PimArrayType::simple_logic_array;
-auto fast_mode = false;
+auto fast_mode = true;
 
 
 struct VGG8_Net: torch::nn::Module
@@ -243,7 +243,7 @@ int main(int argc, char *argv[])
     auto net = std::make_shared<VGG8_Net>();
     net->to(runDev, torch::kFloat64);
     
-    std::string tr_data_path = "/home/chenghuan/Code/pimtorch/data/cifar-10-batches-bin/";
+    std::string tr_data_path = "../data/cifar-10-batches-bin/";
     
     cifar10Dataset train_data(tr_data_path+"data_batch_1.bin");
     train_data.add(tr_data_path+"data_batch_2.bin");
@@ -254,7 +254,7 @@ int main(int argc, char *argv[])
     std::cout << "train data read end" << std::endl;
 
 
-    std::string test_data_path = "/home/chenghuan/Code/pimtorch/data/cifar-10-batches-bin/";
+    std::string test_data_path = "../data/cifar-10-batches-bin/";
     cifar10Dataset test_data(test_data_path+"test_batch.bin");
     std::cout << "test data read end" << std::endl;
 

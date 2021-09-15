@@ -74,7 +74,7 @@ void preWorkTest()
 void mmTest()
 {
     pim_array_pro_config cf;    
-    at::Tensor mat = torch::rand({2, 2}, torch::kF64)*-4;
+    at::Tensor mat = torch::rand({2, 2}, torch::kF64);
 
     pimArrayPro test(2, 2);
     auto data = torch::rand({2, 2}, torch::kF64)*-1;

@@ -60,6 +60,8 @@ struct Net : torch::nn::Module {
   // }
 };
 
+bool skip = false;
+
 template <typename DataLoader>
 void train(
     int32_t epoch,
@@ -99,6 +101,8 @@ void train(
   }
 }
 
+double accArr[55];
+
 template <typename DataLoader>
 void test(
     Net& model,
@@ -109,6 +113,10 @@ void test(
   model.eval();
   double test_loss = 0;
   int32_t correct = 0;
+  static int inTestCnt = 0;
+
+  inTestCnt++;
+
   for (const auto& batch : data_loader) {
     auto data = batch.data.to(device, torch::kFloat32), targets = batch.target.to(device);
     auto output = model.forward(data);
@@ -123,6 +131,22 @@ void test(
   }
 
   test_loss /= dataset_size;
+  accArr[inTestCnt-1] = 1.0*correct/dataset_size;
+
+  if (inTestCnt>5)
+  {
+	  bool decrease = true;
+	  for (int i=inTestCnt-5; i<inTestCnt; ++i)
+	  {
+		  if (accArr[i]>accArr[inTestCnt-6])
+		{
+			decrease = false;
+			break;
+		}
+	  }
+	  if (decrease)
+	  	skip = true;
+  }
   std::printf(
       "\nTest set: Average loss: %.4f | Accuracy: %.3f\n",
       test_loss,
@@ -177,7 +201,12 @@ auto main(int argc, char *argv[]) -> int {
   }
   else  
   {
-  for (size_t epoch = 1; epoch <= kNumberOfEpochs; ++epoch) {
+  	for (size_t epoch = 1; epoch <= kNumberOfEpochs; ++epoch) {
+	    if (skip) 
+  		{
+	  		std::cout << "due to accuracy is always decreasing for 5 epochs, training is skip to the end." << std::endl;
+	  		break;
+  		}
     train(epoch, model, runDev, *train_loader, optimizer, train_dataset_size);
     test(model, runDev, *test_loader, test_dataset_size);
   }

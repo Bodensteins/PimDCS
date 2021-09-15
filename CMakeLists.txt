@@ -148,6 +148,11 @@ add_dependencies(pim_vgg YAML_CPP_EXTERNAL_PROJECT)
 target_link_libraries(pim_vgg "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
 set_property(TARGET pim_vgg PROPERTY CXX_STANDARD 14)
 
+add_executable(ir_drop_fast_check unittest/ir_drop_unittest.cc)
+add_dependencies(ir_drop_fast_check YAML_CPP_EXTERNAL_PROJECT)
+target_link_libraries(ir_drop_fast_check "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
+set_property(TARGET ir_drop_fast_check PROPERTY CXX_STANDARD 14)
+
 # yolo v3
 if (USE_OPENCV)
     aux_source_directory(test/yolo_v3 YOLO_SRCS)

@@ -135,13 +135,14 @@ namespace PIM {
         {
             reset();
             this->to(op.device());
-            create_pim_array(wb_ptr, {options_.bias() ? options_.in_features() + 1 : options_.in_features(), options_.out_features()}, pim_type, op);
+            create_pim_array(wb_ptr, {options_.bias() ? options_.in_features() + 1 : options_.in_features(), options_.out_features()}, 
+                pim_type, op, std::to_string(options_.bias()? options_.in_features()+1 : options_.in_features())+"x"+std::to_string(options_.out_features())+"_(wb)_");
             if (train_mode != PIMRunMode::inference)
             {
                 create_pim_array(wb_t_ptr, {options_.out_features(), options_.in_features()}, pim_type,
-                                 op);
+                                 op, std::to_string(options_.out_features())+"x"+std::to_string(options_.in_features())+"_(wb_t)_");
                 create_pim_array(prev_ptr, {batch_size, options_.in_features()}, pim_type,
-                                 op);
+                                 op, std::to_string(batch_size)+"x"+std::to_string(options_.in_features())+"_(prev_ptr)_");
             }
             sync_weight();
         }

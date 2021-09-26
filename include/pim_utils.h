@@ -8,6 +8,7 @@
 
 namespace PIM
 {
+
     /**
    * Creates a PIM array which contains a 2D Tensor.
    * @param arr shared_ptr of LogicArrayInterface
@@ -87,6 +88,25 @@ namespace PIM
         w = w.clone().index_put_({w>mx}, mx);
         w.index_put_({w<-mx}, -mx);
         return w;
+    }
+
+    template<typename Optimizer, typename OptimizerOptions>
+    void lr_decay(Optimizer &optimizer, int lr_decay_epoch, double lr_decay_rate)
+    {
+        static int epoch = 0;
+        if (++epoch % lr_decay_epoch == 0)
+        {
+            for (auto &group : optimizer.param_groups())
+            {
+                if (group.has_options())
+                {
+                    auto &options = static_cast<OptimizerOptions &>(group.options());
+                    double new_lr;
+                    options.lr(new_lr = options.lr() * (1.0 - lr_decay_rate));
+                    //std::cout << "lr change to " << new_lr << std::endl;
+                }
+            }
+        }
     }
 } // namespace PIM
 #endif

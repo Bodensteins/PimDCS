@@ -6,6 +6,11 @@
 
 auto runDev = torch::Device(torch::kCUDA, 2);
 std::string weight_path = "../log/original_vgg8_cifar10.weight";
+int epochSize = 200;
+int batch_size = 128;
+double lr_decay_rate = 0.5;
+int lr_decay_epoch = 50;
+
 
 struct VGG8_Net: torch::nn::Module
 {
@@ -39,9 +44,9 @@ struct VGG8_Net: torch::nn::Module
 
         // x = F::max_pool2d( relu(conv[6](x)), F::MaxPool2dFuncOptions(2).stride(2) );
         x = x.view({x.size(0), -1});
-       // x = torch::dropout(x, /*p=*/0.6, /*training=*/is_training());
+        x = torch::dropout(x, /*p=*/0.5, /*training=*/is_training());
         x = torch::relu(fc1(x));
-        //x = torch::dropout(x, /*p=*/0.6, /*training=*/is_training());
+        x = torch::dropout(x, /*p=*/0.5, /*training=*/is_training());
         x = torch::relu(fc2(x));
         //x = torch::dropout(x, /*p=*/0.6, /*training=*/is_training());
         x = fc3(x);
@@ -203,7 +208,7 @@ void mytrain(std::shared_ptr<VGG8_Net> &net,
 int main(int argc, char *argv[])
 {
     auto net = std::make_shared<VGG8_Net>();
-    std::string tr_data_path = "../data/cifar-10-batches-bin/";
+    std::string tr_data_path = "../data/cifar10-dataset/";
     
     cifar10Dataset train_data(tr_data_path+"data_batch_1.bin");
     train_data.add(tr_data_path+"data_batch_2.bin");
@@ -214,7 +219,7 @@ int main(int argc, char *argv[])
     std::cout << "train data read end" << std::endl;
 
 
-    std::string test_data_path = "../data/cifar-10-batches-bin/";
+    std::string test_data_path = "../data/cifar10-dataset/";
     cifar10Dataset test_data(test_data_path+"test_batch.bin");
     std::cout << "test data read end" << std::endl;
 
@@ -228,12 +233,13 @@ int main(int argc, char *argv[])
         runDev = torch::Device(torch::kCPU);
     } 
 
-    int batch_size = 64;
     
     auto tr_data_loader = torch::data::make_data_loader(train_data.map(torch::data::transforms::Normalize<>({0.485, 0.456, 0.406}, {0.229, 0.224, 0.225})).map(torch::data::transforms::Stack<>()), batch_size);
     auto te_data_loader = torch::data::make_data_loader(test_data.map(torch::data::transforms::Normalize<>({0.485, 0.456, 0.406}, {0.229, 0.224, 0.225})).map(torch::data::transforms::Stack<>()), batch_size);
 
-    torch::optim::SGD optimizer(net->parameters(), /*lr=*/0.01);
+    double lr = 0.05;
+    torch::optim::SGD optimizer(
+      net->parameters(), torch::optim::SGDOptions(lr).momentum(0.9).weight_decay(0.0005));
 
     net->to(runDev);
 //    bool going_on = false;
@@ -243,10 +249,11 @@ int main(int argc, char *argv[])
 //        torch::load(net, "net.pt");
 //    }
     start = time(0);
-    for (int epoch=1; epoch<=50; ++epoch)
+    for (int epoch=1; epoch<=epochSize; ++epoch)
     {
         mytrain(net, *tr_data_loader, runDev, train_data.size().value(), batch_size, optimizer, epoch/*, going_on*/);
         mytest(net, *te_data_loader, runDev, test_data.size().value());
+        PIM::lr_decay<torch::optim::SGD, torch::optim::SGDOptions>(optimizer, lr_decay_epoch, lr_decay_rate);
     }  
 
     time_t now = time(0);

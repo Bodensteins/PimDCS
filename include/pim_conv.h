@@ -149,7 +149,7 @@ namespace PIM {
                 static torch::Tensor forward(
                         AutogradContext *ctx, PimArrayPtr &wb, PimArrayPtr &wb_t, PimArrayPtrList &prevs,
                         const Tensor &input, const Tensor &weight, const c10::optional<Tensor> &bias,
-                        IntArrayRef stride, IntArrayRef padding, bool is_training, bool fast_mode = false) {
+                        IntArrayRef stride, IntArrayRef padding, bool is_training, PIM::PIMRunMode train_mode = PIM::PIMRunMode::train) {
 
                     IntArrayRef kernel_size = weight.sizes().slice(2);
                     conv2d_shape_check(input, weight, bias.has_value() ? bias.value() : Tensor(), kernel_size, stride, padding);
@@ -177,10 +177,10 @@ namespace PIM {
                     ctx->saved_data["padding"] = std::vector<int64_t>(padding.vec());
                     ctx->saved_data["wb_t_ptr"] = c10::make_intrusive<PimArrayPtr>(wb_t);
                     ctx->saved_data["prev_ptrs"] = c10::make_intrusive<PimArrayPtrList>(prevs);
-                    ctx->saved_data["fast_mode"] = fast_mode;
+                    ctx->saved_data["train_mode"] = (int)train_mode;
 
                     // write parameters to PIM if is trainable
-                    if (is_training && weight.requires_grad()) {
+                    if (is_training && train_mode!=PIM::PIMRunMode::inference && weight.requires_grad()) {
                         for (int64_t i = 0; i < input.size(0); i++) {
                             prevs.ptrs[i]->write_mat(input[i].flip({1, 2}).reshape({input[i].size(0), -1}).t());
                         }
@@ -220,6 +220,8 @@ namespace PIM {
                     //          pim_output[i] = wb.ptr->mm(pim_input[i].detach());   // shape of wb_ptr: (in_features, out_features)
                     //        }
                     //      });
+                    //std::cout << pim_input.dtype() << std::endl;
+                    
                     auto pim_output = wb.ptr->mm(pim_input.detach());
                     pim_output.transpose_(1, 2);
                     pim_output = F::fold(pim_output, FoldOptions({output_width, output_height}, {1, 1}));
@@ -239,7 +241,7 @@ namespace PIM {
                     auto input = saved[0];
                     auto weight = saved[1];
                     auto bias = saved[2];
-                    bool fast_mode = ctx->saved_data["fast_mode"].toBool();
+                    auto train_mode = static_cast<PIM::PIMRunMode>(ctx->saved_data["train_mode"].toInt());
 
                     const int64_t batch_size = input.size(0);
                     std::vector<int64_t> input_size({input.size(2), input.size(3)});
@@ -257,7 +259,7 @@ namespace PIM {
                         grad_bias = grad_output.sum({0, 2, 3});
                     }
 
-                    if (fast_mode) {
+                    if (train_mode==PIMRunMode::fast_mode_train) {
                         int64_t in_ex = input.size(0);
                         int64_t in_ch = input.size(1);
                         int64_t out_ch = grad_output.size(1);
@@ -317,14 +319,15 @@ namespace PIM {
                       ExpandingArray<2> kernel_size,
                       int64_t output_channels,
                       PimArrayType pim_type,
-                      bool fast_mode = false,
+                      PIMRunMode train_mode,
                       const torch::TensorOptions &op = {})
                       : PimConv2dImpl(input_shape, pim_type,
-                                      Conv2dOptions((*input_shape)[1], output_channels, kernel_size), fast_mode, op) {}
+                                      Conv2dOptions((*input_shape)[1], output_channels, kernel_size), train_mode, op) {}
 
-                                      explicit PimConv2dImpl(ExpandingArray<4> input_shape, PimArrayType pim_type,
-                                                             const Conv2dOptions &options_, bool fast_mode = false, const torch::TensorOptions &op = {})
-                                                             : input_shape(input_shape), pim_type(pim_type), options(options_), fast_mode(fast_mode){
+        explicit PimConv2dImpl(ExpandingArray<4> input_shape, PimArrayType pim_type,
+                               const Conv2dOptions &options_, PIMRunMode train_mode, const torch::TensorOptions &op = {})
+            : input_shape(input_shape), pim_type(pim_type), options(options_), train_mode(train_mode)
+        {
 
             ExpandingArray<2> kernel_size = options_.kernel_size();
             const int64_t n_input_plane = options_.in_channels();
@@ -335,16 +338,14 @@ namespace PIM {
             create_pim_array(wb_ptr, {
                 options_.bias() ? (*kernel_size)[0] * (*kernel_size)[1] * n_input_plane + 1 :
                 (*kernel_size)[0] * (*kernel_size)[1] * n_input_plane, n_output_plane
-                }, pim_type, weight.options());
-            create_pim_array(wb_t_ptr, {
-                (*kernel_size)[0] * (*kernel_size)[1] * n_output_plane, n_input_plane
-                }, pim_type, weight.options());
-            create_pim_array_list(prev_ptrs, {
-                (*input_shape)[0], (*input_shape)[2] * (*input_shape)[3], (*input_shape)[1]
-                }, pim_type, weight.options());
+                }, pim_type, op);
+            if (train_mode != PIMRunMode::inference)
+            {
+                create_pim_array(wb_t_ptr, {(*kernel_size)[0] * (*kernel_size)[1] * n_output_plane, n_input_plane}, pim_type, op);
+                create_pim_array_list(prev_ptrs, {(*input_shape)[0], (*input_shape)[2] * (*input_shape)[3], (*input_shape)[1]}, pim_type, op);
+            }
             sync_weight();
         }
-
 
         void reset() override {
             weight = register_parameter("weight",
@@ -397,7 +398,7 @@ namespace PIM {
             if (print_detail_) {
                 wb_ptr.ptr->print(stream);
                 stream << "array_t" << std::endl;
-                wb_t_ptr.ptr->print(stream);
+                if (wb_t_ptr.ptr!=nullptr) wb_t_ptr.ptr->print(stream);
                 stream << "prevs" << std::endl;
                 for (auto &i : prev_ptrs.ptrs) {
                     i->print(stream);
@@ -409,24 +410,25 @@ namespace PIM {
         /// Transforms the `input` tensor by multiplying with the `weight` and
         /// optionally adding the `bias`, if `with_bias` is true in the options.
         Tensor forward(const Tensor &input) {
-            switch (pim_type) {
-                case PimArrayType::simple_logic_array:
-                    return PimConv2dFunction<SimpleLogicArray>::apply(
-                            wb_ptr, wb_t_ptr, prev_ptrs,
-                            input, weight, options.bias() ? bias : c10::optional<Tensor>(),
-                            options.stride(), options.padding(), is_training(), fast_mode);
-                    case PimArrayType::pim_array_pro:
-                        return PimConv2dFunction<pimArrayPro>::apply(
-                                wb_ptr, wb_t_ptr, prev_ptrs,
-                                input, weight, options.bias() ? bias : c10::optional<Tensor>(),
-                                options.stride(), options.padding(), is_training(), fast_mode);
-                        case PimArrayType::pim_array_fast:
-                            return PimConv2dFunction<pimArrayFast>::apply(
-                                    wb_ptr, wb_t_ptr, prev_ptrs,
-                                    input, weight, options.bias() ? bias : c10::optional<Tensor>(),
-                                    options.stride(), options.padding(), is_training(), fast_mode);
-                            default:
-                                TORCH_INTERNAL_ASSERT(false, "pim conv, forward type not supported!")
+            switch (pim_type)
+            {
+            case PimArrayType::simple_logic_array:
+                return PimConv2dFunction<SimpleLogicArray>::apply(
+                    wb_ptr, wb_t_ptr, prev_ptrs,
+                    input, weight, options.bias() ? bias : c10::optional<Tensor>(),
+                    options.stride(), options.padding(), is_training(), train_mode);
+            case PimArrayType::pim_array_pro:
+                return PimConv2dFunction<pimArrayPro>::apply(
+                    wb_ptr, wb_t_ptr, prev_ptrs,
+                    input, weight, options.bias() ? bias : c10::optional<Tensor>(),
+                    options.stride(), options.padding(), is_training(), train_mode);
+            case PimArrayType::pim_array_fast:
+                return PimConv2dFunction<pimArrayFast>::apply(
+                    wb_ptr, wb_t_ptr, prev_ptrs,
+                    input, weight, options.bias() ? bias : c10::optional<Tensor>(),
+                    options.stride(), options.padding(), is_training(), train_mode);
+            default:
+                TORCH_INTERNAL_ASSERT(false, "pim conv, forward type not supported!")
             }
         }
 
@@ -448,30 +450,30 @@ namespace PIM {
                         weight.size(1), weight.size(2), weight.size(3), options.out_channels()}).permute({3, 0, 1, 2});
                 }   
             // flip kernel
-                wb_t_ptr.ptr->write_mat(weight.flip({2, 3}).permute({1, 0, 2, 3}).reshape({options.in_channels(), -1}).t());
+                if (wb_t_ptr.ptr!=nullptr) wb_t_ptr.ptr->write_mat(weight.flip({2, 3}).permute({1, 0, 2, 3}).reshape({options.in_channels(), -1}).t());
             }
             else
             {
                 double max_weights = pro_decf().max_weight_value;
                 if (bias.defined()) 
                 {
+                    if (pro_decf().weights_tensor_trunc)
+                    {
+                        weight.data() = limit_weight_with_max(weight, max_weights);
+                        bias.data() = limit_weight_with_max(bias, max_weights);
+                    }
                     wb_ptr.ptr->write_mat(torch::cat({
                         weight.permute({1, 2, 3, 0}).reshape({-1, options.out_channels()}),
                         bias.unsqueeze(0)}, 0));
-                    if (pro_decf().weights_tensor_trunc)
-                    {
-                        weight = limit_weight_with_max(weight, max_weights);
-                        bias = limit_weight_with_max(bias, max_weights);
-                    }
                 } else {
-                    wb_ptr.ptr->write_mat(weight.permute({1, 2, 3, 0}).reshape({-1, options.out_channels()}));
                     if (pro_decf().weights_tensor_trunc)
                     {
-                        weight = limit_weight_with_max(weight, max_weights);
+                        weight.data() = limit_weight_with_max(weight, max_weights);
                     }   
+                    wb_ptr.ptr->write_mat(weight.permute({1, 2, 3, 0}).reshape({-1, options.out_channels()}));
                 }
             // flip kernel
-                wb_t_ptr.ptr->write_mat(weight.flip({2, 3}).permute({1, 0, 2, 3}).reshape({options.in_channels(), -1}).t());
+                if (wb_t_ptr.ptr!=nullptr) wb_t_ptr.ptr->write_mat(weight.flip({2, 3}).permute({1, 0, 2, 3}).reshape({options.in_channels(), -1}).t());
 
             }
         }
@@ -503,7 +505,7 @@ namespace PIM {
         /// Whether the physical array is be printed.
         bool print_detail_{false};
 
-        bool fast_mode;
+        PIMRunMode train_mode;
 
         PimArrayPtr wb_ptr;
         PimArrayPtr wb_t_ptr;

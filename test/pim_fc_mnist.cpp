@@ -29,12 +29,14 @@ const int64_t kLogInterval = 10;
 
 auto runDev = torch::Device(torch::kCUDA);
 //auto runDev = torch::Device(torch::kCPU);
-auto fastmode = false;
+auto fastmode = PIM::PIMRunMode::inference;
+auto pim_type = PimArrayType::pim_array_pro;
+
 // Define a new Module.
 struct Net : torch::nn::Module {
   Net() {
-    fc1 = register_module("fc1", PimLinear(784, 64, kTrainBatchSize, PimArrayType::pim_array_pro, fastmode, TensorOptions(torch::kF32).device(runDev)));
-    fc2 = register_module("fc2", PimLinear(64, 10, kTrainBatchSize, PimArrayType::pim_array_pro, fastmode, TensorOptions(torch::kF32).device(runDev)));
+    fc1 = register_module("fc1", PimLinear(784, 64, kTrainBatchSize, pim_type, fastmode, TensorOptions(torch::kF32).device(runDev)));
+    fc2 = register_module("fc2", PimLinear(64, 10, kTrainBatchSize, pim_type, fastmode, TensorOptions(torch::kF32).device(runDev)));
   }
 
   // Implement the Net's algorithm.
@@ -172,7 +174,7 @@ auto main(int argc, char *argv[]) -> int {
   // torch::optim::Adam optimizer( model.parameters(), torch::optim::AdamOptions(lr));
   if (argc>1 && std::string(argv[1])=="GO_ON")
   {
-	  PIM::pim_loader(model, "net_pim_logicArray_fc_mnist.pt");
+	  PIM::pim_loader(model, "../model_params/net_pim_logicArray_fc_mnist.pt");
       test(model, runDev, *test_loader, test_dataset_size);
   }
   else  
@@ -181,7 +183,7 @@ auto main(int argc, char *argv[]) -> int {
     train(epoch, model, runDev, *train_loader, optimizer, train_dataset_size);
     test(model, runDev, *test_loader, test_dataset_size);
   }
- // PIM::pim_saver(model, "net_pim_logicArray_fc_mnist.pt");
+   PIM::pim_saver(model, "../model_params/net_pim_logicArray_fc_mnist.pt");
   }
 
   auto stop = high_resolution_clock::now();

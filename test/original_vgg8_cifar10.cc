@@ -6,8 +6,8 @@
 
 auto runDev = torch::Device(torch::kCUDA, 2);
 std::string weight_path = "../log/original_vgg8_cifar10.weight";
-int epochSize = 250;
-int batch_size = 64;
+int epochSize = 200;
+int batch_size = 128;
 double lr_decay_rate = 0.5;
 int lr_decay_epoch = 50;
 

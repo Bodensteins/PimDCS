@@ -17,7 +17,7 @@ namespace PIM
    * @param options Tensor options
    */
     void create_pim_array(PimArrayPtr &arr_ptr, torch::ExpandingArray<2> arr_size, PimArrayType pim_type,
-                          const torch::TensorOptions &options = {})
+                          const torch::TensorOptions &options = {}, std::string id_name = "")
     {
         switch (pim_type)
         {
@@ -25,7 +25,7 @@ namespace PIM
                 arr_ptr.ptr = std::make_shared<SimpleLogicArray>((*arr_size)[0], (*arr_size)[1], options);
                 break;
             case PimArrayType::pim_array_pro:
-                arr_ptr.ptr = std::make_shared<pimArrayPro>((*arr_size)[0], (*arr_size)[1], options);
+                arr_ptr.ptr = std::make_shared<pimArrayPro>((*arr_size)[0], (*arr_size)[1], options, &pro_decf(), id_name);
                 break;
             case PimArrayType::pim_array_fast:
                 arr_ptr.ptr = std::make_shared<pimArrayFast>((*arr_size)[0], (*arr_size)[1], options);

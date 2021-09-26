@@ -104,12 +104,26 @@ public:
 //        return std::make_pair((int)arrList.size() - n, (int)arrList.size() - 1);
 //    }
 
-    int allocPhyArray_PE(int n, int rowSize, int colSize, at::TensorOptions op = {}, const pim_array_pro_config *conf = &pro_decf())
+    int allocPhyArray_PE(int n, int rowSize, int colSize, at::TensorOptions op = {}, 
+        const pim_array_pro_config *conf = &pro_decf(), std::string id_name = "")
     {
         lock_guard<mutex> lk(mu);
         int st = arrList.size();
-        for (int i = 0; i < n; ++i)
-            arrList.push_back(new phyArrayPro(rowSize, colSize, op, conf));
+        if (id_name!="" && *id_name.rbegin()=='n')
+        {
+            for (int i=0; i<n; ++i)
+            {
+                if (i%2==0)
+                    arrList.push_back(new phyArrayPro(rowSize, colSize, op, conf, id_name+"_pos_"+std::to_string(i/2)));
+                else
+                    arrList.push_back(new phyArrayPro(rowSize, colSize, op, conf, id_name+"_neg_"+std::to_string(i/2)));
+            }
+        }
+        else
+        {
+            for (int i = 0; i < n; ++i)
+                arrList.push_back(new phyArrayPro(rowSize, colSize, op, conf, id_name+"_"+std::to_string(i)));
+        }
         while (arrList.size()%peInfo.cf->lat_area.phyArrayNum!=0)
         {
             arrList.push_back(nullptr);
@@ -401,10 +415,12 @@ PE_info phyArrayManagerPro::peInfo;
 class pimArrayPro : public LogicArrayInterface
 {
 public:
-    pimArrayPro(int rowSizeIn, int colSizeIn, const torch::TensorOptions &op = {}, const pim_array_pro_config *cf = &pro_decf())
+    pimArrayPro(int rowSizeIn, int colSizeIn, const torch::TensorOptions &op = {}, const pim_array_pro_config *cf = &pro_decf()
+        , std::string id_name = "")
         : LogicArrayInterface(rowSizeIn, colSizeIn)
     {
         conf = cf;
+        this->id_name = id_name;
         init(cf, op);
     }
 
@@ -506,6 +522,7 @@ protected:
     int phyAllRowSize;
     std::vector<std::vector<int>> arr, narr;
     torch::TensorOptions op;
+    std::string id_name;
 };
 
 phyArrayManagerPro pimArrayPro::phyArrManPro;
@@ -554,12 +571,12 @@ void pimArrayPro::init(const pim_array_pro_config *cf, const torch::TensorOption
     if (cf->mode==1)
     {
         temp_col_size = cf->phyArrColSize+2;
-        start_num = phyArrManPro.allocPhyArray_PE(arrX_size*arrY_size, cf->phyArrRowSize, temp_col_size, op, conf);
+        start_num = phyArrManPro.allocPhyArray_PE(arrX_size*arrY_size, cf->phyArrRowSize, temp_col_size, op, conf, id_name+"_ref");
     }
     else
     { 
         temp_col_size = cf->phyArrColSize;
-        start_num = phyArrManPro.allocPhyArray_PE(2*arrX_size*arrY_size, cf->phyArrRowSize, temp_col_size, op, conf);
+        start_num = phyArrManPro.allocPhyArray_PE(2*arrX_size*arrY_size, cf->phyArrRowSize, temp_col_size, op, conf, id_name+"_pn");
     }
     for (int j = 0; j < arrY_size; ++j)
         for (int i = 0; i < arrX_size; ++i)

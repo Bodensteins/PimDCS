@@ -14,7 +14,8 @@ using namespace torch::indexing;
 
 struct phyArrayPro
 {
-    phyArrayPro(int rowSize, int colSize, torch::TensorOptions op = {}, const pim_array_pro_config *conf = &pro_decf()): conf(conf)
+    phyArrayPro(int rowSize, int colSize, torch::TensorOptions op = {}, 
+        const pim_array_pro_config *conf = &pro_decf(), std::string id_name=""): conf(conf)
     {
         this->rowSize = rowSize;
         this->colSize = colSize;
@@ -22,6 +23,7 @@ struct phyArrayPro
 		totalDACEnergy = totalADCEnergy = totalXbarComputeEnergy = 0;
         deltaConduct = (conf->maxConduct - conf->minConduct) / (conf->cellLevels-1);
         this->op = op;
+        this->id_name = id_name;
         if (!conf->C2C_en)
         {
             if (conf->cellBits <= 8)
@@ -90,7 +92,7 @@ struct phyArrayPro
 
     torch::TensorOptions op;
     int64_t totalWrCnt, totalCmpWrCnt;
-
+    std::string id_name;
     at::Tensor cellWrCnt;
     at::Tensor data;
     at::Tensor p_state;
@@ -585,6 +587,7 @@ at::Tensor phyArrayPro::postWorkForMM(const at::Tensor &mat, const pim_array_pro
 void phyArrayPro::print(std::ostream &os)
 {
     using std::endl;
+    os << id_name << endl;
     os << "data = " << endl;
     os << data << endl;
     if (conf->energy.enable)

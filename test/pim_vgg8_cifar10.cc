@@ -244,7 +244,7 @@ int main(int argc, char *argv[])
     auto net = std::make_shared<VGG8_Net>();
     net->to(runDev, torch::kFloat64);
     
-    std::string tr_data_path = "/home/chenghuan/Code/pimtorch/data/cifar-10-batches-bin/";
+    std::string tr_data_path = "../data/cifar-10-batches-bin/";
     
     cifar10Dataset train_data(tr_data_path+"data_batch_1.bin");
     train_data.add(tr_data_path+"data_batch_2.bin");
@@ -255,7 +255,7 @@ int main(int argc, char *argv[])
     std::cout << "train data read end" << std::endl;
 
 
-    std::string test_data_path = "/home/chenghuan/Code/pimtorch/data/cifar-10-batches-bin/";
+    std::string test_data_path = "../data/cifar-10-batches-bin/";
     cifar10Dataset test_data(test_data_path+"test_batch.bin");
     std::cout << "test data read end" << std::endl;
 

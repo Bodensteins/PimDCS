@@ -27,7 +27,7 @@ struct Net : torch::nn::Module {
         PimConv2d(
             ExpandingArray<4>({N, Cin, H, W}),
             PimArrayType::simple_logic_array,
-            Conv2dOptions(Cin, Cout, {kH, kW}).stride(s).padding(p), true
+            Conv2dOptions(Cin, Cout, {kH, kW}).stride(s).padding(p), PIM::PIMRunMode::fast_mode_train
             ));
   }
 

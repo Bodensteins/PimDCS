@@ -34,14 +34,15 @@ const int train_dataset_size = 4 * trainTimes;
 const int testTimes = 1;
 const int test_dataset_size = 4 * testTimes;
 // Define a new Module.
+auto fast_mode = PIM::PIMRunMode::train;
 struct Net : torch::nn::Module {
   Net()
   {
     //fc = register_module("fc", PimLinear(2, 2, kTrainBatchSize, PimArrayType::pim_array_pro, runDev));
     //fc1 = register_module("fc1", torch::nn::Linear(2, 10));
     //fc2 = register_module("fc2", torch::nn::Linear(10, 2));
-    fc1 = register_module("fc1", PimLinear(2, 3, kTrainBatchSize, PimArrayType::pim_array_pro, false, runDev));
-    fc2 = register_module("fc2", PimLinear(3, 2, kTrainBatchSize, PimArrayType::pim_array_pro, false, runDev));
+    fc1 = register_module("fc1", PimLinear(2, 3, kTrainBatchSize, PimArrayType::pim_array_pro, fast_mode, runDev));
+    fc2 = register_module("fc2", PimLinear(3, 2, kTrainBatchSize, PimArrayType::pim_array_pro, fast_mode, runDev));
     //fc = register_module("fc", torch::nn::Linear(2, 2));
   }
 

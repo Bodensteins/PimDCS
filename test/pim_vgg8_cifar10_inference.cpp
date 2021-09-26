@@ -19,7 +19,7 @@ int kBatchSize = 64;
 std::string out_string = "pim_vgg8_cifar10_out";
 auto pim_type = PimArrayType::pim_array_pro;
 //auto pim_type = PimArrayType::simple_logic_array;
-auto fast_mode = false;
+auto fast_mode = PIM::PIMRunMode::train;
 std::string weight_path = "../log/original_vgg8_cifar10.weight";
 //todo::need to modify
 struct VGG8_Net: torch::nn::Module

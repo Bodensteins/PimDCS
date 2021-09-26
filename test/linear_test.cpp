@@ -16,7 +16,7 @@ const int64_t Cout = 5;
 // Define a new Module.
 struct Net : torch::nn::Module {
   Net() {
-    fc1 = register_module("fc1", PimLinear(Cin, Cout, N, PimArrayType::simple_logic_array, false));
+    fc1 = register_module("fc1", PimLinear(Cin, Cout, N, PimArrayType::simple_logic_array, PIM::PIMRunMode::train));
   }
 
   // Implement the Net's algorithm.

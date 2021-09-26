@@ -105,13 +105,6 @@ add_dependencies(pim_fc_xor YAML_CPP_EXTERNAL_PROJECT)
 target_link_libraries(pim_fc_xor "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
 set_property(TARGET pim_fc_xor PROPERTY CXX_STANDARD 14)
 
-
-# Test
-add_executable(logic_array_interface_test unittest/logic_array_interface_test.cpp)
-add_dependencies(logic_array_interface_test YAML_CPP_EXTERNAL_PROJECT)
-target_link_libraries(logic_array_interface_test "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
-set_property(TARGET logic_array_interface_test PROPERTY CXX_STANDARD 14)
-
 add_executable(conv_test test/conv_test.cpp)
 add_dependencies(conv_test YAML_CPP_EXTERNAL_PROJECT)
 target_link_libraries(conv_test "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
@@ -121,21 +114,6 @@ add_executable(linear_test test/linear_test.cpp)
 add_dependencies(linear_test YAML_CPP_EXTERNAL_PROJECT)
 target_link_libraries(linear_test "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
 set_property(TARGET linear_test PROPERTY CXX_STANDARD 14)
-
-add_executable(simple_test unittest/simple_test.cpp)
-add_dependencies(simple_test YAML_CPP_EXTERNAL_PROJECT)
-target_link_libraries(simple_test "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
-set_property(TARGET simple_test PROPERTY CXX_STANDARD 14)
-
-add_executable(unittestFor_pimPro unittest/unitTestFor_pimarraypro.cc)
-add_dependencies(unittestFor_pimPro YAML_CPP_EXTERNAL_PROJECT)
-target_link_libraries(unittestFor_pimPro "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
-set_property(TARGET unittestFor_pimPro PROPERTY CXX_STANDARD 14)
-
-add_executable(mmtest unittest/mmtest.cpp)
-add_dependencies(mmtest YAML_CPP_EXTERNAL_PROJECT)
-target_link_libraries(mmtest "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
-set_property(TARGET mmtest PROPERTY CXX_STANDARD 14)
 
 # cifar-10
 add_executable(original_vgg test/vgg/original_vgg.cpp)
@@ -147,12 +125,3 @@ add_executable(pim_vgg test/vgg/pim_vgg.cpp)
 add_dependencies(pim_vgg YAML_CPP_EXTERNAL_PROJECT)
 target_link_libraries(pim_vgg "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
 set_property(TARGET pim_vgg PROPERTY CXX_STANDARD 14)
-
-# yolo v3
-if (USE_OPENCV)
-    aux_source_directory(test/yolo_v3 YOLO_SRCS)
-    add_executable(yolo_v3 ${YOLO_SRCS})
-    add_dependencies(yolo_v3 YAML_CPP_EXTERNAL_PROJECT)
-    target_link_libraries(yolo_v3 "${TORCH_LIBRARIES}" "${OpenCV_LIBS}" "${CURSES_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
-    set_property(TARGET yolo_v3 PROPERTY CXX_STANDARD 14)
-endif ()

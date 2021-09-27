@@ -43,6 +43,10 @@ input_tensor.print_quantization_info()
 print(input_tensor.fixed_tensor)
 print(input_tensor.de_quantization())
 
+input_tensor.change_bit_width(input1_bit_width)
+input_tensor.print_quantization_info()
+print(input_tensor.fixed_tensor)
+print(input_tensor.de_quantization())
 
 # input_tensor_t = input_tensor.t()
 # input_tensor_t.print_quantization_info()

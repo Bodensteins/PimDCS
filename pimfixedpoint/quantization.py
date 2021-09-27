@@ -77,14 +77,18 @@ class NormalTensor(QTensor):
     def de_quantization(self):
         return self.fixed_tensor.mul(self.resolution)
 
-    def init_quantization_from_other(self, other):
-        self.bit_width = other.bit_width
-        self.neg_levels = other.neg_levels
-        self.pos_levels = other.pos_levels
-        self.s = other.s
-        self.resolution = other.resolution
-        self.min = other.min
-        self.max = other.max
+    def change_bit_width(self, new_bit_width):
+        if new_bit_width < self.bit_width:
+            self.s = self.s + self.bit_width - new_bit_width
+            self.resolution = pow(2, self.s)
+            self.fixed_tensor = self.fixed_tensor.__rshift__(self.bit_width - new_bit_width)
+            self.data = torch.from_numpy(self.fixed_tensor.numpy().view(dtype=np.float32))
+
+        self.bit_width = new_bit_width
+        self.neg_levels = pow_2_n(self.bit_width - 1)
+        self.pos_levels = self.neg_levels - 1
+        self.min = -self.resolution * self.neg_levels
+        self.max = self.resolution * self.pos_levels
 
     def add_additional_one(self):
         fixed_one = round(1 / self.resolution)
@@ -92,11 +96,7 @@ class NormalTensor(QTensor):
         if self.max < 1:
             print("add_additional_one err!")
             new_bit_width = get_pos_bit_width(fixed_one)
-            self.bit_width = new_bit_width
-            self.neg_levels = pow_2_n(self.bit_width - 1)
-            self.pos_levels = self.neg_levels - 1
-            self.min = -self.resolution * self.neg_levels
-            self.max = self.resolution * self.pos_levels
+            self.change_bit_width(new_bit_width)
 
         full_one_col = torch.full([self.fixed_tensor.size()[0], 1], fixed_one, dtype=torch.int32)
         self.fixed_tensor = torch.cat((self.fixed_tensor, full_one_col), 1)
@@ -147,7 +147,7 @@ class RefTensor(ArrayTensor):
 
     def sub(self, other: NormalTensor):
         shift = self.s - other.s
-        data = self.fixed_tensor[..., 0 : -1]
+        data = self.fixed_tensor[..., 0:-1]
         if shift >= 0:
             other_data = other.fixed_tensor.__rshift__(shift)
         else:
@@ -159,7 +159,7 @@ class RefTensor(ArrayTensor):
 
     def sub_t(self, other: NormalTensor):
         shift = self.s - other.s
-        data = self.fixed_tensor[..., 0 : -1]
+        data = self.fixed_tensor[..., 0:-1]
         if shift >= 0:
             other_data = other.fixed_tensor.__rshift__(shift).t()
         else:

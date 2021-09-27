@@ -105,6 +105,7 @@ class NormalTensor(QTensor):
 class RefTensor(ArrayTensor):
     def __init__(self, bit_width: int):
         super().__init__(bit_width)
+        self.max_int_number = self.neg_levels.__lshift__(1)
 
     def quantization(self, tensor: torch.Tensor, max_abs_value):
         # max_value = weight.max().item()
@@ -121,10 +122,27 @@ class RefTensor(ArrayTensor):
         return self.fixed_tensor[..., 0:-1].sub(self.neg_levels).mul(self.resolution)
 
     def sub(self, other: NormalTensor):
-        pass
+        shift = self.s - other.s
+        if shift>=0:
+            other_data = other.fixed_tensor.__rshift__(shift)
+        else:
+            other_data = other.fixed_tensor.__lshift__(-shift)
+        
+        self.fixed_tensor -= other_data
+        self.fixed_tensor[self.fixed_tensor<0] = 0
+        self.fixed_tensor[self.fixed_tensor>=self.max_int_number] = self.max_int_number-1
+
 
     def sub_t(self, other: NormalTensor):
-        pass
+        shift = self.s - other.s
+        if shift>=0:
+            other_data = other.fixed_tensor.__rshift__(shift).t()
+        else:
+            other_data = other.fixed_tensor.__lshift__(-shift).t()
+        
+        self.fixed_tensor -= other_data
+        self.fixed_tensor[self.fixed_tensor<0] = 0
+        self.fixed_tensor[self.fixed_tensor>=self.max_int_number] = self.max_int_number-1
 
     def write(self, other: NormalTensor):
         if not self.array_initialized:

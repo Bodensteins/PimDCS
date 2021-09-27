@@ -1,0 +1,102 @@
+from os import stat
+import torch
+import math
+from torch.autograd import Function, grad
+
+from quantization import *
+
+class pimLinearFunction(Function):
+    @staticmethod
+    def forward(ctx, qinput: NormalTensor, inputArr: ArrayTensor, weight: ArrayTensor, weight_t: ArrayTensor, hasBias: bool):
+        if hasBias==False:
+            inputArr.write(qinput)
+            qoutput = qinput.mul(weight)
+        else:
+            qinput.add_additional_one()
+            inputArr.write(qinput)
+            qoutput = qinput.mul(weight)
+
+        ctx.inputArr = inputArr
+        ctx.weight_t = weight_t
+        ctx.hasBias = hasBias 
+
+        return qoutput 
+
+    @staticmethod
+    def backward(ctx, qgrad_output):
+        inputArr = ctx.inputArr
+        weight_t = ctx.weight_t
+        hasBias = ctx.hasBias 
+        
+        qgrad_input = qgrad_output.mul(weight_t)
+        if hasBias==True:
+            qgrad_input.remove_additaional_one()
+        delta_weight_t = qgrad_output.tmul(inputArr)
+
+        return qgrad_input, None, None, delta_weight_t, None 
+
+#optimi   weight.subt(weight_t.grad)
+#         weight_t.sub(weight_t.grad)
+
+class PIMLinear(torch.nn.Module):
+    def __init__(self, m: int, n: int, batch_size: int, bitwidth: int, hasBias: bool, arrayMode: int, quantizerMode: str, absMaxValue: float):
+        super().__init__()
+        if hasBias:
+            m += 1
+        self.m, self.n, self.hasBias = m, n, hasBias
+        
+        #quantizer mode dynamic, static.
+        self.quantizerMode = quantizerMode 
+
+        if arrayMode=="RefTensor":
+            self.wArr = RefTensor(m, n, absMaxValue, bitwidth)
+            self.wtArr = RefTensor(n, m, absMaxValue, bitwidth)
+            self.inputArr = RefTensor(batch_size, m, absMaxValue, bitwidth)
+        #elif arrayMode=="PNTensor":
+        #    self.wArr = PNTensor(m, n, absMaxValue, bitwidth)
+        #    self.wtArr = PNTensor(n, m, absMaxValue, bitwidth) 
+        #    self.inputArr = PNTensor(batch_size, m, absMaxValue, bitwidth)
+        else:
+            print("arrayMode error!")
+
+        self.weight_init()
+    
+    def weight_init(self):
+        temp_weight = torch.empty(self.m, self.n)
+        torch.nn.init.kaiming_uniform_(temp_weight, math.sqrt(5))
+
+        if self.hasBias==True:
+            fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(temp_weight[0:-1])
+            bound = 1 / math.sqrt(fan_in)
+            torch.nn.init.uniform_(temp_weight[-1], -bound, bound)
+
+        self.weight.quantization(temp_weight)
+        self.weight_t.quantization(temp_weight.t())
+
+    def forward(self, qinput: NormalTensor):
+        qoutput = pimLinearFunction.apply(qinput, self.inputArr, self.wArr, self.wtArr, self.hasBias)
+        return qoutput
+
+class deQuanFunction(Function):
+    @staticmethod
+    def forward(ctx, qinput: NormalTensor, x: NormalTensor, bit: int):
+        ctx.x = x
+        ctx.bit = bit
+        return qinput.de_quantization()
+
+    @staticmethod
+    def backward(ctx, grad_output):        
+        return ctx.x.quantization(grad_output, grad_output.abs().max(), ctx.bit)
+
+class deQuanLayer(torch.nn.Module):
+    def __init__(self, bitwidth: int, quantizerMode: int):
+        super().__init__()
+        self.x = NormalTensor()
+        self.bit = bitwidth
+        self.quantizerMode = quantizerMode
+
+    def forward(self, input: NormalTensor):
+        return deQuanFunction.apply(input, self.x, self.bit) 
+
+if __name__=="__main__":
+    pass

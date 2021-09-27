@@ -70,8 +70,8 @@ class PIMLinear(torch.nn.Module):
             bound = 1 / math.sqrt(fan_in)
             torch.nn.init.uniform_(temp_weight[-1], -bound, bound)
 
-        self.weight.quantization_tensor(temp_weight)
-        self.weight.quantization_tensor(temp_weight.t())
+        self.weight.quantization(temp_weight)
+        self.weight_t.quantization(temp_weight.t())
 
     def forward(self, qinput: NormalTensor):
         qoutput = pimLinearFunction.apply(qinput, self.inputArr, self.wArr, self.wtArr, self.hasBias)

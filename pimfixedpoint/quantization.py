@@ -115,16 +115,34 @@ class RefTensor(ArrayTensor):
         self.fixed_tensor[..., -1] = self.neg_levels  # ref col
         self.fixed_tensor[..., 0:-1] = tensor.div(self.resolution).round().to(torch.int32).\
             add(self.neg_levels)
+        self.max_int_number = self.neg_levels.__lshift__(1)
         self.data = torch.from_numpy(self.fixed_tensor.numpy().view(dtype=np.float32))
 
     def de_quantization(self):
         return self.fixed_tensor[..., 0:-1].sub(self.neg_levels).mul(self.resolution)
 
     def sub(self, other: NormalTensor):
-        pass
+        shift = self.s - other.s
+        if shift>=0:
+            other_data = other.fixed_tensor.__rshift__(shift)
+        else:
+            other_data = other.fixed_tensor.__lshift__(-shift)
+        
+        self.fixed_tensor -= other_data
+        self.fixed_tensor[self.fixed_tensor<0] = 0
+        self.fixed_tensor[self.fixed_tensor>=self.max_int_number] = self.max_int_number-1
+
 
     def sub_t(self, other: NormalTensor):
-        pass
+        shift = self.s - other.s
+        if shift>=0:
+            other_data = other.fixed_tensor.__rshift__(shift).t()
+        else:
+            other_data = other.fixed_tensor.__lshift__(-shift).t()
+        
+        self.fixed_tensor -= other_data
+        self.fixed_tensor[self.fixed_tensor<0] = 0
+        self.fixed_tensor[self.fixed_tensor>=self.max_int_number] = self.max_int_number-1
 
     def write(self, other: NormalTensor):
         if not self.array_initialized:

@@ -3,7 +3,7 @@ from quantization import *
 
 row_size = 4
 col_size = 4
-input1_bit_width = 10
+input_bit_width = 9
 
 # test ref col
 # weight = torch.randn([row_size, col_size], dtype=torch.float)
@@ -19,13 +19,12 @@ input1_bit_width = 10
 # print(f'max abs delta: {delta.abs().max().item()}')
 
 # test input
-input_mat = torch.randn([row_size, col_size], dtype=torch.float)
-input_mat[input_mat >= 1] = 0.7
-input_mat[input_mat <= -1] = -0.7
+print("input:\n")
+input_mat = torch.randn([row_size, col_size], dtype=torch.float) * 10
 print(input_mat)
 max_value = input_mat.abs().max()
 input_tensor = NormalTensor()
-input_tensor.quantization(input_mat, max_value, input1_bit_width)
+input_tensor.quantization(input_mat, max_value, input_bit_width)
 input_tensor.print_quantization_info()
 de_quantization_input = input_tensor.de_quantization()
 print(input_tensor.fixed_tensor)
@@ -33,20 +32,43 @@ print(de_quantization_input)
 delta = input_mat - de_quantization_input
 print(f'max abs delta: {delta.abs().max().item()}')
 
-input_tensor.add_additional_one()
-input_tensor.print_quantization_info()
-print(input_tensor.fixed_tensor)
-print(input_tensor.de_quantization())
+print("weight:\n")
+weight_bit_width = 10
+weight_mat = torch.randn([row_size, col_size], dtype=torch.float)
+print(weight_mat)
+max_value = weight_mat.abs().max()
+weight_tensor = RefTensor(weight_bit_width)
+weight_tensor.quantization(weight_mat, max_value)
+weight_tensor.print_quantization_info()
+de_quantization_weight = weight_tensor.de_quantization()
+print(weight_tensor.fixed_tensor)
+print(de_quantization_weight)
+delta = weight_mat - de_quantization_weight
+print(f'max abs delta: {delta.abs().max().item()}')
 
-input_tensor.remove_additional_one()
-input_tensor.print_quantization_info()
-print(input_tensor.fixed_tensor)
-print(input_tensor.de_quantization())
+print("sub:\n")
+weight_tensor.sub(input_tensor)
+weight_tensor.print_quantization_info()
+de_quantization_weight = weight_tensor.de_quantization()
+print(weight_tensor.fixed_tensor)
+print(de_quantization_weight)
+delta = weight_mat - input_mat - de_quantization_weight
+print(f'max abs delta: {delta.abs().max().item()}')
 
-input_tensor.change_bit_width(input1_bit_width)
-input_tensor.print_quantization_info()
-print(input_tensor.fixed_tensor)
-print(input_tensor.de_quantization())
+# input_tensor.add_additional_one()
+# input_tensor.print_quantization_info()
+# print(input_tensor.fixed_tensor)
+# print(input_tensor.de_quantization())
+#
+# input_tensor.remove_additional_one()
+# input_tensor.print_quantization_info()
+# print(input_tensor.fixed_tensor)
+# print(input_tensor.de_quantization())
+#
+# input_tensor.change_bit_width(input1_bit_width)
+# input_tensor.print_quantization_info()
+# print(input_tensor.fixed_tensor)
+# print(input_tensor.de_quantization())
 
 # input_tensor_t = input_tensor.t()
 # input_tensor_t.print_quantization_info()

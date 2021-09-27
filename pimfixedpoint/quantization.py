@@ -154,8 +154,8 @@ class RefTensor(ArrayTensor):
             other_data = other.fixed_tensor.__lshift__(-shift)
         
         data -= other_data
-        data[self.fixed_tensor < 0] = 0
-        data[self.fixed_tensor > self.max_int_number] = self.max_int_number
+        data[data < 0] = 0
+        data[data > self.max_int_number] = self.max_int_number
 
     def sub_t(self, other: NormalTensor):
         shift = self.s - other.s
@@ -166,8 +166,8 @@ class RefTensor(ArrayTensor):
             other_data = other.fixed_tensor.__lshift__(-shift).t()
         
         data -= other_data
-        data[self.fixed_tensor < 0] = 0
-        data[self.fixed_tensor > self.max_int_number] = self.max_int_number
+        data[data < 0] = 0
+        data[data > self.max_int_number] = self.max_int_number
 
     def write(self, other: NormalTensor):
         if not self.array_initialized:

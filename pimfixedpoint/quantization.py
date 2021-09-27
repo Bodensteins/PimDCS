@@ -123,7 +123,7 @@ class RefTensor(ArrayTensor):
 
     def sub(self, other: NormalTensor):
         shift = self.s - other.s
-        data = self.fixed_tensor[0 : -1]
+        data = self.fixed_tensor[..., 0 : -1]
         if shift >= 0:
             other_data = other.fixed_tensor.__rshift__(shift)
         else:
@@ -135,7 +135,7 @@ class RefTensor(ArrayTensor):
 
     def sub_t(self, other: NormalTensor):
         shift = self.s - other.s
-        data = self.fixed_tensor[0 : -1]
+        data = self.fixed_tensor[..., 0 : -1]
         if shift >= 0:
             other_data = other.fixed_tensor.__rshift__(shift).t()
         else:

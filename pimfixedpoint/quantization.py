@@ -105,6 +105,7 @@ class NormalTensor(QTensor):
 class RefTensor(ArrayTensor):
     def __init__(self, bit_width: int):
         super().__init__(bit_width)
+        self.max_int_number = self.neg_levels.__lshift__(1)
 
     def quantization(self, tensor: torch.Tensor, max_abs_value):
         # max_value = weight.max().item()
@@ -115,7 +116,6 @@ class RefTensor(ArrayTensor):
         self.fixed_tensor[..., -1] = self.neg_levels  # ref col
         self.fixed_tensor[..., 0:-1] = tensor.div(self.resolution).round().to(torch.int32).\
             add(self.neg_levels)
-        self.max_int_number = self.neg_levels.__lshift__(1)
         self.data = torch.from_numpy(self.fixed_tensor.numpy().view(dtype=np.float32))
 
     def de_quantization(self):

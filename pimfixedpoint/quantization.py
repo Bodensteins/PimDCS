@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import math
-
 import torch
 import numpy as np
 from commonMethod import *
@@ -73,6 +71,12 @@ class NormalTensor(QTensor):
     def de_quantization(self):
         return self.fixed_tensor.mul(self.resolution)
 
+    def add_additional_one(self):
+        pass
+
+    def remove_additional_one(self):
+        pass
+
     def mul(self, other: ArrayTensor) -> NormalTensor:
         pass
 
@@ -91,7 +95,7 @@ class RefTensor(ArrayTensor):
         # max_value = weight.max().item()
         # min_value = weight.min).item()
         self.init_quantization_info(max_abs_value, bit_width)
-        self.fixed_tensor = torch.empty([tensor.size(0), tensor.size(1) + 1], dtype=torch.int32)
+        self.fixed_tensor = torch.empty([tensor.size()[0], tensor.size()[1] + 1], dtype=torch.int32)
         self.fixed_tensor[..., -1] = self.neg_levels  # ref col
         self.fixed_tensor[..., 0:-1] = tensor.div(self.resolution).round().to(torch.int32).\
             add(self.neg_levels)

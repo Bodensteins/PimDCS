@@ -81,8 +81,7 @@ class NormalTensor(QTensor):
         if new_bit_width < self.bit_width:
             self.s = self.s + self.bit_width - new_bit_width
             self.resolution = pow(2, self.s)
-            self.fixed_tensor = self.fixed_tensor.__rshift__(self.bit_width - new_bit_width)
-            self.data = torch.from_numpy(self.fixed_tensor.numpy().view(dtype=np.float32))
+            self.fixed_tensor.__irshift__(self.bit_width - new_bit_width)
 
         self.bit_width = new_bit_width
         self.neg_levels = pow_2_n(self.bit_width - 1)
@@ -119,11 +118,47 @@ class NormalTensor(QTensor):
         other.data = torch.from_numpy(other.fixed_tensor.numpy().view(dtype=np.float32))
         return other
 
+    def process_mul_result_bit_width_info(self):
+        result_max = self.fixed_tensor.max().item()
+        result_min = self.fixed_tensor.min().item()
+        print(f'result_max: {result_max}')
+        print(f'result_min: {result_min}')
+        if result_max <= 0:
+            self.bit_width = get_neg_bit_width(result_min)
+        elif result_min >= 0:
+            self.bit_width = get_pos_bit_width(result_max)
+        else:
+            self.bit_width = max(get_pos_bit_width(result_max), get_neg_bit_width(result_min))
+        self.neg_levels = pow_2_n(self.bit_width - 1)
+        self.pos_levels = self.neg_levels - 1
+        self.min = -self.resolution * self.neg_levels
+        self.max = self.resolution * self.pos_levels
+
     def mul(self, other: ArrayTensor) -> NormalTensor:
-        pass
+        if isinstance(other, RefTensor):
+            mul_result = NormalTensor()
+            mul_result.fixed_tensor = self.fixed_tensor.mul(other.fixed_tensor[..., 0:-1].sub(other.neg_levels))
+            mul_result.data = torch.from_numpy(mul_result.fixed_tensor.numpy().view(dtype=np.float32))
+            mul_result.s = self.s + other.s
+            mul_result.resolution = math.pow(2, mul_result.s)
+            mul_result.process_mul_result_bit_width_info()
+            return mul_result
+        else:
+            print("we don't support it!")
+            pass
 
     def t_mul(self, other: ArrayTensor) -> NormalTensor:
-        pass
+        if isinstance(other, RefTensor):
+            mul_result = NormalTensor()
+            mul_result.fixed_tensor = self.fixed_tensor.t().mul(other.fixed_tensor[..., 0:-1].sub(other.neg_levels))
+            mul_result.data = torch.from_numpy(mul_result.fixed_tensor.numpy().view(dtype=np.float32))
+            mul_result.s = self.s + other.s
+            mul_result.resolution = math.pow(2, mul_result.s)
+            mul_result.process_mul_result_bit_width_info()
+            return mul_result
+        else:
+            print("we don't support it!")
+            pass
 
 
 class RefTensor(ArrayTensor):

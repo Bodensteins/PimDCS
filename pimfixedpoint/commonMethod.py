@@ -16,3 +16,11 @@ def print_call_abstract_method_info():
 
 def print_call_incomplete_method_info():
     print(f'Error: {sys._getframe().f_code.co_name} is an incomplete method!')
+
+
+def get_pos_bit_width(pos_int: int):
+    return math.ceil(math.log2(pos_int + 1)) + 1
+
+
+def get_neg_bit_width(neg_int: int):
+    return math.ceil(math.log2(-neg_int)) + 1

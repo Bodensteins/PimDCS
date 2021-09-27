@@ -20,6 +20,8 @@ input1_bit_width = 10
 
 # test input
 input_mat = torch.randn([row_size, col_size], dtype=torch.float)
+input_mat[input_mat >= 1] = 0.7
+input_mat[input_mat <= -1] = -0.7
 print(input_mat)
 max_value = input_mat.abs().max()
 input_tensor = NormalTensor()
@@ -28,18 +30,29 @@ input_tensor.print_quantization_info()
 de_quantization_input = input_tensor.de_quantization()
 print(input_tensor.fixed_tensor)
 print(de_quantization_input)
-# delta = input_mat - de_quantization_input
-# print(f'max abs delta: {delta.abs().max().item()}')
+delta = input_mat - de_quantization_input
+print(f'max abs delta: {delta.abs().max().item()}')
 
-input_tensor_t = input_tensor.t()
-input_tensor_t.print_quantization_info()
-print(input_tensor_t.fixed_tensor)
-print(input_tensor_t.de_quantization())
-
-
-input_tensor_t.fixed_tensor[0][0] = 6
+input_tensor.add_additional_one()
+input_tensor.print_quantization_info()
 print(input_tensor.fixed_tensor)
-print(input_tensor_t.fixed_tensor)
+print(input_tensor.de_quantization())
+
+input_tensor.remove_additional_one()
+input_tensor.print_quantization_info()
+print(input_tensor.fixed_tensor)
+print(input_tensor.de_quantization())
+
+
+# input_tensor_t = input_tensor.t()
+# input_tensor_t.print_quantization_info()
+# print(input_tensor_t.fixed_tensor)
+# print(input_tensor_t.de_quantization())
+#
+#
+# input_tensor_t.fixed_tensor[0][0] = 6
+# print(input_tensor.fixed_tensor)
+# print(input_tensor_t.fixed_tensor)
 
 
 

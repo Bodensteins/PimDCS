@@ -1,15 +1,18 @@
 import math
+import sys
 
 
 def get_fixed_point_position(max_abs: float, bit_width: int) -> int:
     return math.ceil(math.log2(max_abs / ((1 << (bit_width - 1)) - 1)))
 
 
-# neg levels: 2^(n-1)
-def neg_levels(bit_width: int):
-    return 1 << (bit_width - 1)
+def pow_2_n(n: int) -> int:
+    return 1 << n
 
 
-# pos levels: 2^(n-1) - 1
-def pos_levels(bit_width: int):
-    return (1 << (bit_width - 1)) - 1
+def print_call_abstract_method_info():
+    print(f'Error: {sys._getframe().f_code.co_name} is an abstract method!')
+
+
+def print_call_incomplete_method_info():
+    print(f'Error: {sys._getframe().f_code.co_name} is an incomplete method!')

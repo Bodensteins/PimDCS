@@ -3,7 +3,7 @@ from quantization import *
 
 row_size = 4
 col_size = 4
-bit_width = 8
+input1_bit_width = 10
 
 # test ref col
 # weight = torch.randn([row_size, col_size], dtype=torch.float)
@@ -23,14 +23,57 @@ input_mat = torch.randn([row_size, col_size], dtype=torch.float)
 print(input_mat)
 max_value = input_mat.abs().max()
 input_tensor = NormalTensor()
-input_tensor.quantization(input_mat, max_value, bit_width)
+input_tensor.quantization(input_mat, max_value, input1_bit_width)
 input_tensor.print_quantization_info()
 de_quantization_input = input_tensor.de_quantization()
 print(input_tensor.fixed_tensor)
 print(de_quantization_input)
-delta = input_mat - de_quantization_input
-print(f'max abs delta: {delta.abs().max().item()}')
+# delta = input_mat - de_quantization_input
+# print(f'max abs delta: {delta.abs().max().item()}')
 
+input_tensor_t = input_tensor.t()
+input_tensor_t.print_quantization_info()
+print(input_tensor_t.fixed_tensor)
+print(input_tensor_t.de_quantization())
+
+
+input_tensor_t.fixed_tensor[0][0] = 6
+print(input_tensor.fixed_tensor)
+print(input_tensor_t.fixed_tensor)
+
+
+
+# ref_bit_width = 9
+# ref_tensor = RefTensor(ref_bit_width)
+# ref_tensor.write(input_tensor)
+# ref_tensor.print_quantization_info()
+# de_quantization_ref = ref_tensor.de_quantization()
+# print(ref_tensor.fixed_tensor)
+# print(de_quantization_ref)
+# delta = input_mat - de_quantization_ref
+# print(f'max abs delta: {delta.abs().max().item()}')
+#
+#
+# input2_bit_width = 8
+# input_mat2 = torch.randn([row_size, col_size], dtype=torch.float)
+# print(input_mat2)
+# max_value2 = input_mat2.abs().max()
+# input2_tensor = NormalTensor()
+# input2_tensor.quantization(input_mat2, max_value2, input2_bit_width)
+# input2_tensor.print_quantization_info()
+# de_quantization_input2 = input2_tensor.de_quantization()
+# print(input2_tensor.fixed_tensor)
+# print(de_quantization_input2)
+# delta = input_mat2 - de_quantization_input2
+# print(f'max abs delta: {delta.abs().max().item()}')
+#
+# ref_tensor.write(input2_tensor)
+# ref_tensor.print_quantization_info()
+# de_quantization_ref = ref_tensor.de_quantization()
+# print(ref_tensor.fixed_tensor)
+# print(de_quantization_ref)
+# delta = input_mat2 - de_quantization_ref
+# print(f'max abs delta: {delta.abs().max().item()}')
 
 # test P&N
 # weight = torch.randn([row_size, col_size], dtype=torch.float)

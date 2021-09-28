@@ -5,10 +5,11 @@ from torch.autograd import Function, grad
 
 from quantization import *
 
+
 class pimLinearFunction(Function):
     @staticmethod
     def forward(ctx, qinput: NormalTensor, inputArr: ArrayTensor, weight: ArrayTensor, weight_t: ArrayTensor, hasBias: bool):
-        if hasBias==False:
+        if not hasBias:
             inputArr.write_normal(qinput)
             qoutput = qinput.matmul_array(weight)
         else:
@@ -29,7 +30,7 @@ class pimLinearFunction(Function):
         hasBias = ctx.hasBias 
         
         qgrad_input = qgrad_output.mul(weight_t)
-        if hasBias==True:
+        if hasBias:
             qgrad_input.remove_additaional_one()
         delta_weight_t = qgrad_output.t_mul_array(inputArr)
 
@@ -37,6 +38,7 @@ class pimLinearFunction(Function):
 
 #optimi   weight.subt(weight_t.grad)
 #         weight_t.sub(weight_t.grad)
+
 
 class PIMLinear(torch.nn.Module):
     def __init__(self, m: int, n: int, batch_size: int, bitwidth: int, hasBias: bool, arrayMode: str, quantizerMode: str, absMaxValue: float):
@@ -64,7 +66,7 @@ class PIMLinear(torch.nn.Module):
         temp_weight = torch.empty(self.m, self.n)
         torch.nn.init.kaiming_uniform_(temp_weight, math.sqrt(5))
 
-        if self.hasBias==True:
+        if self.hasBias:
             fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(temp_weight[0:-1])
             bound = 1 / math.sqrt(fan_in)
             torch.nn.init.uniform_(temp_weight[-1], -bound, bound)
@@ -75,6 +77,7 @@ class PIMLinear(torch.nn.Module):
     def forward(self, qinput: NormalTensor):
         qoutput = pimLinearFunction.apply(qinput, self.inputArr, self.wArr, self.wtArr, self.hasBias)
         return qoutput
+
 
 class deQuanFunction(Function):
     @staticmethod
@@ -89,6 +92,7 @@ class deQuanFunction(Function):
         x.quantization(grad_output, grad_output.abs().max(), ctx.bit)
         return x.data
 
+
 class deQuanLayer(torch.nn.Module):
     def __init__(self, bitwidth: int, quantizerMode: int):
         super().__init__()
@@ -98,6 +102,7 @@ class deQuanLayer(torch.nn.Module):
 
     def forward(self, input: NormalTensor):
         return deQuanFunction.apply(input, self.x, self.bit) 
+
 
 if __name__=="__main__":
     pass

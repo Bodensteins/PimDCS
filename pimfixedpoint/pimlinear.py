@@ -83,9 +83,12 @@ class PimLinear(torch.nn.Module):
 
 class DeQuanFunction(Function):
     @staticmethod
-    def forward(ctx, qinput: NormalTensor, x: NormalTensor, bit: int):
+    def forward(ctx, qinput: NormalTensor, x: NormalTensor, bit: int, quantizerMode: str):
         ctx.x = x
-        ctx.bit = bit
+        if quantizerMode == "dynamic":
+            ctx.bit = qinput.bit_width
+        else:
+            ctx.bit = bit
         return qinput.de_quantization()
 
     @staticmethod
@@ -96,14 +99,14 @@ class DeQuanFunction(Function):
 
 
 class DeQuanLayer(torch.nn.Module):
-    def __init__(self, bitwidth: int = 8, quantizerMode: str = ""):
+    def __init__(self, bitWidth: int = 8, quantizerMode: str = "dynamic"):
         super().__init__()
         self.x = NormalTensor()
-        self.bit = bitwidth
         self.quantizerMode = quantizerMode
+        self.bit = bitWidth
 
     def forward(self, qinput: NormalTensor):
-        return DeQuanFunction.apply(qinput, self.x, self.bit)
+        return DeQuanFunction.apply(qinput, self.x, self.bit, self.quantizerMode)
 
 
 class ReluFunction(Function):

@@ -47,15 +47,15 @@ delta = weight_mat - de_quantization_weight
 print(f'max abs delta: {delta.abs().max().item()}\n')
 
 print("standard mul:")
-print(input_mat.mul(weight_mat))
+print(input_mat.matmul(weight_mat))
 
 print("\nmul:")
-mul_res = input_tensor.mul(weight_tensor)
+mul_res = input_tensor.mul_array(weight_tensor)
 mul_res.print_quantization_info()
 de_quantization_mul = mul_res.de_quantization()
 print(mul_res.fixed_tensor)
 print(de_quantization_mul)
-delta = input_mat.mul(weight_mat) - de_quantization_mul
+delta = input_mat.matmul(weight_mat) - de_quantization_mul
 print(f'max abs delta: {delta.abs().max().item()}')
 # print("sub:")
 # weight_tensor.sub(input_tensor)

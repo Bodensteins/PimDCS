@@ -118,7 +118,7 @@ class NormalTensor(QTensor):
         other.data = torch.from_numpy(other.fixed_tensor.numpy().view(dtype=np.float32))
         return other
 
-    def process_mul_result_bit_width_info(self):
+    def set_appropriate_bit_width(self):
         result_max = self.fixed_tensor.max().item()
         result_min = self.fixed_tensor.min().item()
         print(f'result_max: {result_max}')
@@ -141,7 +141,7 @@ class NormalTensor(QTensor):
             mul_result.data = torch.from_numpy(mul_result.fixed_tensor.numpy().view(dtype=np.float32))
             mul_result.s = self.s + other.s
             mul_result.resolution = math.pow(2, mul_result.s)
-            mul_result.process_mul_result_bit_width_info()
+            mul_result.set_appropriate_bit_width()
             return mul_result
         else:
             print("we don't support it!")
@@ -154,7 +154,7 @@ class NormalTensor(QTensor):
             mul_result.data = torch.from_numpy(mul_result.fixed_tensor.numpy().view(dtype=np.float32))
             mul_result.s = self.s + other.s
             mul_result.resolution = math.pow(2, mul_result.s)
-            mul_result.process_mul_result_bit_width_info()
+            mul_result.set_appropriate_bit_width()
             return mul_result
         else:
             print("we don't support it!")

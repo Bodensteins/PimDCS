@@ -3,19 +3,17 @@ import torch
 import math
 from torch.autograd import Function, grad
 
-from quantization import *
+from quantization import NormalTensor, ArrayTensor, RefTensor
 
 
 class pimLinearFunction(Function):
     @staticmethod
     def forward(ctx, qinput: NormalTensor, inputArr: ArrayTensor, weight: ArrayTensor, weight_t: ArrayTensor, hasBias: bool):
-        if not hasBias:
-            inputArr.write_normal(qinput)
-            qoutput = qinput.matmul_array(weight)
-        else:
+        if hasBias:
             qinput.add_additional_one()
-            inputArr.write_normal(qinput)
-            qoutput = qinput.matmul_array(weight)
+
+        inputArr.write_normal(qinput)
+        qoutput = qinput.matmul_array(weight)
 
         ctx.inputArr = inputArr
         ctx.weight_t = weight_t
@@ -36,7 +34,7 @@ class pimLinearFunction(Function):
 
         return qgrad_input, None, None, delta_weight_t, None 
 
-#optimi   weight.subt(weight_t.grad)
+# optimi   weight.subt(weight_t.grad)
 #         weight_t.sub(weight_t.grad)
 
 
@@ -45,15 +43,15 @@ class PIMLinear(torch.nn.Module):
         super().__init__()
         if hasBias:
             m += 1
-        self.m, self.n, self.hasBias, self.maxVaule = m, n, hasBias, absMaxValue 
-        #quantizer mode dynamic, static.
+        self.m, self.n, self.hasBias, self.maxValue = m, n, hasBias, absMaxValue
+        # quantizer mode dynamic, static.
         self.quantizerMode = quantizerMode 
 
-        if arrayMode=="RefTensor":
+        if arrayMode == "RefTensor":
             self.wArr = RefTensor(bitwidth)
             self.wtArr = RefTensor(bitwidth)
             self.inputArr = RefTensor(bitwidth)
-        #elif arrayMode=="PNTensor":
+        # elif arrayMode == "PNTensor":
         #    self.wArr = PNTensor(m, n, absMaxValue, bitwidth)
         #    self.wtArr = PNTensor(n, m, absMaxValue, bitwidth) 
         #    self.inputArr = PNTensor(batch_size, m, absMaxValue, bitwidth)
@@ -71,8 +69,8 @@ class PIMLinear(torch.nn.Module):
             bound = 1 / math.sqrt(fan_in)
             torch.nn.init.uniform_(temp_weight[-1], -bound, bound)
 
-        self.wArr.quantization(temp_weight, max(self.maxVaule, temp_weight.abs().max()))
-        self.wtArr.quantization(temp_weight.t(), max(self.maxVaule, temp_weight.abs().max()))
+        self.wArr.quantization(temp_weight, max(self.maxValue, temp_weight.abs().max()))
+        self.wtArr.quantization(temp_weight.t(), max(self.maxValue, temp_weight.abs().max()))
 
     def forward(self, qinput: NormalTensor):
         qoutput = pimLinearFunction.apply(qinput, self.inputArr, self.wArr, self.wtArr, self.hasBias)
@@ -100,9 +98,9 @@ class deQuanLayer(torch.nn.Module):
         self.bit = bitwidth
         self.quantizerMode = quantizerMode
 
-    def forward(self, input: NormalTensor):
-        return deQuanFunction.apply(input, self.x, self.bit) 
+    def forward(self, qinput: NormalTensor):
+        return deQuanFunction.apply(qinput, self.x, self.bit)
 
 
-if __name__=="__main__":
+if __name__ == "__main__":
     pass

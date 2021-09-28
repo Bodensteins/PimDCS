@@ -121,8 +121,8 @@ class NormalTensor(QTensor):
     def set_appropriate_bit_width(self):
         max_int = self.fixed_tensor.max().item()
         min_int = self.fixed_tensor.min().item()
-        print(f'max_int: {max_int}')
-        print(f'min_int: {min_int}')
+        # print(f'max_int: {max_int}')
+        # print(f'min_int: {min_int}')
         if max_int <= 0:
             self.bit_width = max(get_neg_bit_width(min_int), 1)
         elif min_int >= 0:

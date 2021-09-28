@@ -6,7 +6,7 @@ from torch.autograd import Function, grad
 from quantization import NormalTensor, ArrayTensor, RefTensor
 
 
-class pimLinearFunction(Function):
+class PimLinearFunction(Function):
     @staticmethod
     def forward(ctx, qinput: NormalTensor, inputArr: ArrayTensor, weight: ArrayTensor, weight_t: ArrayTensor, hasBias: bool):
         if hasBias:
@@ -38,7 +38,7 @@ class pimLinearFunction(Function):
 #         weight_t.sub(weight_t.grad)
 
 
-class PIMLinear(torch.nn.Module):
+class PimLinear(torch.nn.Module):
     def __init__(self, m: int, n: int, batch_size: int, bitwidth: int, hasBias: bool, arrayMode: str, quantizerMode: str, absMaxValue: float):
         super().__init__()
         if hasBias:
@@ -73,11 +73,11 @@ class PIMLinear(torch.nn.Module):
         self.wtArr.quantization(temp_weight.t(), max(self.maxValue, temp_weight.abs().max()))
 
     def forward(self, qinput: NormalTensor):
-        qoutput = pimLinearFunction.apply(qinput, self.inputArr, self.wArr, self.wtArr, self.hasBias)
+        qoutput = PimLinearFunction.apply(qinput, self.inputArr, self.wArr, self.wtArr, self.hasBias)
         return qoutput
 
 
-class deQuanFunction(Function):
+class DeQuanFunction(Function):
     @staticmethod
     def forward(ctx, qinput: NormalTensor, x: NormalTensor, bit: int):
         ctx.x = x
@@ -91,7 +91,7 @@ class deQuanFunction(Function):
         return x.data
 
 
-class deQuanLayer(torch.nn.Module):
+class DeQuanLayer(torch.nn.Module):
     def __init__(self, bitwidth: int, quantizerMode: int):
         super().__init__()
         self.x = NormalTensor()
@@ -99,8 +99,30 @@ class deQuanLayer(torch.nn.Module):
         self.quantizerMode = quantizerMode
 
     def forward(self, qinput: NormalTensor):
-        return deQuanFunction.apply(qinput, self.x, self.bit)
+        return DeQuanFunction.apply(qinput, self.x, self.bit)
 
+
+class ReluFunction(Function):
+    @staticmethod
+    def forward(ctx, qinput: NormalTensor):
+        neg_position = qinput.fixed_tensor < 0
+        ctx.neg_position = neg_position
+        qinput.fixed_tensor[neg_position] = 0
+        return qinput
+
+    @staticmethod
+    def backward(ctx, grad_output):        
+        neg_position = ctx.neg_position
+        grad_output[neg_position] = 0
+        return grad_output
+
+
+class PimRelu(torch.nn.Module):
+    def __init__(self, bitwidth: int, quantizerMode: int):
+        super().__init__()
+
+    def forward(self, qinput: NormalTensor):
+        return ReluFunction.apply(qinput)
 
 if __name__ == "__main__":
     pass

@@ -9,11 +9,11 @@ class pimLinearFunction(Function):
     @staticmethod
     def forward(ctx, qinput: NormalTensor, inputArr: ArrayTensor, weight: ArrayTensor, weight_t: ArrayTensor, hasBias: bool):
         if hasBias==False:
-            inputArr.write(qinput)
+            inputArr.write_normal(qinput)
             qoutput = qinput.matmul_array(weight)
         else:
             qinput.add_additional_one()
-            inputArr.write(qinput)
+            inputArr.write_normal(qinput)
             qoutput = qinput.matmul_array(weight)
 
         ctx.inputArr = inputArr
@@ -39,12 +39,11 @@ class pimLinearFunction(Function):
 #         weight_t.sub(weight_t.grad)
 
 class PIMLinear(torch.nn.Module):
-    def __init__(self, m: int, n: int, batch_size: int, bitwidth: int, hasBias: bool, arrayMode: int, quantizerMode: str, absMaxValue: float):
+    def __init__(self, m: int, n: int, batch_size: int, bitwidth: int, hasBias: bool, arrayMode: str, quantizerMode: str, absMaxValue: float):
         super().__init__()
         if hasBias:
             m += 1
-        self.m, self.n, self.hasBias = m, n, hasBias
-        
+        self.m, self.n, self.hasBias, self.maxVaule = m, n, hasBias, absMaxValue 
         #quantizer mode dynamic, static.
         self.quantizerMode = quantizerMode 
 
@@ -70,8 +69,8 @@ class PIMLinear(torch.nn.Module):
             bound = 1 / math.sqrt(fan_in)
             torch.nn.init.uniform_(temp_weight[-1], -bound, bound)
 
-        self.wArr.quantization(temp_weight, temp_weight.abs().max())
-        self.wtArr.quantization(temp_weight.t(), temp_weight.abs().max())
+        self.wArr.quantization(temp_weight, max(self.maxVaule, temp_weight.abs().max()))
+        self.wtArr.quantization(temp_weight.t(), max(self.maxVaule, temp_weight.abs().max()))
 
     def forward(self, qinput: NormalTensor):
         qoutput = pimLinearFunction.apply(qinput, self.inputArr, self.wArr, self.wtArr, self.hasBias)

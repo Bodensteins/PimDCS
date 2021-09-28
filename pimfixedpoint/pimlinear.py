@@ -8,16 +8,18 @@ from quantization import NormalTensor, ArrayTensor, RefTensor
 
 class PimLinearFunction(Function):
     @staticmethod
-    def forward(ctx, qinput: NormalTensor, inputArr: ArrayTensor, weight: ArrayTensor, weight_t: ArrayTensor, hasBias: bool):
+    def forward(ctx, qinput: NormalTensor, inputArr: ArrayTensor, weight: ArrayTensor, weight_t: ArrayTensor, inputBits: int, gradOutputBits: int, hasBias: bool):
         if hasBias:
             qinput.add_additional_one()
 
+        qinput.change_bit_width(inputBits)
         inputArr.write_normal(qinput)
         qoutput = qinput.matmul_array(weight)
 
         ctx.inputArr = inputArr
         ctx.weight_t = weight_t
         ctx.hasBias = hasBias 
+        ctx.gradOutputBits = gradOutputBits
 
         return qoutput 
 
@@ -26,6 +28,9 @@ class PimLinearFunction(Function):
         inputArr = ctx.inputArr
         weight_t = ctx.weight_t
         hasBias = ctx.hasBias 
+        qgrad_output_bits = ctx.gradOutputBits
+
+        qgrad_output.change_bit_width(qgrad_output_bits)
         
         qgrad_input = qgrad_output.matmul_array(weight_t)
         if hasBias:
@@ -34,23 +39,22 @@ class PimLinearFunction(Function):
 
         return qgrad_input, None, None, delta_weight_t, None 
 
-# optimi   weight.subt(weight_t.grad)
-#         weight_t.sub(weight_t.grad)
-
 
 class PimLinear(torch.nn.Module):
-    def __init__(self, m: int, n: int, batch_size: int, bitwidth: int, hasBias: bool, arrayMode: str, quantizerMode: str, absMaxValue: float):
+    def __init__(self, m: int, n: int, inputBits: int = 8, weightBits: int = 8, gradOutputBits: int = 8,\
+         arrayMode: str = "RefTensor", quantizerMode: str = "", absMaxValue: float = 1.0, hasBias: bool = True):
         super().__init__()
         if hasBias:
             m += 1
         self.m, self.n, self.hasBias, self.maxValue = m, n, hasBias, absMaxValue
         # quantizer mode dynamic, static.
         self.quantizerMode = quantizerMode 
+        self.inputBits, self.gradOutputBits = inputBits, gradOutputBits
 
         if arrayMode == "RefTensor":
-            self.wArr = RefTensor(bitwidth)
-            self.wtArr = RefTensor(bitwidth)
-            self.inputArr = RefTensor(bitwidth)
+            self.wArr = RefTensor(weightBits)
+            self.wtArr = RefTensor(weightBits)
+            self.inputArr = RefTensor(weightBits)
         # elif arrayMode == "PNTensor":
         #    self.wArr = PNTensor(m, n, absMaxValue, bitwidth)
         #    self.wtArr = PNTensor(n, m, absMaxValue, bitwidth) 
@@ -73,7 +77,7 @@ class PimLinear(torch.nn.Module):
         self.wtArr.quantization(temp_weight.t(), max(self.maxValue, temp_weight.abs().max()))
 
     def forward(self, qinput: NormalTensor):
-        qoutput = PimLinearFunction.apply(qinput, self.inputArr, self.wArr, self.wtArr, self.hasBias)
+        qoutput = PimLinearFunction.apply(qinput, self.inputArr, self.wArr, self.wtArr, self.inputBits, self.gradOutputBits, self.hasBias)
         return qoutput
 
 
@@ -88,11 +92,11 @@ class DeQuanFunction(Function):
     def backward(ctx, grad_output):        
         x = ctx.x
         x.quantization(grad_output, grad_output.abs().max(), ctx.bit)
-        return x.data
+        return x
 
 
 class DeQuanLayer(torch.nn.Module):
-    def __init__(self, bitwidth: int, quantizerMode: int):
+    def __init__(self, bitwidth: int = 8, quantizerMode: str = ""):
         super().__init__()
         self.x = NormalTensor()
         self.bit = bitwidth
@@ -118,11 +122,12 @@ class ReluFunction(Function):
 
 
 class PimRelu(torch.nn.Module):
-    def __init__(self, bitwidth: int, quantizerMode: int):
+    def __init__(self):
         super().__init__()
 
     def forward(self, qinput: NormalTensor):
         return ReluFunction.apply(qinput)
+
 
 if __name__ == "__main__":
     pass

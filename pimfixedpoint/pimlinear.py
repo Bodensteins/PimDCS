@@ -10,11 +10,11 @@ class pimLinearFunction(Function):
     def forward(ctx, qinput: NormalTensor, inputArr: ArrayTensor, weight: ArrayTensor, weight_t: ArrayTensor, hasBias: bool):
         if hasBias==False:
             inputArr.write(qinput)
-            qoutput = qinput.mul(weight)
+            qoutput = qinput.matmul_array(weight)
         else:
             qinput.add_additional_one()
             inputArr.write(qinput)
-            qoutput = qinput.mul(weight)
+            qoutput = qinput.matmul_array(weight)
 
         ctx.inputArr = inputArr
         ctx.weight_t = weight_t
@@ -31,7 +31,7 @@ class pimLinearFunction(Function):
         qgrad_input = qgrad_output.mul(weight_t)
         if hasBias==True:
             qgrad_input.remove_additaional_one()
-        delta_weight_t = qgrad_output.tmul(inputArr)
+        delta_weight_t = qgrad_output.t_mul_array(inputArr)
 
         return qgrad_input, None, None, delta_weight_t, None 
 
@@ -49,9 +49,9 @@ class PIMLinear(torch.nn.Module):
         self.quantizerMode = quantizerMode 
 
         if arrayMode=="RefTensor":
-            self.wArr = RefTensor(m, n, absMaxValue, bitwidth)
-            self.wtArr = RefTensor(n, m, absMaxValue, bitwidth)
-            self.inputArr = RefTensor(batch_size, m, absMaxValue, bitwidth)
+            self.wArr = RefTensor(bitwidth)
+            self.wtArr = RefTensor(bitwidth)
+            self.inputArr = RefTensor(bitwidth)
         #elif arrayMode=="PNTensor":
         #    self.wArr = PNTensor(m, n, absMaxValue, bitwidth)
         #    self.wtArr = PNTensor(n, m, absMaxValue, bitwidth) 
@@ -70,8 +70,8 @@ class PIMLinear(torch.nn.Module):
             bound = 1 / math.sqrt(fan_in)
             torch.nn.init.uniform_(temp_weight[-1], -bound, bound)
 
-        self.weight.quantization(temp_weight)
-        self.weight_t.quantization(temp_weight.t())
+        self.wArr.quantization(temp_weight, temp_weight.abs().max())
+        self.wtArr.quantization(temp_weight.t(), temp_weight.abs().max())
 
     def forward(self, qinput: NormalTensor):
         qoutput = pimLinearFunction.apply(qinput, self.inputArr, self.wArr, self.wtArr, self.hasBias)
@@ -86,7 +86,9 @@ class deQuanFunction(Function):
 
     @staticmethod
     def backward(ctx, grad_output):        
-        return ctx.x.quantization(grad_output, grad_output.abs().max(), ctx.bit)
+        x = ctx.x
+        x.quantization(grad_output, grad_output.abs().max(), ctx.bit)
+        return x.data
 
 class deQuanLayer(torch.nn.Module):
     def __init__(self, bitwidth: int, quantizerMode: int):

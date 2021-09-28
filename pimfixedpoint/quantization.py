@@ -124,7 +124,7 @@ class NormalTensor(QTensor):
         print(f'max_int: {max_int}')
         print(f'min_int: {min_int}')
         if max_int <= 0:
-            self.bit_width = get_neg_bit_width(min_int)
+            self.bit_width = max(get_neg_bit_width(min_int), 1)
         elif min_int >= 0:
             self.bit_width = get_pos_bit_width(max_int)
         else:

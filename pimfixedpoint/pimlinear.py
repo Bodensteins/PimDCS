@@ -92,7 +92,7 @@ class DeQuanFunction(Function):
         return qinput.de_quantization()
 
     @staticmethod
-    def backward(ctx, grad_output):        
+    def backward(ctx, grad_output: torch.Tensor):
         x = ctx.x
         x.quantization(grad_output, grad_output.abs().max(), ctx.bit)
         return x
@@ -118,7 +118,7 @@ class ReluFunction(Function):
         return qinput
 
     @staticmethod
-    def backward(ctx, grad_output):        
+    def backward(ctx, grad_output: NormalTensor):
         neg_position = ctx.neg_position
         grad_output[neg_position] = 0
         return grad_output

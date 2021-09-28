@@ -22,12 +22,12 @@ class pimLinearFunction(Function):
         return qoutput 
 
     @staticmethod
-    def backward(ctx, qgrad_output):
+    def backward(ctx, qgrad_output: NormalTensor):
         inputArr = ctx.inputArr
         weight_t = ctx.weight_t
         hasBias = ctx.hasBias 
         
-        qgrad_input = qgrad_output.mul(weight_t)
+        qgrad_input = qgrad_output.matmul_array(weight_t)
         if hasBias:
             qgrad_input.remove_additaional_one()
         delta_weight_t = qgrad_output.t_matmul_array(inputArr)

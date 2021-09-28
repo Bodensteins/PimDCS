@@ -10,11 +10,11 @@ class pimLinearFunction(Function):
     def forward(ctx, qinput: NormalTensor, inputArr: ArrayTensor, weight: ArrayTensor, weight_t: ArrayTensor, hasBias: bool):
         if hasBias==False:
             inputArr.write(qinput)
-            qoutput = qinput.mul(weight)
+            qoutput = qinput.matmul_array(weight)
         else:
             qinput.add_additional_one()
             inputArr.write(qinput)
-            qoutput = qinput.mul(weight)
+            qoutput = qinput.matmul_array(weight)
 
         ctx.inputArr = inputArr
         ctx.weight_t = weight_t
@@ -31,7 +31,7 @@ class pimLinearFunction(Function):
         qgrad_input = qgrad_output.mul(weight_t)
         if hasBias==True:
             qgrad_input.remove_additaional_one()
-        delta_weight_t = qgrad_output.tmul(inputArr)
+        delta_weight_t = qgrad_output.t_mul_array(inputArr)
 
         return qgrad_input, None, None, delta_weight_t, None 
 

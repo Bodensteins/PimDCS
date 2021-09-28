@@ -134,18 +134,18 @@ class NormalTensor(QTensor):
         self.min_value = -self.resolution * self.neg_levels
         self.max_value = self.resolution * self.pos_levels
 
-    def mul_array(self, other: ArrayTensor) -> NormalTensor:
+    def matmul_array(self, other: ArrayTensor) -> NormalTensor:
         if isinstance(other, RefTensor):
-            mul_result = NormalTensor()
+            matmul_result = NormalTensor()
             temp_result = self.fixed_tensor.matmul(other.fixed_tensor)
-            mul_result.fixed_tensor \
+            matmul_result.fixed_tensor \
                 = temp_result[..., 0:-1] - torch.reshape(temp_result[..., -1], [temp_result[..., -1].size()[0], 1])
-            # mul_result.fixed_tensor = self.fixed_tensor.matmul(other.fixed_tensor[..., 0:-1].sub(other.neg_levels))
-            mul_result.data = torch.from_numpy(mul_result.fixed_tensor.numpy().view(dtype=np.float32))
-            mul_result.s = self.s + other.s
-            mul_result.resolution = math.pow(2, mul_result.s)
-            mul_result.set_appropriate_bit_width()
-            return mul_result
+            # matmul_result.fixed_tensor = self.fixed_tensor.matmul(other.fixed_tensor[..., 0:-1].sub(other.neg_levels))
+            matmul_result.data = torch.from_numpy(matmul_result.fixed_tensor.numpy().view(dtype=np.float32))
+            matmul_result.s = self.s + other.s
+            matmul_result.resolution = math.pow(2, matmul_result.s)
+            matmul_result.set_appropriate_bit_width()
+            return matmul_result
         else:
             print("we don't support it!")
             pass

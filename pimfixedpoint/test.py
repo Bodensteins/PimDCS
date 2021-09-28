@@ -1,4 +1,3 @@
-import torch
 from quantization import *
 
 row_size = 4
@@ -50,7 +49,7 @@ print("standard mul:")
 print(input_mat.matmul(weight_mat))
 
 print("\nmul:")
-mul_res = input_tensor.mul_array(weight_tensor)
+mul_res = input_tensor.matmul_array(weight_tensor)
 mul_res.print_quantization_info()
 de_quantization_mul = mul_res.de_quantization()
 print(mul_res.fixed_tensor)
@@ -90,8 +89,6 @@ print(f'max abs delta: {delta.abs().max().item()}')
 # input_tensor_t.fixed_tensor[0][0] = 6
 # print(input_tensor.fixed_tensor)
 # print(input_tensor_t.fixed_tensor)
-
-
 
 # ref_bit_width = 9
 # ref_tensor = RefTensor(ref_bit_width)

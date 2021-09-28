@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import torch
 import numpy as np
-from commonMethod import *
+from commonMethod import get_fixed_point_position, pow_2_n, get_pos_bit_width, get_neg_bit_width, \
+    print_call_abstract_method_info
 import math
 
 
@@ -42,6 +43,9 @@ class QTensor(torch.Tensor):
         print_call_abstract_method_info()
         pass
 
+    def bind_fixed_tensor(self):
+        self.data = torch.from_numpy(self.fixed_tensor.numpy().view(dtype=np.float32))
+
 
 class ArrayTensor(QTensor):
     def __init__(self, bit_width: int):
@@ -72,7 +76,7 @@ class NormalTensor(QTensor):
         self.pos_levels = self.neg_levels - 1
         self.init_quantization_info(max_abs_value)
         self.fixed_tensor = tensor.div(self.resolution).round().to(torch.int32)
-        self.data = torch.from_numpy(self.fixed_tensor.numpy().view(dtype=np.float32))
+        self.bind_fixed_tensor()
 
     def de_quantization(self):
         return self.fixed_tensor.mul(self.resolution)
@@ -99,11 +103,11 @@ class NormalTensor(QTensor):
 
         full_one_col = torch.full([self.fixed_tensor.size()[0], 1], fixed_one, dtype=torch.int32)
         self.fixed_tensor = torch.cat((self.fixed_tensor, full_one_col), 1)
-        self.data = torch.from_numpy(self.fixed_tensor.numpy().view(dtype=np.float32))
+        self.bind_fixed_tensor()
 
     def remove_additional_one(self):
         self.fixed_tensor = self.fixed_tensor[..., 0:-1]
-        self.data = torch.from_numpy(self.fixed_tensor.numpy().view(dtype=np.float32))
+        self.bind_fixed_tensor()
 
     def normal_t(self) -> NormalTensor:
         other = NormalTensor()
@@ -115,7 +119,7 @@ class NormalTensor(QTensor):
         other.min_value = self.min_value
         other.max_value = self.max_value
         other.fixed_tensor = self.fixed_tensor.t().clone()
-        other.data = torch.from_numpy(other.fixed_tensor.numpy().view(dtype=np.float32))
+        other.bind_fixed_tensor()
         return other
 
     def set_appropriate_bit_width(self):
@@ -141,7 +145,7 @@ class NormalTensor(QTensor):
             matmul_result.fixed_tensor \
                 = temp_result[..., 0:-1] - torch.reshape(temp_result[..., -1], [temp_result[..., -1].size()[0], 1])
             # matmul_result.fixed_tensor = self.fixed_tensor.matmul(other.fixed_tensor[..., 0:-1].sub(other.neg_levels))
-            matmul_result.data = torch.from_numpy(matmul_result.fixed_tensor.numpy().view(dtype=np.float32))
+            matmul_result.bind_fixed_tensor()
             matmul_result.s = self.s + other.s
             matmul_result.resolution = math.pow(2, matmul_result.s)
             matmul_result.set_appropriate_bit_width()
@@ -150,19 +154,19 @@ class NormalTensor(QTensor):
             print("we don't support it!")
             pass
 
-    def t_mul_array(self, other: ArrayTensor) -> NormalTensor:
+    def t_matmul_array(self, other: ArrayTensor) -> NormalTensor:
         if isinstance(other, RefTensor):
-            mul_result = NormalTensor()
+            t_matmul_result = NormalTensor()
             temp_result = self.fixed_tensor.t().matmul(other.fixed_tensor)
-            mul_result.fixed_tensor \
+            t_matmul_result.fixed_tensor \
                 = temp_result[..., 0:-1] - torch.reshape(temp_result[..., -1], [temp_result[..., -1].size()[0], 1])
-            # mul_result.fixed_tensor
+            # t_matmul_result.fixed_tensor
             # = self.fixed_tensor.t().matmul(other.fixed_tensor[..., 0:-1].sub(other.neg_levels))
-            mul_result.data = torch.from_numpy(mul_result.fixed_tensor.numpy().view(dtype=np.float32))
-            mul_result.s = self.s + other.s
-            mul_result.resolution = math.pow(2, mul_result.s)
-            mul_result.set_appropriate_bit_width()
-            return mul_result
+            t_matmul_result.bind_fixed_tensor()
+            t_matmul_result.s = self.s + other.s
+            t_matmul_result.resolution = math.pow(2, t_matmul_result.s)
+            t_matmul_result.set_appropriate_bit_width()
+            return t_matmul_result
         else:
             print("we don't support it!")
             pass
@@ -182,7 +186,7 @@ class RefTensor(ArrayTensor):
         self.fixed_tensor[..., -1] = self.neg_levels  # ref col
         self.fixed_tensor[..., 0:-1] = tensor.div(self.resolution).round().to(torch.int32).\
             add(self.neg_levels)
-        self.data = torch.from_numpy(self.fixed_tensor.numpy().view(dtype=np.float32))
+        self.bind_fixed_tensor()
 
     def de_quantization(self):
         return self.fixed_tensor[..., 0:-1].sub(self.neg_levels).mul(self.resolution)
@@ -216,7 +220,7 @@ class RefTensor(ArrayTensor):
             self.array_initialized = True
             self.fixed_tensor = torch.empty([other.size()[0], other.size()[1] + 1], dtype=torch.int32)
             self.fixed_tensor[..., -1] = self.neg_levels
-            self.data = torch.from_numpy(self.fixed_tensor.numpy().view(dtype=np.float32))
+            self.bind_fixed_tensor()
 
         if self.bit_width >= other.bit_width:
             self.s = other.s

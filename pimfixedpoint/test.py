@@ -4,8 +4,8 @@ row_size = 4
 col_size = 4
 normal_bit_width = 8
 array_bit_width = 9
-alpha = 0.00024
-alpha_bit_width = 16
+alpha = 0.01
+alpha_bit_width = 12
 
 normal_mat = torch.randn([row_size, col_size], dtype=torch.float)
 max_value = normal_mat.abs().max()

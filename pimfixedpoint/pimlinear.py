@@ -41,8 +41,8 @@ class PimLinearFunction(Function):
 
 
 class PimLinear(torch.nn.Module):
-    def __init__(self, m: int, n: int, inputBits: int = 8, weightBits: int = 8, gradOutputBits: int = 8,\
-         arrayMode: str = "RefTensor", quantizerMode: str = "", absMaxValue: float = 1.0, hasBias: bool = True):
+    def __init__(self, m: int, n: int, inputBits: int = 8, weightBits: int = 8, gradOutputBits: int = 8,
+                 arrayMode: str = "RefTensor", quantizerMode: str = "", absMaxValue: float = 1.0, hasBias: bool = True):
         super().__init__()
         if hasBias:
             m += 1

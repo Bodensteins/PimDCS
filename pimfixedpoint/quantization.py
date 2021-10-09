@@ -144,9 +144,9 @@ class NormalTensor(QTensor):
         if isinstance(other, RefTensor):
             matmul_result = NormalTensor()
             temp_result = self.fixed_tensor.matmul(other.fixed_tensor)
-            matmul_result.fixed_tensor \
-                = temp_result[..., 0:-1] - torch.reshape(temp_result[..., -1], [temp_result[..., -1].size()[0], 1])
-            # matmul_result.fixed_tensor = self.fixed_tensor.matmul(other.fixed_tensor[..., 0:-1].sub(other.neg_levels))
+            # matmul_result.fixed_tensor \
+            #     = temp_result[..., 0:-1] - torch.reshape(temp_result[..., -1], [temp_result[..., -1].size()[0], 1])
+            matmul_result.fixed_tensor = temp_result[..., 0:-1] - temp_result[..., -1].unsqueeze(0).t()
             matmul_result.bind_fixed_tensor()
             matmul_result.s = self.s + other.s
             matmul_result.resolution = math.pow(2, matmul_result.s)
@@ -160,10 +160,9 @@ class NormalTensor(QTensor):
         if isinstance(other, RefTensor):
             t_matmul_result = NormalTensor()
             temp_result = self.fixed_tensor.t().matmul(other.fixed_tensor)
-            t_matmul_result.fixed_tensor \
-                = temp_result[..., 0:-1] - torch.reshape(temp_result[..., -1], [temp_result[..., -1].size()[0], 1])
-            # t_matmul_result.fixed_tensor
-            # = self.fixed_tensor.t().matmul(other.fixed_tensor[..., 0:-1].sub(other.neg_levels))
+            # t_matmul_result.fixed_tensor \
+            #     = temp_result[..., 0:-1] - torch.reshape(temp_result[..., -1], [temp_result[..., -1].size()[0], 1])
+            t_matmul_result.fixed_tensor = temp_result[..., 0:-1] - temp_result[..., -1].unsqueeze(0).t()
             t_matmul_result.bind_fixed_tensor()
             t_matmul_result.s = self.s + other.s
             t_matmul_result.resolution = math.pow(2, t_matmul_result.s)

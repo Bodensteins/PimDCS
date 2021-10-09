@@ -66,8 +66,9 @@ class ArrayTensor(QTensor):
 
 
 class NormalTensor(QTensor):
-    def __init__(self):
+    def __init__(self, requires_grad = True):
         super().__init__()
+        self.requires_grad_(requires_grad)
 
     # first layer need to process dataset to initialize
     def quantization(self, tensor: torch.Tensor, max_abs_value: float, bit_width: int):
@@ -77,6 +78,7 @@ class NormalTensor(QTensor):
         self.init_quantization_info(max_abs_value)
         self.fixed_tensor = tensor.div(self.resolution).round().to(torch.int32)
         self.bind_fixed_tensor()
+        self.requires_grad_(tensor.requires_grad)
 
     def de_quantization(self):
         return self.fixed_tensor.mul(self.resolution)
@@ -97,7 +99,7 @@ class NormalTensor(QTensor):
         fixed_one = round(1 / self.resolution)
 
         if self.max_value < 1:
-            print("add_additional_one err!")
+            #print("add_additional_one err!")
             new_bit_width = get_pos_bit_width(fixed_one)
             self.change_bit_width(new_bit_width)
 

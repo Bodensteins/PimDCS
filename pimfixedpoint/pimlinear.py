@@ -95,7 +95,7 @@ class DeQuanFunction(Function):
     def backward(ctx, grad_output: torch.Tensor):
         x = ctx.x
         x.quantization(grad_output, grad_output.abs().max(), ctx.bit)
-        return x
+        return x, None, None, None
 
 
 class DeQuanLayer(torch.nn.Module):

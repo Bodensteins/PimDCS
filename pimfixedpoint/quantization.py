@@ -66,7 +66,7 @@ class ArrayTensor(QTensor):
 
 
 class NormalTensor(QTensor):
-    def __init__(self, requires_grad = True):
+    def __init__(self, requires_grad=True):
         super().__init__()
         self.requires_grad_(requires_grad)
 
@@ -99,7 +99,7 @@ class NormalTensor(QTensor):
         fixed_one = round(1 / self.resolution)
 
         if self.max_value < 1:
-            #print("add_additional_one err!")
+            # print("add_additional_one err!")
             new_bit_width = get_pos_bit_width(fixed_one)
             self.change_bit_width(new_bit_width)
 

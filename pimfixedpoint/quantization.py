@@ -125,8 +125,6 @@ class NormalTensor(QTensor):
     def set_appropriate_bit_width(self):
         max_int = self.fixed_tensor.max().item()
         min_int = self.fixed_tensor.min().item()
-        # print(f'max_int: {max_int}')
-        # print(f'min_int: {min_int}')
         if max_int <= 0:
             self.bit_width = max(get_neg_bit_width(min_int), 1)
         elif min_int >= 0:
@@ -169,6 +167,32 @@ class NormalTensor(QTensor):
         else:
             print("we don't support it!")
             pass
+
+    def mul_num(self, alpha: float, alpha_bit_width: int) -> NormalTensor:
+        mul_num_result = NormalTensor()
+        alpha_s = get_fixed_point_position(abs(alpha), alpha_bit_width)
+        alpha_resolution = pow(2, alpha_s)
+        alpha_fixed_point = round(alpha / alpha_resolution)
+        mul_num_result.fixed_tensor = self.fixed_tensor.mul(alpha_fixed_point)
+        mul_num_result.bind_fixed_tensor()
+        mul_num_result.s = self.s + alpha_s
+        mul_num_result.resolution = pow(2, mul_num_result.s)
+        mul_num_result.set_appropriate_bit_width()
+        return mul_num_result
+
+    def add_array_(self, other: NormalTensor, alpha: float, alpha_bit_width: int):
+        mul_num_result = other.mul_num(alpha, alpha_bit_width)
+
+        shift = self.s - mul_num_result.s
+        data = self.fixed_tensor
+        if shift >= 0:
+            mul_num_result.fixed_tensor.__irshift__(shift)
+        else:
+            mul_num_result.fixed_tensor.__ilshift__(-shift)
+
+        data += mul_num_result.fixed_tensor
+        data[data < -self.neg_levels] = self.neg_levels
+        data[data > self.pos_levels] = self.pos_levels
 
 
 class RefTensor(ArrayTensor):
@@ -233,6 +257,35 @@ class RefTensor(ArrayTensor):
 
         self.min_value = -self.resolution * self.neg_levels
         self.max_value = self.resolution * self.pos_levels
+
+    def mul_num(self, alpha: float, alpha_bit_width: int) -> NormalTensor:
+        mul_num_result = NormalTensor()
+        alpha_s = get_fixed_point_position(abs(alpha), alpha_bit_width)
+        alpha_resolution = pow(2, alpha_s)
+        alpha_fixed_point = round(alpha / alpha_resolution)
+        data_part = self.fixed_tensor[..., 0:-1]
+        ref_part = self.fixed_tensor[..., -1].unsqueeze(0).t()
+        mul_num_result.fixed_tensor = (data_part - ref_part).mul(alpha_fixed_point)
+        mul_num_result.bind_fixed_tensor()
+        mul_num_result.s = self.s + alpha_s
+        mul_num_result.resolution = pow(2, mul_num_result.s)
+        mul_num_result.set_appropriate_bit_width()
+        return mul_num_result
+
+    def add_normal_(self, other: NormalTensor, alpha: float, alpha_bit_width: int):
+        mul_num_result = other.mul_num(alpha, alpha_bit_width)
+
+        shift = self.s - mul_num_result.s
+        data = self.fixed_tensor[..., 0:-1]
+        if shift >= 0:
+            mul_num_result.fixed_tensor.__irshift__(shift)
+        else:
+
+            mul_num_result.fixed_tensor.__ilshift__(-shift)
+
+        data += mul_num_result.fixed_tensor
+        data[data < 0] = 0
+        data[data > self.max_int_number] = self.max_int_number
 
 # class PNTensor(ArrayTensor):
 #     def __init__(self, row_size, col_size, max_abs_value, bit_width):

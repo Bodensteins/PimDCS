@@ -34,7 +34,7 @@ class PimLinearFunction(Function):
         
         qgrad_input = qgrad_output.matmul_array(weight_t)
         if hasBias:
-            qgrad_input.remove_additaional_one()
+            qgrad_input.remove_additional_one()
         delta_weight_t = qgrad_output.t_matmul_array(inputArr)
 
         return qgrad_input, None, None, delta_weight_t, None 

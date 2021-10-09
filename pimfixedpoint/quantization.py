@@ -64,6 +64,10 @@ class ArrayTensor(QTensor):
         print_call_abstract_method_info()
         pass
 
+    def mul_num(self, alpha: float, alpha_bit_width: int) -> NormalTensor:
+        print_call_abstract_method_info()
+        return NormalTensor()
+
 
 class NormalTensor(QTensor):
     def __init__(self, requires_grad=True):

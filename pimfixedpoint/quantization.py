@@ -180,7 +180,7 @@ class NormalTensor(QTensor):
         mul_num_result.set_appropriate_bit_width()
         return mul_num_result
 
-    def add_array_(self, other: NormalTensor, alpha: float, alpha_bit_width: int):
+    def add_array_(self, other: ArrayTensor, alpha: float, alpha_bit_width: int):
         mul_num_result = other.mul_num(alpha, alpha_bit_width)
 
         shift = self.s - mul_num_result.s
@@ -263,6 +263,7 @@ class RefTensor(ArrayTensor):
         alpha_s = get_fixed_point_position(abs(alpha), alpha_bit_width)
         alpha_resolution = pow(2, alpha_s)
         alpha_fixed_point = round(alpha / alpha_resolution)
+        # print(f'fixed point: {alpha_fixed_point} alpha_s: {alpha_s} alpha_resolution: {alpha_resolution}')
         data_part = self.fixed_tensor[..., 0:-1]
         ref_part = self.fixed_tensor[..., -1].unsqueeze(0).t()
         mul_num_result.fixed_tensor = (data_part - ref_part).mul(alpha_fixed_point)

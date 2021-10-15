@@ -293,19 +293,6 @@ class QTensor(torch.Tensor):
     def bind_fixed_tensor(self):
         self.data = torch.from_numpy(self.fixed_tensor.numpy().view(dtype=np.float32))
 
-    def set_appropriate_bit_width(self):
-        max_int = self.fixed_tensor.max().item()
-        min_int = self.fixed_tensor.min().item()
-        if max_int <= 0:
-            self.bit_width = max(get_neg_bit_width(min_int), 1)
-        elif min_int >= 0:
-            self.bit_width = get_pos_bit_width(max_int)
-        else:
-            self.bit_width = max(get_pos_bit_width(max_int), get_neg_bit_width(min_int))
-        self.neg_levels = pow_2_n(self.bit_width - 1)
-        self.pos_levels = self.neg_levels - 1
-        self.min_value = -self.resolution * self.neg_levels
-        self.max_value = self.resolution * self.pos_levels
 
 class ArrayTensor(QTensor):
     def __init__(self, bit_width: int):

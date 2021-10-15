@@ -58,7 +58,7 @@ def int_to_float(int_tensor: Tensor) -> Tensor:
 
 
 def float_to_int(float_tensor: Tensor) -> Tensor:
-    return torch.from_numpy(float_tensor.numpy().view(dtype=np.int32))
+    return torch.from_numpy(float_tensor.detach().numpy().view(dtype=np.int32))
 
 
 def parse_float_tensor_list(float_tensor_list: list):
@@ -165,7 +165,7 @@ def add_additional_one(float_tensor_list: list) -> Tensor:
 
 
 # don't need?
-def remove_additional_one_(float_tensor: Tensor):
+def remove_additional_one(float_tensor: Tensor):
     float_tensor = float_tensor[:, 0:-1]
 
     return float_tensor
@@ -208,9 +208,11 @@ def set_appropriate_bit_width_(float_tensor_list: list):
 
     max_int = int_tensor.max().item()
     min_int = int_tensor.min().item()
-
     if max_int <= 0:
-        quantization_para[1] = max(get_neg_bit_width(min_int), 1)
+        if min_int == 0:
+            quantization_para[1] = 1
+        else:
+            quantization_para[1] = max(get_neg_bit_width(min_int), 1)
     elif min_int >= 0:
         quantization_para[1] = get_pos_bit_width(max_int)
     else:
@@ -234,7 +236,7 @@ def normal_matmul_array(normal_tensor_list: list, array_tensor_list: list) -> [t
     else:
         raise Exception("We don't implement this tensor_type!", array_tensor_type)
 
-    return matmul_result, matmul_result_quantization_para
+    return int_to_float(matmul_result), int_to_float(matmul_result_quantization_para)
 
 
 def normal_t_matmul_array(normal_tensor_list: list, array_tensor_list: list) -> [torch.Tensor, torch.Tensor]:

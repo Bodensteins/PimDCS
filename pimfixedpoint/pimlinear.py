@@ -3,9 +3,9 @@ import torch
 import math
 from torch.autograd import Function, grad
 from torch import Tensor
-from quantization import add_additional_one, change_bit_width_, write_array, normal_matmul_array, \
-    remove_additional_one_, normal_t_matmul_array, TensorType, creat_quantization_para, quantization_tensor, \
-    parse_quantization_para, de_quantization, quantization_tensor_less
+from quantization import add_additional_one, change_bit_width_, parse_float_tensor_list, write_array, normal_matmul_array, \
+    remove_additional_one, normal_t_matmul_array, TensorType, creat_quantization_para, quantization_tensor, \
+    parse_quantization_para, de_quantization, quantization_tensor_less, float_to_int
 
 class PimLinearFunction(Function):
     @staticmethod
@@ -22,7 +22,6 @@ class PimLinearFunction(Function):
         qinputArr = write_array([qinputArr, qinputArr_config], [qinput, qinput_config])
         # qoutput, qoutput_config = pim_matmul([qinput, qinput_config], [qweight, qweight_config])
         qoutput, qoutput_config = normal_matmul_array([qinput, qinput_config], [qweight, qweight_config])
-
         ctx.save_for_backward(qinputArr, qweight_t)
         ctx.qinputArr_config = qinputArr_config
         ctx.qweight_t_config = qweight_t_config
@@ -34,6 +33,7 @@ class PimLinearFunction(Function):
 
     @staticmethod
     def backward(ctx, qgrad_output, qgrad_output_config):
+        print("fc is called")
         qinputArr, qweight_t = ctx.saved_tensors
         qinputArr_config = ctx.qinputArr_config
         qweight_t_config = ctx.qweight_t_config
@@ -48,13 +48,14 @@ class PimLinearFunction(Function):
 
         if hasBias:
             # remove_additional_one_([qgrad_input, qgrad_input_config])
-            remove_additional_one_(qgrad_input)
+            qgrad_input = remove_additional_one(qgrad_input)
 
         # delta_qweight_t = pim_t_matmul([qgrad_output, qgrad_output_config], [qinputArr, qinputArr_config])
         # need quantization para?
-        delta_qweight_t, _ = normal_t_matmul_array([qgrad_output, qgrad_output_config], [qinputArr, qinputArr_config])
+        delta_qweight_t, qweight_t_config = normal_t_matmul_array([qgrad_output, qgrad_output_config], [qinputArr, qinputArr_config])
 
-        return qgrad_input, qgrad_input_config, None, None, None, delta_qweight_t, None, None, None, None
+        delta_qweight_t = torch.cat((delta_qweight_t, torch.zeros([10, 1])), 1)
+        return qgrad_input, qgrad_input_config, None, None, None, None, delta_qweight_t, None, None, None, None
 
 
 class PimLinear(torch.nn.Module):
@@ -112,7 +113,7 @@ class DeQuanFunction(Function):
     def forward(ctx, qinput: Tensor, qinput_config: Tensor, bit: int, quantizerMode: str):
         if quantizerMode == "dynamic":
             # ctx.bit = get_bit(qinput_config)
-            _, ctx.bit, _ = parse_quantization_para(qinput_config)
+            _, ctx.bit, _ = parse_quantization_para(float_to_int(qinput_config))
         else:
             ctx.bit = bit
         # return de_quantization(qinput, qinput_config)

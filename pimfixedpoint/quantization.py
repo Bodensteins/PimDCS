@@ -38,14 +38,15 @@ def parse_quantization_para(quantization_para: Tensor):
     return s, bit_width, tensor_type
 
 
-def print_quantization_info(s: int, bit_width: int):
+def print_quantization_info(s: int, bit_width: int, tensor_type: TensorType):
     resolution = pow(2, s)
     neg_levels = pow_2_n(bit_width - 1)
     pos_levels = neg_levels - 1
     max_value = pos_levels * resolution
     min_value = -neg_levels * resolution
 
-    print(f'fixed point position: {s}\n'
+    print(f'tensor type: {tensor_type}\n'
+          f'fixed point position: {s}\n'
           f'quantization resolution: {resolution}\n'
           f'bit width: {bit_width}\n'
           f'neg levels: {neg_levels}\n'
@@ -67,9 +68,9 @@ def parse_float_tensor_list(float_tensor_list: list):
     else:
         int_tensor = None
 
-    quantization_para_tensor = float_to_int(float_tensor_list[1])
+    quantization_para = float_to_int(float_tensor_list[1])
 
-    return int_tensor, quantization_para_tensor
+    return int_tensor, quantization_para
 
 
 def creat_quantization_para(s: int = None, bit_width: int = None, tensor_type: TensorType = None):
@@ -143,7 +144,7 @@ def change_bit_width_(float_tensor_list: list, new_bit_width):
 
 
 # not in-situ method, delete _
-def add_additional_one(float_tensor_list: list) -> Tensor:
+def add_additional_col_of_one(float_tensor_list: list) -> Tensor:
     int_tensor, quantization_para = parse_float_tensor_list(float_tensor_list)
     s, bit_width, tensor_type = parse_quantization_para(quantization_para)
 
@@ -164,8 +165,20 @@ def add_additional_one(float_tensor_list: list) -> Tensor:
     return int_to_float(int_tensor)
 
 
+def add_additional_col_of_zero(float_tensor_list: list) -> Tensor:
+    int_tensor, quantization_para = parse_float_tensor_list(float_tensor_list)
+    _, _, tensor_type = parse_quantization_para(quantization_para)
+
+    assert (tensor_type == TensorType.Normal)
+
+    full_zero_col = torch.full([int_tensor.size()[0], 1], 0, dtype=torch.int32)
+    int_tensor = torch.cat((int_tensor, full_zero_col), 1)
+
+    return int_to_float(int_tensor)
+
+
 # don't need?
-def remove_additional_one(float_tensor: Tensor):
+def remove_additional_col(float_tensor: Tensor):
     float_tensor = float_tensor[:, 0:-1]
 
     return float_tensor
@@ -208,18 +221,20 @@ def set_appropriate_bit_width_(float_tensor_list: list):
 
     max_int = int_tensor.max().item()
     min_int = int_tensor.min().item()
+    bit_width = 2
+
     if max_int <= 0:
-        if min_int == 0:
-            quantization_para[1] = 1
-        else:
-            quantization_para[1] = max(get_neg_bit_width(min_int), 1)
+        if min_int != 0:
+            bit_width = get_neg_bit_width(min_int)
     elif min_int >= 0:
-        quantization_para[1] = get_pos_bit_width(max_int)
+        bit_width = get_pos_bit_width(max_int)
     else:
-        quantization_para[1] = max(get_pos_bit_width(max_int), get_neg_bit_width(min_int))
+        bit_width = max(get_pos_bit_width(max_int), get_neg_bit_width(min_int))
+
+    quantization_para[1] = max(bit_width, 2)  # at least 2 bits
 
 
-def normal_matmul_array(normal_tensor_list: list, array_tensor_list: list) -> [torch.Tensor, torch.Tensor]:
+def normal_matmul_array(normal_tensor_list: list, array_tensor_list: list) -> [Tensor, Tensor]:
     normal_int_tensor, normal_quantization_para = parse_float_tensor_list(normal_tensor_list)
     normal_s, normal_bit_width, normal_tensor_type = parse_quantization_para(normal_quantization_para)
     array_int_tensor, array_quantization_para = parse_float_tensor_list(array_tensor_list)
@@ -239,7 +254,7 @@ def normal_matmul_array(normal_tensor_list: list, array_tensor_list: list) -> [t
     return int_to_float(matmul_result), int_to_float(matmul_result_quantization_para)
 
 
-def normal_t_matmul_array(normal_tensor_list: list, array_tensor_list: list) -> [torch.Tensor, torch.Tensor]:
+def normal_t_matmul_array(normal_tensor_list: list, array_tensor_list: list) -> [Tensor, Tensor]:
     normal_tensor, normal_para = normal_tensor_list
 
     return normal_matmul_array([normal_tensor.t(), normal_para], array_tensor_list)
@@ -255,6 +270,74 @@ def quantization_tensor_less(float_tensor_list: list, a: float) -> torch.BoolTen
         return int_tensor < int_a
     else:
         raise Exception("We don't implement this tensor_type!", tensor_type)
+
+
+def mul_num(float_tensor_list: list, alpha: float, alpha_bit_width: int) -> [Tensor, Tensor]:
+    int_tensor, quantization_para = parse_float_tensor_list(float_tensor_list)
+    s, _, tensor_type = parse_quantization_para(quantization_para)
+
+    alpha_s = get_fixed_point_position(abs(alpha), alpha_bit_width)
+    alpha_resolution = pow(2, alpha_s)
+    alpha_int = round(alpha / alpha_resolution)
+
+    if tensor_type == TensorType.Normal:
+        mul_num_int_tensor = int_tensor.mul(alpha_int)
+        mul_num_s = s + alpha_s
+        mul_num_para = creat_quantization_para(s=mul_num_s, tensor_type=TensorType.Normal)
+        set_appropriate_bit_width_([mul_num_int_tensor, mul_num_para])
+    elif tensor_type == TensorType.Ref:
+        data_part = int_tensor[..., 0:-1]
+        ref_part = int_tensor[..., -1].unsqueeze(0).t()
+        mul_num_int_tensor = (data_part - ref_part).mul(alpha_int)
+        mul_num_s = s + alpha_s
+        mul_num_para = creat_quantization_para(s=mul_num_s, tensor_type=TensorType.Normal)
+        set_appropriate_bit_width_([mul_num_int_tensor, mul_num_para])
+    else:
+        raise Exception("We don't implement this tensor_type!", tensor_type)
+
+    return int_to_float(mul_num_int_tensor), int_to_float(mul_num_para)
+
+
+def add_alpha_tensor_(source_tensor_list: list, add_tensor_list: list, alpha: float = 1, alpha_bit_width: int = 16):
+    source_int_tensor, source_quantization_para = parse_float_tensor_list(source_tensor_list)
+    source_s, source_bit_width, source_tensor_type = parse_quantization_para(source_quantization_para)
+
+    mul_num_tensor, mul_num_para = mul_num(add_tensor_list, alpha, alpha_bit_width)
+    mul_num_int_tensor, mul_num_quantization_para = parse_float_tensor_list([mul_num_tensor, mul_num_para])
+    mul_num_s, mul_num_bit_width, mul_num_tensor_type = parse_quantization_para(mul_num_quantization_para)
+
+    print("\nmul_num_result:")
+    print_quantization_info(mul_num_s, mul_num_bit_width, mul_num_tensor_type)
+    print(float_to_int(mul_num_int_tensor))
+    print(de_quantization([mul_num_int_tensor, mul_num_para]))
+
+    if source_tensor_type == TensorType.Normal:
+        shift = source_s - mul_num_s
+        if shift >= 0:
+            mul_num_int_tensor.__irshift__(shift)
+        else:
+            mul_num_int_tensor.__ilshift__(-shift)
+
+        source_int_tensor.add_(mul_num_int_tensor)
+        neg_levels = pow_2_n(source_bit_width - 1)
+        pos_levels = neg_levels - 1
+        source_int_tensor[source_int_tensor < -neg_levels] = -neg_levels
+        source_int_tensor[source_int_tensor > pos_levels] = pos_levels
+    elif source_tensor_type == TensorType.Ref:
+        shift = source_s - mul_num_s
+        data = source_int_tensor[:, 0:-1]
+        if shift >= 0:
+            mul_num_int_tensor.__irshift__(shift)
+        else:
+            mul_num_int_tensor.__ilshift__(-shift)
+
+        data.add_(mul_num_int_tensor)
+        max_int_number = pow_2_n(source_bit_width) - 1
+        data[data < 0] = 0
+        data[data > max_int_number] = max_int_number
+    else:
+        raise Exception("We don't implement this source_tensor_type!", source_tensor_type)
+
 
 # quantization parameter
 class QTensor(torch.Tensor):
@@ -518,7 +601,6 @@ class RefTensor(ArrayTensor):
         alpha_s = get_fixed_point_position(abs(alpha), alpha_bit_width)
         alpha_resolution = pow(2, alpha_s)
         alpha_fixed_point = round(alpha / alpha_resolution)
-        # print(f'fixed point: {alpha_fixed_point} alpha_s: {alpha_s} alpha_resolution: {alpha_resolution}')
         data_part = self.fixed_tensor[..., 0:-1]
         ref_part = self.fixed_tensor[..., -1].unsqueeze(0).t()
         mul_num_result.fixed_tensor = (data_part - ref_part).mul(alpha_fixed_point)

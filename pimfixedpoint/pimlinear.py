@@ -33,7 +33,6 @@ class PimLinearFunction(Function):
 
     @staticmethod
     def backward(ctx, qgrad_output, qgrad_output_config):
-        print("fc is called")
         qinputArr, qweight_t = ctx.saved_tensors
         qinputArr_config = ctx.qinputArr_config
         qweight_t_config = ctx.qweight_t_config

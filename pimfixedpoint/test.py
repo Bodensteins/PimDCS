@@ -1,22 +1,43 @@
 from quantization import *
 
-row_size = 10
-col_Size = 10
-data_bit_width = 8
-array_bit_width = 7
+row_size = 4
+col_Size = 4
+data_bit_width = 10
+array_bit_width = 9
+alpha = 2.3
+alpha_bit_width = 12
 
-data_para = creat_quantization_para(bit_width=data_bit_width, tensor_type=TensorType.Normal)
-float_tensor = torch.randn([row_size, col_Size], dtype=torch.float)
-data_tensor = quantization_tensor(data_para, float_tensor, float_tensor.abs().max())
-s, bit_width, _ = parse_quantization_para(float_to_int(data_para))
-print_quantization_info(s, bit_width)
-print(float_to_int(data_tensor))
-print(de_quantization([data_tensor, data_para]))
 
-a = quantization_tensor_less([data_tensor, data_para], 0.1)
-b = float_tensor < 0.1
+def print_info(int_tensor: Tensor, para: Tensor):
+    s, bit_width, tensor_type = parse_quantization_para(float_to_int(para))
+    print_quantization_info(s, bit_width, tensor_type)
+    print(float_to_int(int_tensor))
+    print(de_quantization([int_tensor, para]))
 
-print(a == b)
+
+data_para = creat_quantization_para(bit_width=data_bit_width, tensor_type=TensorType.Ref)
+data_float_tensor = torch.randn([row_size, col_Size], dtype=torch.float)
+data_tensor = quantization_tensor(data_para, data_float_tensor, data_float_tensor.abs().max())
+
+print('\nsource:')
+print_info(data_tensor, data_para)
+
+array_para = creat_quantization_para(bit_width=array_bit_width, tensor_type=TensorType.Normal)
+array_float_tensor = torch.randn([row_size, col_Size], dtype=torch.float)
+array_tensor = quantization_tensor(array_para, array_float_tensor, array_float_tensor.abs().max())
+
+print('\nadd:')
+print_info(array_tensor, array_para)
+
+add_alpha_tensor_([data_tensor, data_para], [array_tensor, array_para], alpha, alpha_bit_width)
+
+print('\nadd result:')
+print_info(data_tensor, data_para)
+
+delta = data_float_tensor.add(array_float_tensor.mul(alpha)) - de_quantization([data_tensor, data_para])
+print(f'max delta: {delta.abs().max()}')
+
+
 # array_para = creat_quantization_para(bit_width=array_bit_width, tensor_type=TensorType.Ref)
 # float_tensor_2 = torch.randn([col_Size, row_size], dtype=torch.float)
 # array_tensor = quantization_tensor(array_para, float_tensor_2, float_tensor_2.abs().max())
@@ -25,7 +46,7 @@ print(a == b)
 # print(float_to_int(array_tensor))
 # print(de_quantization([array_tensor, array_para]))
 #
-# matmul_result, matmul_result_para = normal_t_matmul_array([data_tensor, data_para], [array_tensor, array_para])
+# matmul_result, matmul_result_para = normal_t_matmul_array([int_tensor, para], [array_tensor, array_para])
 # s, bit_width, _ = parse_quantization_para(float_to_int(matmul_result_para))
 # print_quantization_info(s, bit_width)
 # print(float_to_int(matmul_result))
@@ -34,13 +55,13 @@ print(a == b)
 # print(f'max delta: {delta.abs().max()}')
 
 # float_tensor = torch.randn([row_size, col_Size], dtype=torch.float)
-# data_tensor = quantization_tensor(data_para, float_tensor, float_tensor.abs().max())
-# s, bit_width, _ = parse_quantization_para(float_to_int(data_para))
+# int_tensor = quantization_tensor(para, float_tensor, float_tensor.abs().max())
+# s, bit_width, _ = parse_quantization_para(float_to_int(para))
 # print_quantization_info(s, bit_width)
-# print(float_to_int(data_tensor))
-# print(de_quantization([data_tensor, data_para]))
+# print(float_to_int(int_tensor))
+# print(de_quantization([int_tensor, para]))
 #
-# array_tensor = write_array([array_tensor, array_para], [data_tensor, data_para])
+# array_tensor = write_array([array_tensor, array_para], [int_tensor, para])
 # s, bit_width, _ = parse_quantization_para(float_to_int(array_para))
 # print_quantization_info(s, bit_width)
 # print(float_to_int(array_tensor))

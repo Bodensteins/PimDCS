@@ -3,8 +3,8 @@ import torch
 import math
 from torch.autograd import Function, grad
 from torch import Tensor
-from quantization import add_additional_one, change_bit_width_, parse_float_tensor_list, write_array, normal_matmul_array, \
-    remove_additional_one, normal_t_matmul_array, TensorType, creat_quantization_para, quantization_tensor, \
+from quantization import add_additional_col_of_one, change_bit_width_, parse_float_tensor_list, write_array, normal_matmul_array, \
+    remove_additional_col, normal_t_matmul_array, TensorType, creat_quantization_para, quantization_tensor, \
     parse_quantization_para, de_quantization, quantization_tensor_less, float_to_int
 
 class PimLinearFunction(Function):
@@ -14,7 +14,7 @@ class PimLinearFunction(Function):
 
         if hasBias:
             # add_additional_one_([qinput, qinput_config])
-            qinput = add_additional_one([qinput, qinput_config])
+            qinput = add_additional_col_of_one([qinput, qinput_config])
         
         # chenge_bit_width_([qinput, qinput_config], inputBits)
         change_bit_width_([qinput, qinput_config], inputBits)
@@ -48,7 +48,7 @@ class PimLinearFunction(Function):
 
         if hasBias:
             # remove_additional_one_([qgrad_input, qgrad_input_config])
-            qgrad_input = remove_additional_one(qgrad_input)
+            qgrad_input = remove_additional_col(qgrad_input)
 
         # delta_qweight_t = pim_t_matmul([qgrad_output, qgrad_output_config], [qinputArr, qinputArr_config])
         # need quantization para?

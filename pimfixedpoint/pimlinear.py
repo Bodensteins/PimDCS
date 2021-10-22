@@ -5,7 +5,7 @@ from torch.autograd import Function, grad
 from torch import Tensor
 from quantization import add_additional_col_of_one, change_bit_width_, parse_float_tensor_list, write_array, normal_matmul_array, \
     remove_additional_col, normal_t_matmul_array, TensorType, creat_quantization_para, quantization_tensor, \
-    parse_quantization_para, de_quantization, quantization_tensor_less, float_to_int
+    parse_quantization_para, de_quantization, quantization_tensor_less, float_to_int, add_additional_col_of_zero
 
 class PimLinearFunction(Function):
     @staticmethod
@@ -54,6 +54,7 @@ class PimLinearFunction(Function):
         delta_qweight_t, qweight_t_config = normal_t_matmul_array([qgrad_output, qgrad_output_config], [qinputArr, qinputArr_config])
 
         delta_qweight_t = torch.cat((delta_qweight_t, torch.zeros([10, 1])), 1)
+        delta_qweight_t = add_additional_col_of_zero([delta_qweight_t, qweight_t_config])
         return qgrad_input, qgrad_input_config, None, None, None, None, delta_qweight_t, None, None, None, None
 
 

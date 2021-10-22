@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim.sgd import SGD
 from quantization import float_to_int
-
+from pim_optimizer import PimSGD
 
 class PimNet(nn.Module):
     def __init__(self):
@@ -52,6 +52,10 @@ input_nor_para.requires_grad_()
 
 target = torch.randint(0, 10, [1])
 net = PimNet()
+
+optimizer = PimSGD(net, lr=0.1, momentum=0.9)
+
 output = net.forward(input_nor, input_nor_para)
 loss = F.nll_loss(output, target)
 loss.backward()
+optimizer.step()

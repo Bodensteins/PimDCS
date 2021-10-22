@@ -9,8 +9,18 @@ from quantization import add_additional_col_of_one, change_bit_width_, parse_flo
 
 class PimLinearFunction(Function):
     @staticmethod
-    def forward(ctx, qinput: Tensor, qinput_config: Tensor, qinputArr: Tensor, qinputArr_config: Tensor, qweight: Tensor, 
-        qweight_config: Tensor, qweight_t: Tensor, qweight_t_config: Tensor, inputBits: int, gradOutputBits: int, hasBias: bool):
+    def forward(ctx,
+                qinput: Tensor,
+                qinput_config: Tensor,
+                qinputArr: Tensor,
+                qinputArr_config: Tensor,
+                qweight: Tensor,
+                qweight_config: Tensor,
+                qweight_t: Tensor,
+                qweight_t_config: Tensor,
+                inputBits: int,
+                gradOutputBits: int,
+                hasBias: bool):
 
         if hasBias:
             # add_additional_one_([qinput, qinput_config])
@@ -37,6 +47,9 @@ class PimLinearFunction(Function):
         qinputArr_config = ctx.qinputArr_config
         qweight_t_config = ctx.qweight_t_config
 
+        print("=======")
+        print(qgrad_output)
+
         hasBias = ctx.hasBias
         qgrad_output_bits = ctx.gradOutputBits
 
@@ -55,6 +68,10 @@ class PimLinearFunction(Function):
 
         delta_qweight_t = torch.cat((delta_qweight_t, torch.zeros([10, 1])), 1)
         delta_qweight_t = add_additional_col_of_zero([delta_qweight_t, qweight_t_config])
+
+        print(qgrad_input)
+        # print(delta_qweight_t)
+
         return qgrad_input, qgrad_input_config, None, None, None, None, delta_qweight_t, None, None, None, None
 
 
@@ -98,8 +115,10 @@ class PimLinear(torch.nn.Module):
 
         # pim_arr_quantization([self.wArr, self.wArrConfig], temp_weight, max(self.maxValue, temp_weight.abs().max()))
         # pim_arr_quantization([self.wtArr, self.wtArrConfig], temp_weight.t(), max(self.maxValue, temp_weight.abs().max()))
-        self.wArr = quantization_tensor(self.wArrConfig, temp_weight, max(self.maxValue, temp_weight.abs().max()))
-        self.wtArr = quantization_tensor(self.wtArrConfig, temp_weight.t(), max(self.maxValue, temp_weight.abs().max()))
+        # self.wArr = quantization_tensor(self.wArrConfig, temp_weight, max(self.maxValue, temp_weight.abs().max()))
+        # self.wtArr = quantization_tensor(self.wtArrConfig, temp_weight.t(), max(self.maxValue, temp_weight.abs().max()))
+        self.wArr = torch.nn.Parameter(quantization_tensor(self.wArrConfig, temp_weight, max(self.maxValue, temp_weight.abs().max())))
+        self.wtArr = torch.nn.Parameter(quantization_tensor(self.wtArrConfig, temp_weight.t(), max(self.maxValue, temp_weight.abs().max())))
 
     def forward(self, qinput: Tensor, qinput_config):
         qoutput, qoutput_config = PimLinearFunction.apply(qinput, qinput_config, self.inputArr, self.inputArrConfig, self.wArr, self.wArrConfig, self.wtArr, 

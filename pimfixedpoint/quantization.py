@@ -29,7 +29,8 @@ def get_pos_bit_width(pos_int: int):
 def get_neg_bit_width(neg_int: int):
     return math.ceil(math.log2(-neg_int)) + 1
 
-
+# input: quantization parameters, should be int Tensor
+# return: quantization para. {s, bit_width, tensor_type(Normal or ref or PN)}
 def parse_quantization_para(quantization_para: Tensor):
     s = quantization_para[0].item()
     bit_width = quantization_para[1].item()

@@ -27,11 +27,19 @@ class PimSGD:
                              weight_decay=weight_decay, nesterov=nesterov)
         wtArrays = []
         wArrays = []
+        wArrays_configs = []
+        wtArrays_configs = []
+        delta_weight_configs = []
         for layer in network.named_modules():
             if isinstance(layer[1], PimLinear):
                 wArrays.append(layer[1].wArr)
                 wtArrays.append(layer[1].wtArr)
-        self.param_group = {'wArr': wArrays, 'wtArr': wtArrays}
+                wArrays_configs.append(layer[1].wArrConfig)
+                wtArrays_configs.append(layer[1].wtArrConfig)
+                delta_weight_configs.append(layer[1].delta_qweight_config)
+        self.param_group = {'wArr': wArrays, 'wtArr': wtArrays, \
+            'wArr_configs': wArrays_configs, 'wtArr_configs': wtArrays_configs, \
+            'delta_weight_confs': delta_weight_configs}
         self.param_group.update(self.defaults)
 
     @torch.no_grad()
@@ -50,9 +58,11 @@ class PimSGD:
         nesterov = self.param_group['nesterov']
         lr = self.param_group['lr']
 
-        for p in self.param_group['wtArr']:
-            if p.grad is not None:
-                params_with_grad.append(p)
+        for p in zip(self.param_group['wArr'], self.param_group['wtArr'], \
+            self.param_group['wArr_configs'], self.param_group['wtArr_configs'], \
+                self.param_group['delta_weight_confs']):
+            if p[1].grad is not None:
+                params_with_grad.append(p[1])
                 d_p_list.append(p.grad)
 
                 state = self.state[p]

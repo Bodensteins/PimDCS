@@ -273,7 +273,7 @@ def quantization_tensor_less(float_tensor_list: list, a: float) -> torch.BoolTen
         raise Exception("We don't implement this tensor_type!", tensor_type)
 
 
-def mul_num(float_tensor_list: list, alpha: float, alpha_bit_width: int) -> [Tensor, Tensor]:
+def mul_num(float_tensor_list: list, alpha: float, alpha_bit_width: int = 16) -> [Tensor, Tensor]:
     int_tensor, quantization_para = parse_float_tensor_list(float_tensor_list)
     s, _, tensor_type = parse_quantization_para(quantization_para)
 
@@ -307,9 +307,9 @@ def add_alpha_tensor_(source_tensor_list: list, add_tensor_list: list, alpha: fl
     mul_num_int_tensor, mul_num_quantization_para = parse_float_tensor_list([mul_num_tensor, mul_num_para])
     mul_num_s, mul_num_bit_width, mul_num_tensor_type = parse_quantization_para(mul_num_quantization_para)
 
-    print_quantization_info(mul_num_s, mul_num_bit_width, mul_num_tensor_type)
-    print(float_to_int(mul_num_int_tensor))
-    print(de_quantization([mul_num_int_tensor, mul_num_para]))
+    # print_quantization_info(mul_num_s, mul_num_bit_width, mul_num_tensor_type)
+    # print(float_to_int(mul_num_int_tensor))
+    # print(de_quantization([mul_num_int_tensor, mul_num_para]))
 
     if source_tensor_type == TensorType.Normal:
         shift = source_s - mul_num_s
@@ -325,7 +325,8 @@ def add_alpha_tensor_(source_tensor_list: list, add_tensor_list: list, alpha: fl
         source_int_tensor[source_int_tensor > pos_levels] = pos_levels
     elif source_tensor_type == TensorType.Ref:
         shift = source_s - mul_num_s
-        data = source_int_tensor[:, 0:-1]
+        # data = source_int_tensor[:, 0:-1]
+        data = source_int_tensor
         if shift >= 0:
             mul_num_int_tensor.__irshift__(shift)
         else:

@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from torch.optim.sgd import SGD
 from quantization import float_to_int
 from pim_optimizer import PimSGD
+from quantization import de_quantization
 
 class PimNet(nn.Module):
     def __init__(self):
@@ -36,24 +37,53 @@ class TorchNet(nn.Module):
         output = F.log_softmax(x, dim=1)
         return output
 
-# net = PimNet()
-# for layer in net.named_modules():
-#   if isinstance(layer[1], PimLinear):
-#     print(layer)
-# for param in net.parameters():
-#   print(param)
-
 
 input = torch.randn([1, 10], requires_grad=True)
-input_nor_para = creat_quantization_para(bit_width=8, tensor_type=TensorType.Normal)
+input_nor_para = creat_quantization_para(bit_width=16, tensor_type=TensorType.Normal)
 input_nor = quantization_tensor(input_nor_para, input, input.abs().max())
-
 input_nor_para.requires_grad_()
 
 target = torch.randint(0, 10, [1])
 net = PimNet()
+wArr1 = de_quantization([net.fc1.wArr, net.fc1.wArrConfig])
+wArr2 = de_quantization([net.fc2.wArr, net.fc2.wArrConfig])
+w1 = wArr1[:-1,:]
+b1 = wArr1[-1, :]
+w2 = wArr2[:-1,:]
+b2 = wArr2[-1, :]
+torch_net = TorchNet()
+torch_net.fc1.weight.data = w1
+torch_net.fc1.bias.data = b1
+torch_net.fc2.weight.data = w2
+torch_net.fc2.bias.data = b2
+
+print("===== init =====")
+print("fc1 weight")
+print(torch_net.fc1.weight)
+print("fc1 bias")
+print(torch_net.fc1.bias)
+print("fc2 weight")
+print(torch_net.fc2.weight)
+print("fc2 bias")
+print(torch_net.fc2.bias)
 
 optimizer = PimSGD(net, lr=0.1, momentum=0.9)
+torch_optimizer = SGD(torch_net.parameters(), lr=0.1, momentum=0.9)
+
+torch_output = torch_net.forward(input)
+torch_loss = F.nll_loss(torch_output, target)
+torch_loss.backward()
+torch_optimizer.step()
+
+print("===== torch opt =====")
+print("fc1 weight")
+print(torch_net.fc1.weight)
+print("fc1 bias")
+print(torch_net.fc1.bias)
+print("fc2 weight")
+print(torch_net.fc2.weight)
+print("fc2 bias")
+print(torch_net.fc2.bias)
 
 output = net.forward(input_nor, input_nor_para)
 loss = F.nll_loss(output, target)

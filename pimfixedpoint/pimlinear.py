@@ -32,6 +32,7 @@ class PimLinearFunction(Function):
 
         ctx.save_for_backward(qinputArr, qweight_t)
         ctx.qinputArr_config = qinputArr_config
+        ctx.qweight_t_config = qweight_t_config
         ctx.delta_qweight_t_config = delta_qweight_t_config
 
         ctx.gradOutputBits = gradOutputBits
@@ -56,15 +57,18 @@ class PimLinearFunction(Function):
         if hasBias:
             qgrad_input = remove_additional_col(qgrad_input)
 
-
-        delta_qweight_t, delta_qweight_t_config = normal_t_matmul_array([qgrad_output, qgrad_output_config], [qinputArr, qinputArr_config])
+        delta_qweight_t, delta_qweight_t_config_temp = normal_t_matmul_array([qgrad_output, qgrad_output_config], [qinputArr, qinputArr_config])
+        delta_qweight_t_config[0] = delta_qweight_t_config_temp[0]
+        delta_qweight_t_config[1] = delta_qweight_t_config_temp[1]
+        delta_qweight_t_config[2] = delta_qweight_t_config_temp[2]
         delta_qweight_t = add_additional_col_of_zero([delta_qweight_t, delta_qweight_t_config])
+        print(parse_quantization_para(float_to_int(delta_qweight_t_config)))
 
         return qgrad_input, qgrad_input_config, None, None, None, None, delta_qweight_t, None, None, None, None, None
 
 
 class PimLinear(torch.nn.Module):
-    def __init__(self, m: int, n: int, inputBits: int = 8, weightBits: int = 8, gradOutputBits: int = 8,
+    def __init__(self, m: int, n: int, inputBits: int = 16, weightBits: int = 16, gradOutputBits: int = 16,
                  arrayMode: str = "RefTensor", quantizerMode: str = "", absMaxValue: float = 1.0, hasBias: bool = True):
         super().__init__()
         if hasBias:
@@ -100,8 +104,10 @@ class PimLinear(torch.nn.Module):
 
         self.wArrConfig = torch.nn.Parameter(self.wArrConfig)
         self.wtArrConfig = torch.nn.Parameter(self.wtArrConfig)
+        self.delta_qweight_t_config = torch.nn.Parameter(self.delta_qweight_t_config)
         self.wArr = torch.nn.Parameter(quantization_tensor(self.wArrConfig, temp_weight, max(self.maxValue, temp_weight.abs().max())))
         self.wtArr = torch.nn.Parameter(quantization_tensor(self.wtArrConfig, temp_weight.t(), max(self.maxValue, temp_weight.abs().max())))
+
 
 
     def forward(self, qinput: Tensor, qinput_config):

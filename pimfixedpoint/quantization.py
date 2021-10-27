@@ -63,6 +63,11 @@ def float_to_int(float_tensor: Tensor) -> Tensor:
     return torch.from_numpy(float_tensor.detach().numpy().view(dtype=np.int32))
 
 
+system_bit_width = 32
+data_flow_bit_width = system_bit_width >> 1
+# data flow bit width must be half of system bit width to avoid overflow
+
+
 def parse_float_tensor_list(float_tensor_list: list):
     if float_tensor_list[0] is not None:
         int_tensor = float_to_int(float_tensor_list[0])
@@ -247,12 +252,13 @@ def normal_matmul_array(normal_tensor_list: list, array_tensor_list: list) -> [T
     if array_tensor_type == TensorType.Ref:
         temp_result = normal_int_tensor.matmul(array_int_tensor)
         matmul_result = temp_result[:, 0:-1] - temp_result[:, -1].unsqueeze(0).t()
-        matmul_result_quantization_para = creat_quantization_para(s=normal_s + array_s, tensor_type=TensorType.Normal)
-        set_appropriate_bit_width_([matmul_result, matmul_result_quantization_para])
+        matmul_result_para = creat_quantization_para(s=normal_s + array_s, tensor_type=TensorType.Normal)
+        set_appropriate_bit_width_([matmul_result, matmul_result_para])
     else:
         raise Exception("We don't implement this tensor_type!", array_tensor_type)
 
-    return int_to_float(matmul_result), int_to_float(matmul_result_quantization_para)
+    change_bit_width_([matmul_result, matmul_result_para], data_flow_bit_width)
+    return int_to_float(matmul_result), int_to_float(matmul_result_para)
 
 
 def normal_t_matmul_array(normal_tensor_list: list, array_tensor_list: list) -> [Tensor, Tensor]:
@@ -274,6 +280,7 @@ def quantization_tensor_less(float_tensor_list: list, a: float) -> torch.BoolTen
 
 
 def mul_num(float_tensor_list: list, alpha: float, alpha_bit_width: int = 16) -> [Tensor, Tensor]:
+    change_bit_width_(float_tensor_list, 16)
     int_tensor, quantization_para = parse_float_tensor_list(float_tensor_list)
     s, _, tensor_type = parse_quantization_para(quantization_para)
 
@@ -296,6 +303,7 @@ def mul_num(float_tensor_list: list, alpha: float, alpha_bit_width: int = 16) ->
     else:
         raise Exception("We don't implement this tensor_type!", tensor_type)
 
+    change_bit_width_([mul_num_int_tensor, mul_num_para], data_flow_bit_width)
     return int_to_float(mul_num_int_tensor), int_to_float(mul_num_para)
 
 
@@ -304,8 +312,11 @@ def add_alpha_tensor_(source_tensor_list: list, add_tensor_list: list, alpha: fl
     source_s, source_bit_width, source_tensor_type = parse_quantization_para(source_quantization_para)
 
     mul_num_tensor, mul_num_para = mul_num(add_tensor_list, alpha, alpha_bit_width)
+    change_bit_width_([mul_num_tensor, mul_num_para], 16)
     mul_num_int_tensor, mul_num_quantization_para = parse_float_tensor_list([mul_num_tensor, mul_num_para])
     mul_num_s, mul_num_bit_width, mul_num_tensor_type = parse_quantization_para(mul_num_quantization_para)
+
+
 
     # print_quantization_info(mul_num_s, mul_num_bit_width, mul_num_tensor_type)
     # print(float_to_int(mul_num_int_tensor))

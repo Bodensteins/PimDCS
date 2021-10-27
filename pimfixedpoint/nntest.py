@@ -10,13 +10,13 @@ class PimNet(nn.Module):
     def __init__(self):
         super(PimNet, self).__init__()
         self.fc1 = PimLinear(10, 13)
-        self.fc2 = PimLinear(13, 4)
+        self.fc2 = PimLinear(13, 10)
         self.relu = PimRelu()
         self.dequan = DeQuanLayer()
 
     def forward(self, x, x_p):
         x, x_p = self.fc1(x, x_p)
-        x, x_p= self.relu(x, x_p)
+        x, x_p = self.relu(x, x_p)
         x, x_p = self.fc2(x, x_p)
         x = self.dequan(x, x_p)
         print(x)
@@ -28,7 +28,7 @@ class TorchNet(nn.Module):
     def __init__(self):
         super(TorchNet, self).__init__()
         self.fc1 = nn.Linear(10, 13)
-        self.fc2 = nn.Linear(13, 4)
+        self.fc2 = nn.Linear(13, 10)
         self.relu = nn.ReLU()
 
     def forward(self, x):

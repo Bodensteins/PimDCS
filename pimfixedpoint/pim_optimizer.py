@@ -2,7 +2,8 @@
 import torch
 from pimlinear import PimLinear
 from collections import defaultdict
-from quantization import add_alpha_tensor_, mul_num, de_quantization, parse_quantization_para, float_to_int
+from quantization import add_alpha_tensor_, mul_num, de_quantization, parse_quantization_para, float_to_int, \
+  remove_additional_col, add_additional_col_of_zero
 from torch.optim.optimizer import Optimizer
 from torch.optim.sgd import SGD
 
@@ -62,8 +63,8 @@ class PimSGD:
       d_wt = wtArr.grad
       if d_wt is not None:
         # print(parse_quantization_para(float_to_int(d_wt_cfg)))
-        print(de_quantization([d_wt, d_wt_cfg]).t())
-        print(de_quantization([wtArr, wtArr_cfg]).t())
+        # print(de_quantization([d_wt, d_wt_cfg]))
+        # print(de_quantization([wtArr, wtArr_cfg]).t())
 
         state = self.state[wArr]
 
@@ -82,9 +83,14 @@ class PimSGD:
           else:
             d_wt = buf
 
+
           add_alpha_tensor_([wtArr, wtArr_cfg], [d_wt, d_wt_cfg], -lr)
+          d_w = add_additional_col_of_zero([remove_additional_col(d_wt).t(), d_wt_cfg])
+          add_alpha_tensor_([wArr, wArr_cfg], [d_w, d_wt_cfg], -lr)
+
           self.state[wtArr]['momentum_buffer'] = buf
 
-          print(de_quantization([wtArr, wtArr_cfg]).t())
+          print(de_quantization([wtArr, wtArr_cfg]))
+          print(de_quantization([wArr, wArr_cfg]))
 
     return loss

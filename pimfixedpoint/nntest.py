@@ -9,15 +9,15 @@ from quantization import de_quantization
 class PimNet(nn.Module):
     def __init__(self):
         super(PimNet, self).__init__()
-        self.fc1 = PimLinear(10, 10)
-        self.fc2 = PimLinear(10, 10)
+        self.fc1 = PimLinear(10, 13)
+        self.fc2 = PimLinear(13, 10)
         self.relu = PimRelu()
         self.dequan = DeQuanLayer()
 
     def forward(self, x, x_p):
         x, x_p = self.fc1(x, x_p)
+        x, x_p = self.relu(x, x_p)
         x, x_p = self.fc2(x, x_p)
-        x, x_p= self.relu(x, x_p)
         x = self.dequan(x, x_p)
         output = F.log_softmax(x, dim=1)
         return output
@@ -26,8 +26,8 @@ class PimNet(nn.Module):
 class TorchNet(nn.Module):
     def __init__(self):
         super(TorchNet, self).__init__()
-        self.fc1 = nn.Linear(10, 10)
-        self.fc2 = nn.Linear(10, 10)
+        self.fc1 = nn.Linear(10, 13)
+        self.fc2 = nn.Linear(13, 10)
         self.relu = nn.ReLU()
 
     def forward(self, x):
@@ -52,9 +52,9 @@ b1 = wArr1[-1, :]
 w2 = wArr2[:-1,:]
 b2 = wArr2[-1, :]
 torch_net = TorchNet()
-torch_net.fc1.weight.data = w1
+torch_net.fc1.weight.data = w1.t()
 torch_net.fc1.bias.data = b1
-torch_net.fc2.weight.data = w2
+torch_net.fc2.weight.data = w2.t()
 torch_net.fc2.bias.data = b2
 
 print("===== init =====")

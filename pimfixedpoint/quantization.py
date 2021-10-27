@@ -274,6 +274,7 @@ def quantization_tensor_less(float_tensor_list: list, a: float) -> torch.BoolTen
 
 
 def mul_num(float_tensor_list: list, alpha: float, alpha_bit_width: int = 16) -> [Tensor, Tensor]:
+    change_bit_width_(float_tensor_list, 16)
     int_tensor, quantization_para = parse_float_tensor_list(float_tensor_list)
     s, _, tensor_type = parse_quantization_para(quantization_para)
 
@@ -304,8 +305,11 @@ def add_alpha_tensor_(source_tensor_list: list, add_tensor_list: list, alpha: fl
     source_s, source_bit_width, source_tensor_type = parse_quantization_para(source_quantization_para)
 
     mul_num_tensor, mul_num_para = mul_num(add_tensor_list, alpha, alpha_bit_width)
+    change_bit_width_([mul_num_tensor, mul_num_para], 16)
     mul_num_int_tensor, mul_num_quantization_para = parse_float_tensor_list([mul_num_tensor, mul_num_para])
     mul_num_s, mul_num_bit_width, mul_num_tensor_type = parse_quantization_para(mul_num_quantization_para)
+
+
 
     # print_quantization_info(mul_num_s, mul_num_bit_width, mul_num_tensor_type)
     # print(float_to_int(mul_num_int_tensor))

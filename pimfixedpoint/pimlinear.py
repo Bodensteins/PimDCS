@@ -62,14 +62,13 @@ class PimLinearFunction(Function):
         delta_qweight_t_config[1] = delta_qweight_t_config_temp[1]
         delta_qweight_t_config[2] = delta_qweight_t_config_temp[2]
         delta_qweight_t = add_additional_col_of_zero([delta_qweight_t, delta_qweight_t_config])
-        print(parse_quantization_para(float_to_int(delta_qweight_t_config)))
 
         return qgrad_input, qgrad_input_config, None, None, None, None, delta_qweight_t, None, None, None, None, None
 
 
 class PimLinear(torch.nn.Module):
     def __init__(self, m: int, n: int, inputBits: int = 16, weightBits: int = 16, gradOutputBits: int = 16,
-                 arrayMode: str = "RefTensor", quantizerMode: str = "", absMaxValue: float = 1.0, hasBias: bool = True):
+                 arrayMode: str = "RefTensor", quantizerMode: str = "", absMaxValue: float = 4.0, hasBias: bool = True):
         super().__init__()
         if hasBias:
             m += 1

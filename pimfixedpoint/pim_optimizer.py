@@ -62,6 +62,7 @@ class PimSGD:
       d_wt = wtArr.grad
       if d_wt is not None:
         # print(parse_quantization_para(float_to_int(d_wt_cfg)))
+        print("---------------------------")
         print(de_quantization([d_wt, d_wt_cfg]).t())
         print(de_quantization([wtArr, wtArr_cfg]).t())
 

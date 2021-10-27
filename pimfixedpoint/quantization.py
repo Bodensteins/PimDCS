@@ -240,7 +240,7 @@ def set_appropriate_bit_width_(float_tensor_list: list):
     quantization_para[1] = max(bit_width, 2)  # at least 2 bits
 
 
-def normal_matmul_array(normal_tensor_list: list, array_tensor_list: list) -> [Tensor, Tensor]:
+def normal_matmul_array(normal_tensor_list: list, array_tensor_list: list, matmul_result_para: Tensor = None) -> [Tensor, Tensor]:
     normal_int_tensor, normal_quantization_para = parse_float_tensor_list(normal_tensor_list)
     normal_s, normal_bit_width, normal_tensor_type = parse_quantization_para(normal_quantization_para)
     array_int_tensor, array_quantization_para = parse_float_tensor_list(array_tensor_list)
@@ -252,7 +252,14 @@ def normal_matmul_array(normal_tensor_list: list, array_tensor_list: list) -> [T
     if array_tensor_type == TensorType.Ref:
         temp_result = normal_int_tensor.matmul(array_int_tensor)
         matmul_result = temp_result[:, 0:-1] - temp_result[:, -1].unsqueeze(0).t()
-        matmul_result_para = creat_quantization_para(s=normal_s + array_s, tensor_type=TensorType.Normal)
+
+        if matmul_result_para is None:
+            matmul_result_para = creat_quantization_para(s=normal_s + array_s, tensor_type=TensorType.Normal)
+        else:
+            int_matmul_result_para = float_to_int(matmul_result_para)
+            int_matmul_result_para[0] = normal_s + array_s
+            assert (int_matmul_result_para[2] == TensorType.Normal.value)
+
         set_appropriate_bit_width_([matmul_result, matmul_result_para])
     else:
         raise Exception("We don't implement this tensor_type!", array_tensor_type)
@@ -261,10 +268,11 @@ def normal_matmul_array(normal_tensor_list: list, array_tensor_list: list) -> [T
     return int_to_float(matmul_result), int_to_float(matmul_result_para)
 
 
-def normal_t_matmul_array(normal_tensor_list: list, array_tensor_list: list) -> [Tensor, Tensor]:
+def normal_t_matmul_array(normal_tensor_list: list, array_tensor_list: list, matmul_result_para: Tensor = None) -> \
+        [Tensor, Tensor]:
     normal_tensor, normal_para = normal_tensor_list
 
-    return normal_matmul_array([normal_tensor.t(), normal_para], array_tensor_list)
+    return normal_matmul_array([normal_tensor.t(), normal_para], array_tensor_list, matmul_result_para)
 
 
 def quantization_tensor_less(float_tensor_list: list, a: float) -> torch.BoolTensor:

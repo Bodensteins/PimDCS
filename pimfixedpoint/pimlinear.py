@@ -25,7 +25,7 @@ class PimLinearFunction(Function):
 
         if hasBias:
             qinput = add_additional_col_of_one([qinput, qinput_config])
-        
+
         change_bit_width_([qinput, qinput_config], inputBits)
         qinputArr = write_array([qinputArr, qinputArr_config], [qinput, qinput_config])
         qoutput, qoutput_config = normal_matmul_array([qinput, qinput_config], [qweight, qweight_config])
@@ -57,10 +57,11 @@ class PimLinearFunction(Function):
         if hasBias:
             qgrad_input = remove_additional_col(qgrad_input)
 
-        delta_qweight_t, delta_qweight_t_config_temp = normal_t_matmul_array([qgrad_output, qgrad_output_config], [qinputArr, qinputArr_config])
-        delta_qweight_t_config[0] = delta_qweight_t_config_temp[0]
-        delta_qweight_t_config[1] = delta_qweight_t_config_temp[1]
-        delta_qweight_t_config[2] = delta_qweight_t_config_temp[2]
+        delta_qweight_t, _ = normal_t_matmul_array(
+            [qgrad_output, qgrad_output_config], [qinputArr, qinputArr_config], delta_qweight_t_config)
+        # delta_qweight_t_config[0] = delta_qweight_t_config_temp[0]
+        # delta_qweight_t_config[1] = delta_qweight_t_config_temp[1]
+        # delta_qweight_t_config[2] = delta_qweight_t_config_temp[2]
         delta_qweight_t = add_additional_col_of_zero([delta_qweight_t, delta_qweight_t_config])
 
         return qgrad_input, qgrad_input_config, None, None, None, None, delta_qweight_t, None, None, None, None, None
@@ -129,13 +130,14 @@ class DeQuanFunction(Function):
     @staticmethod
     def backward(ctx, grad_output: Tensor):
         qgrad_output_config = creat_quantization_para(bit_width=ctx.bit, tensor_type=TensorType.Normal)
-        qgrad_output = quantization_tensor(qgrad_output_config, grad_output, grad_output.abs().max())
+
+        qgrad_output = quantization_tensor(qgrad_output_config, grad_output, max(grad_output.abs().max(), 0.0001))
 
         return qgrad_output, qgrad_output_config, None, None
 
 
 class DeQuanLayer(torch.nn.Module):
-    def __init__(self, bitWidth: int = 8, quantizerMode: str = "dynamic"):
+    def __init__(self, bitWidth: int = 16, quantizerMode: str = "dynamic"):
         super().__init__()
         self.quantizerMode = quantizerMode
         self.bit = bitWidth

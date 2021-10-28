@@ -14,6 +14,29 @@ class TensorType(Enum):
     PN = 2
 
 
+system_bit_width = 50
+data_flow_bit_width = system_bit_width >> 1
+# data flow bit width must be half of system bit width to avoid overflow
+if system_bit_width <= 32:
+    torch_int = torch.int32
+    torch_float = torch.float32
+    numpy_int = np.int32
+    numpy_float = np.float32
+else:
+    torch_int = torch.int64
+    torch_float = torch.float64
+    numpy_int = np.int64
+    numpy_float = np.float64
+
+
+def int_to_float(int_tensor: Tensor) -> Tensor:
+    return torch.from_numpy(int_tensor.numpy().view(dtype=numpy_float))
+
+
+def float_to_int(float_tensor: Tensor) -> Tensor:
+    return torch.from_numpy(float_tensor.detach().numpy().view(dtype=numpy_int))
+
+
 def get_fixed_point_position(max_abs: float, bit_width: int) -> int:
     return math.ceil(math.log2(max_abs / ((1 << (bit_width - 1)) - 1)))
 
@@ -55,19 +78,6 @@ def print_quantization_info(s: int, bit_width: int, tensor_type: TensorType):
           f'data range: {min_value} ~ {max_value}')
 
 
-def int_to_float(int_tensor: Tensor) -> Tensor:
-    return torch.from_numpy(int_tensor.numpy().view(dtype=np.float32))
-
-
-def float_to_int(float_tensor: Tensor) -> Tensor:
-    return torch.from_numpy(float_tensor.detach().numpy().view(dtype=np.int32))
-
-
-system_bit_width = 32
-data_flow_bit_width = system_bit_width >> 1
-# data flow bit width must be half of system bit width to avoid overflow
-
-
 def parse_float_tensor_list(float_tensor_list: list):
     if float_tensor_list[0] is not None:
         int_tensor = float_to_int(float_tensor_list[0])
@@ -80,7 +90,7 @@ def parse_float_tensor_list(float_tensor_list: list):
 
 
 def creat_quantization_para(s: int = None, bit_width: int = None, tensor_type: TensorType = None):
-    quantization_para = torch.empty(3, dtype=torch.int32)
+    quantization_para = torch.empty(3, dtype=torch_int)
     if s is not None:
         quantization_para[0] = s
     if bit_width is not None:
@@ -100,15 +110,15 @@ def quantization_tensor(quantization_para: Tensor, tensor: Tensor, max_abs_value
         s = get_fixed_point_position(max_abs_value, bit_width)
         quantization_para[0] = s
         resolution = pow(2, s)
-        int_tensor = tensor.div(resolution).round().to(torch.int32)
+        int_tensor = tensor.div(resolution).round().to(torch_int)
     elif tensor_type == TensorType.Ref:
         s = get_fixed_point_position(max_abs_value, bit_width)
         quantization_para[0] = s
         resolution = pow(2, s)
-        int_tensor = torch.empty([tensor.size()[0], tensor.size()[1] + 1], dtype=torch.int32)
+        int_tensor = torch.empty([tensor.size()[0], tensor.size()[1] + 1], dtype=torch_int)
         neg_levels = pow_2_n(bit_width - 1)
         int_tensor[:, -1] = neg_levels
-        int_tensor[:, 0:-1] = tensor.div(resolution).round().to(torch.int32).add(neg_levels)
+        int_tensor[:, 0:-1] = tensor.div(resolution).round().to(torch_int).add(neg_levels)
     elif tensor_type == TensorType.PN:
         raise Exception("We don't implement this tensor_type!", tensor_type)
     else:
@@ -165,7 +175,7 @@ def add_additional_col_of_one(float_tensor_list: list) -> Tensor:
         new_bit_width = get_pos_bit_width(int_one)
         change_bit_width_(float_tensor_list, new_bit_width)
 
-    full_one_col = torch.full([int_tensor.size()[0], 1], int_one, dtype=torch.int32)
+    full_one_col = torch.full([int_tensor.size()[0], 1], int_one, dtype=torch_int)
     int_tensor = torch.cat((int_tensor, full_one_col), 1)
 
     return int_to_float(int_tensor)
@@ -177,7 +187,7 @@ def add_additional_col_of_zero(float_tensor_list: list) -> Tensor:
 
     assert (tensor_type == TensorType.Normal)
 
-    full_zero_col = torch.full([int_tensor.size()[0], 1], 0, dtype=torch.int32)
+    full_zero_col = torch.full([int_tensor.size()[0], 1], 0, dtype=torch_int)
     int_tensor = torch.cat((int_tensor, full_zero_col), 1)
 
     return int_to_float(int_tensor)
@@ -203,7 +213,7 @@ def write_array(array_tensor_list: list, data_tensor_list: list) -> Tensor:
         neg_levels = pow_2_n(array_bit_width - 1)
         if array_int_tensor is None:
             array_int_tensor = \
-                torch.empty([data_int_tensor.size()[0], data_int_tensor.size()[1] + 1], dtype=torch.int32)
+                torch.empty([data_int_tensor.size()[0], data_int_tensor.size()[1] + 1], dtype=torch_int)
             array_int_tensor[:, -1] = neg_levels
 
         if array_bit_width >= data_bit_width:
@@ -288,7 +298,6 @@ def quantization_tensor_less(float_tensor_list: list, a: float) -> torch.BoolTen
 
 
 def mul_num(float_tensor_list: list, alpha: float, alpha_bit_width: int = 16) -> [Tensor, Tensor]:
-    change_bit_width_(float_tensor_list, 16)
     int_tensor, quantization_para = parse_float_tensor_list(float_tensor_list)
     s, _, tensor_type = parse_quantization_para(quantization_para)
 
@@ -320,12 +329,8 @@ def add_alpha_tensor_(source_tensor_list: list, add_tensor_list: list, alpha: fl
     source_s, source_bit_width, source_tensor_type = parse_quantization_para(source_quantization_para)
 
     mul_num_tensor, mul_num_para = mul_num(add_tensor_list, alpha, alpha_bit_width)
-    change_bit_width_([mul_num_tensor, mul_num_para], 16)
     mul_num_int_tensor, mul_num_quantization_para = parse_float_tensor_list([mul_num_tensor, mul_num_para])
     mul_num_s, mul_num_bit_width, mul_num_tensor_type = parse_quantization_para(mul_num_quantization_para)
-
-
-
     # print_quantization_info(mul_num_s, mul_num_bit_width, mul_num_tensor_type)
     # print(float_to_int(mul_num_int_tensor))
     # print(de_quantization([mul_num_int_tensor, mul_num_para]))

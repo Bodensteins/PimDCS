@@ -91,15 +91,15 @@ class PimSGD:
                     else:
                         d_wt = buf
 
-                    add_alpha_tensor_([wtArr, wtArr_cfg], [
-                                      d_wt, d_wt_cfg], -lr)
-                    d_w = add_additional_col_of_zero(
-                        [remove_additional_col(d_wt).t(), d_wt_cfg])
-                    add_alpha_tensor_([wArr, wArr_cfg], [d_w, d_wt_cfg], -lr)
-
                     self.state[wtArr]['momentum_buffer'] = buf
 
-                    # print(de_quantization([wtArr, wtArr_cfg]))
-                    # print(de_quantization([wArr, wArr_cfg]))
+                add_alpha_tensor_([wtArr, wtArr_cfg], [
+                                  d_wt, d_wt_cfg], -lr)
+                d_w = add_additional_col_of_zero(
+                    [remove_additional_col(d_wt).t(), d_wt_cfg])
+                add_alpha_tensor_([wArr, wArr_cfg], [d_w, d_wt_cfg], -lr)
+
+                # print(de_quantization([wtArr, wtArr_cfg]))
+                # print(de_quantization([wArr, wArr_cfg]))
 
         return loss

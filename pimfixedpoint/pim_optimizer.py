@@ -30,6 +30,7 @@ class PimSGD:
         wArrays_configs = []
         wtArrays_configs = []
         delta_qweight_t_config = []
+        weight = []
         for layer in network.named_modules():
             if isinstance(layer[1], PimLinear):
                 wArrays.append(layer[1].wArr)
@@ -37,9 +38,11 @@ class PimSGD:
                 wArrays_configs.append(layer[1].wArrConfig)
                 wtArrays_configs.append(layer[1].wtArrConfig)
                 delta_qweight_t_config.append(layer[1].delta_qweight_t_config)
+                weight.append(layer[1].weight)
         self.param_group = {'wArr': wArrays, 'wtArr': wtArrays,
                             'wArr_configs': wArrays_configs, 'wtArr_configs': wtArrays_configs,
-                            'delta_qweight_t_config': delta_qweight_t_config}
+                            'delta_qweight_t_config': delta_qweight_t_config,
+                            'weight': weight}
         self.param_group.update(self.defaults)
 
 
@@ -60,11 +63,12 @@ class PimSGD:
         nesterov = self.param_group['nesterov']
         lr = self.param_group['lr']
 
-        for wArr, wtArr, wArr_cfg, wtArr_cfg, d_wt_cfg in zip(
+        for wArr, wtArr, wArr_cfg, wtArr_cfg, d_wt_cfg, weight in zip(
                 self.param_group['wArr'], self.param_group['wtArr'],
                 self.param_group['wArr_configs'],
                 self.param_group['wtArr_configs'],
-                self.param_group['delta_qweight_t_config']):
+                self.param_group['delta_qweight_t_config'],
+                self.param_group['weight']):
             d_wt = wtArr.grad
             if d_wt is not None:
                 # print(parse_quantization_para(float_to_int(d_wt_cfg)))
@@ -90,16 +94,21 @@ class PimSGD:
                                           buf, d_wt_cfg], momentum)
                     else:
                         d_wt = buf
-
-                    add_alpha_tensor_([wtArr, wtArr_cfg], [
-                                      d_wt, d_wt_cfg], -lr)
-                    d_w = add_additional_col_of_zero(
-                        [remove_additional_col(d_wt).t(), d_wt_cfg])
-                    add_alpha_tensor_([wArr, wArr_cfg], [d_w, d_wt_cfg], -lr)
-
                     self.state[wtArr]['momentum_buffer'] = buf
+                
+                
+                add_alpha_tensor_([wtArr, wtArr_cfg], [
+                                      d_wt, d_wt_cfg], -lr)
+                d_w = add_additional_col_of_zero(
+                        [remove_additional_col(d_wt).t(), d_wt_cfg])
+                add_alpha_tensor_([wArr, wArr_cfg], [d_w, d_wt_cfg], -lr)
+                # print(de_quantization([wtArr, wtArr_cfg]))
+                #print(de_quantization([wArr, wArr_cfg]))
+            if weight.grad != None:
+                weight.add_(weight.grad*(-lr))
+                weight.grad = None
+                #print(weight.grad)
+                #print(weight)
 
-                    # print(de_quantization([wtArr, wtArr_cfg]))
-                    # print(de_quantization([wArr, wArr_cfg]))
 
         return loss

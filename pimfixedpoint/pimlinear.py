@@ -21,10 +21,23 @@ class PimLinearFunction(Function):
                 delta_qweight_t_config: Tensor,
                 inputBits: int,
                 gradOutputBits: int,
-                hasBias: bool):
+                hasBias: bool,
+                input: Tensor,
+                weight: Tensor):
 
         if hasBias:
             qinput = add_additional_col_of_one([qinput, qinput_config])
+            if input != None:
+                full_one_col = torch.full([input.size()[0], 1], 1, dtype=input.dtype)
+                input = torch.cat((input, full_one_col), 1)
+        
+        ctx.has_origin_input = False
+        output = None
+        if input != None:
+            output = torch.matmul(input, weight)
+            ctx.input = input
+            ctx.weight = weight
+            ctx.has_origin_input = True 
 
         change_bit_width_([qinput, qinput_config], inputBits)
         qinputArr = write_array([qinputArr, qinputArr_config], [qinput, qinput_config])
@@ -38,15 +51,16 @@ class PimLinearFunction(Function):
         ctx.gradOutputBits = gradOutputBits
         ctx.hasBias = hasBias
 
-        return qoutput, qoutput_config
+        return qoutput, qoutput_config, output
 
     @staticmethod
-    def backward(ctx, qgrad_output, qgrad_output_config):
+    def backward(ctx, qgrad_output, qgrad_output_config, grad_output):
         qinputArr, qweight_t = ctx.saved_tensors
         qinputArr_config = ctx.qinputArr_config
         qweight_t_config = ctx.qweight_t_config
         delta_qweight_t_config = ctx.delta_qweight_t_config
-
+        # print(de_quantization([qgrad_output, qgrad_output_config]))
+        # print(grad_output)
         hasBias = ctx.hasBias
         qgrad_output_bits = ctx.gradOutputBits
 
@@ -54,26 +68,32 @@ class PimLinearFunction(Function):
         
         qgrad_input, qgrad_input_config = normal_matmul_array([qgrad_output, qgrad_output_config], [qweight_t, qweight_t_config])
 
+        grad_input = None
+        d_w = None
+        if ctx.has_origin_input:
+            grad_input = torch.matmul(grad_output, ctx.weight.t())
+            d_w = torch.matmul(grad_output.t(), grad_input).t()
+        
         if hasBias:
             qgrad_input = remove_additional_col(qgrad_input)
+            if ctx.has_origin_input:
+                grad_input = grad_input[:, 0:-1]
 
         delta_qweight_t, _ = normal_t_matmul_array(
             [qgrad_output, qgrad_output_config], [qinputArr, qinputArr_config], delta_qweight_t_config)
-        # delta_qweight_t_config[0] = delta_qweight_t_config_temp[0]
-        # delta_qweight_t_config[1] = delta_qweight_t_config_temp[1]
-        # delta_qweight_t_config[2] = delta_qweight_t_config_temp[2]
+
         delta_qweight_t = add_additional_col_of_zero([delta_qweight_t, delta_qweight_t_config])
 
-        return qgrad_input, qgrad_input_config, None, None, None, None, delta_qweight_t, None, None, None, None, None
+        return qgrad_input, qgrad_input_config, None, None, None, None, delta_qweight_t, None, None, None, None, None, grad_input, d_w 
 
 
 class PimLinear(torch.nn.Module):
     def __init__(self, m: int, n: int, inputBits: int = 16, weightBits: int = 16, gradOutputBits: int = 16,
-                 arrayMode: str = "RefTensor", quantizerMode: str = "", absMaxValue: float = 4.0, hasBias: bool = True):
+                 arrayMode: str = "RefTensor", quantizerMode: str = "", absMaxValueLeft: float = 1.0, absMaxValueRight: float = 4.0, hasBias: bool = True):
         super().__init__()
         if hasBias:
             m += 1
-        self.m, self.n, self.hasBias, self.maxValue = m, n, hasBias, absMaxValue
+        self.m, self.n, self.hasBias, self.maxValueLeft, self.maxValueRight = m, n, hasBias, absMaxValueLeft, absMaxValueRight
         # quantizer mode dynamic, static.
         self.quantizerMode = quantizerMode 
         self.inputBits, self.gradOutputBits = inputBits, gradOutputBits
@@ -102,19 +122,19 @@ class PimLinear(torch.nn.Module):
             bound = 1 / math.sqrt(fan_in)
             torch.nn.init.uniform_(temp_weight[-1], -bound, bound)
 
-        self.wArrConfig = torch.nn.Parameter(self.wArrConfig)
-        self.wtArrConfig = torch.nn.Parameter(self.wtArrConfig)
-        self.delta_qweight_t_config = torch.nn.Parameter(self.delta_qweight_t_config)
-        self.wArr = torch.nn.Parameter(quantization_tensor(self.wArrConfig, temp_weight, max(self.maxValue, temp_weight.abs().max())))
-        self.wtArr = torch.nn.Parameter(quantization_tensor(self.wtArrConfig, temp_weight.t(), max(self.maxValue, temp_weight.abs().max())))
+        self.weight = torch.nn.Parameter(temp_weight.clone().detach().requires_grad_())
+        #self.delta_qweight_t_config = torch.nn.Parameter(self.delta_qweight_t_config)
+        temp_max = min(max(self.maxValueLeft, temp_weight.abs().max()), self.maxValueRight)
+        self.wArr = torch.nn.Parameter(quantization_tensor(self.wArrConfig, temp_weight, temp_max))
+        self.wtArr = torch.nn.Parameter(quantization_tensor(self.wtArrConfig, temp_weight.t(), temp_max))
 
 
 
-    def forward(self, qinput: Tensor, qinput_config):
-        qoutput, qoutput_config = PimLinearFunction.apply(qinput, qinput_config, self.inputArr, self.inputArrConfig, self.wArr, self.wArrConfig, self.wtArr, 
-            self.wtArrConfig, self.delta_qweight_t_config, self.inputBits, self.gradOutputBits, self.hasBias)
+    def forward(self, qinput: Tensor, qinput_config: Tensor, input: Tensor = None):
+        qoutput, qoutput_config, out= PimLinearFunction.apply(qinput, qinput_config, self.inputArr, self.inputArrConfig, self.wArr, self.wArrConfig, self.wtArr, 
+            self.wtArrConfig, self.delta_qweight_t_config, self.inputBits, self.gradOutputBits, self.hasBias, input, self.weight)
 
-        return qoutput, qoutput_config
+        return qoutput, qoutput_config, out
 
 
 class DeQuanFunction(Function):
@@ -148,25 +168,31 @@ class DeQuanLayer(torch.nn.Module):
 
 class ReluFunction(Function):
     @staticmethod
-    def forward(ctx, qinput: Tensor, qinput_config: Tensor):
+    def forward(ctx, qinput: Tensor, qinput_config: Tensor, origin_input: Tensor):
         neg_position = quantization_tensor_less([qinput, qinput_config], 0)
         ctx.neg_position = neg_position
         qinput[neg_position] = 0  # The zero in ieee754 is all zero as well.
-        return qinput, qinput_config
+        if origin_input != None:
+            origin_neg_position = origin_input<0
+            origin_input[origin_neg_position] = 0
+            ctx.origin_neg_position = origin_neg_position
+        return qinput, qinput_config, origin_input
 
     @staticmethod
-    def backward(ctx, qgrad_output: Tensor, qgrad_output_config: Tensor):
+    def backward(ctx, qgrad_output: Tensor, qgrad_output_config: Tensor, grad_output: Tensor):
         neg_position = ctx.neg_position
         qgrad_output[neg_position] = 0
-        return qgrad_output, qgrad_output_config
+        if grad_output != None:
+            grad_output[ctx.origin_neg_position] = 0
+        return qgrad_output, qgrad_output_config, grad_output
 
 
 class PimRelu(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
-    def forward(self, qinput: Tensor, qinput_config: Tensor):
-        return ReluFunction.apply(qinput, qinput_config)
+    def forward(self, qinput: Tensor, qinput_config: Tensor, origin_input: Tensor = None):
+        return ReluFunction.apply(qinput, qinput_config, origin_input)
 
 
 if __name__ == "__main__":

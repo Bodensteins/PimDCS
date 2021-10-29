@@ -42,35 +42,79 @@ class PimNet(nn.Module):
     def forward(self, x):
         
         x = torch.flatten(x, 1)
+        ox = x.clone()
+        #ox = None
         x_p = pl.creat_quantization_para(bit_width=16, tensor_type=pl.TensorType.Normal)
         x_p.requires_grad_()
         x = pl.quantization_tensor(x_p, x, x.abs().max())
 
-        x, x_p = self.fc1(x, x_p)
-        x, x_p = self.relu(x, x_p)
-        x, x_p = self.fc2(x, x_p)
-        x = self.dequan(x, x_p)
-        output = F.log_softmax(x, dim=1)
-        return output
+        x, x_p, ox = self.fc1(x, x_p, ox)
+        x, x_p, ox = self.relu(x, x_p, ox)
+        x, x_p, ox = self.fc2(x, x_p, ox)
+        #x = self.dequan(x, x_p)
+        #output = F.log_softmax(x, dim=1)
+        out = F.log_softmax(ox, dim = 1)
+        return out
 
-def train(args, model, device, train_loader, optimizer, epoch):
+def train(args, model, device, train_loader, optimizer, epoch, model2, optimizer2):
     model.train()
+    if model2 != None:
+        model2.train()
     for batch_idx, (data, target) in enumerate(train_loader):
         data, target = data.to(device), target.to(device)
+        output2 = None
+        if model2 != None:
+            data2 = data.clone().detach()
+            target2 = target.clone().detach()
+            optimizer2.zero_grad()
+            output2 = model2(data2)
+            loss2 = F.nll_loss(output2, target2)
+            loss2.backward()
+            optimizer2.step()
+
+
         optimizer.zero_grad()
         output = model(data)
+
         loss = F.nll_loss(output, target)
         loss.backward()
+
+        #tmp = torch.cat((model2.fc1.weight.data.t().clone(), model2.fc1.bias.data.clone().reshape(1, 128)), 0)
+       # print(tmp - model.fc1.weight)
         optimizer.step()
         if batch_idx % args.log_interval == 0:
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+            if model2 != None:
+                print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}, {:.6f}'.format(
+                epoch, batch_idx * len(data), len(train_loader.dataset),
+                       100. * batch_idx / len(train_loader), loss.item(), loss2.item()))
+            else:
+                print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, batch_idx * len(data), len(train_loader.dataset),
                        100. * batch_idx / len(train_loader), loss.item()))
             if args.dry_run:
                 break
 
 
-def test(model, device, test_loader):
+def test(model, device, test_loader, model2):
+    model.eval()
+    test_loss = 0
+    correct = 0
+    with torch.no_grad():
+        for data, target in test_loader:
+            data, target = data.to(device), target.to(device)
+            output = model(data)
+            test_loss += F.nll_loss(output, target, reduction='sum').item()  # sum up batch loss
+            pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
+            correct += pred.eq(target.view_as(pred)).sum().item()
+
+    test_loss /= len(test_loader.dataset)
+
+    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+        test_loss, correct, len(test_loader.dataset),
+        100. * correct / len(test_loader.dataset)))
+    if model2 == None:
+        return
+    model = model2
     model.eval()
     test_loss = 0
     correct = 0
@@ -88,7 +132,6 @@ def test(model, device, test_loader):
         test_loss, correct, len(test_loader.dataset),
         100. * correct / len(test_loader.dataset)))
 
-
 def main():
     # Training settings
     parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
@@ -98,22 +141,24 @@ def main():
                         help='input batch size for testing (default: 1000)')
     parser.add_argument('--epochs', type=int, default=1, metavar='N',
                         help='number of epochs to train (default: 14)')
-    parser.add_argument('--lr', type=float, default=1.0, metavar='LR',
+    parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
                         help='learning rate (default: 1.0)')
     parser.add_argument('--gamma', type=float, default=0.7, metavar='M',
                         help='Learning rate step gamma (default: 0.7)')
-    parser.add_argument('--no-cuda', action='store_true', default=False,
+    parser.add_argument('--no-cuda', action='store_true', default=True,
                         help='disables CUDA training')
     parser.add_argument('--dry-run', action='store_true', default=False,
                         help='quickly check a single pass')
-    parser.add_argument('--seed', type=int, default=1, metavar='S',
+    parser.add_argument('--seed', type=int, default=3, metavar='S',
                         help='random seed (default: 1)')
     parser.add_argument('--log-interval', type=int, default=100, metavar='N',
                         help='how many batches to wait before logging training status')
     parser.add_argument('--save-model', action='store_true', default=False,
                         help='For Saving the current Model')
-    parser.add_argument('--pim', action='store_true', default=False,
-                        help='For Saving the current Model')
+    parser.add_argument('--pim', action='store_true', default=True,
+                        help='For use pim')
+    parser.add_argument('--both', action='store_true', default=True,
+                        help='Both two model runing')
     args = parser.parse_args()
     use_cuda = not args.no_cuda and torch.cuda.is_available()
 
@@ -142,17 +187,32 @@ def main():
                               transform=transform)
     train_loader = torch.utils.data.DataLoader(dataset1,**train_kwargs)
     test_loader = torch.utils.data.DataLoader(dataset2, **test_kwargs)
+    model2, optimizer2 = None, None
     if args.pim:
         model = PimNet(args.batch_size).to(device)
-        optimizer = po.PimSGD(model, lr=args.lr, momentum=0.9)
+        if args.both:
+            model2 = Net(args.batch_size).to(device)
+            # model2.fc1.weight.data = model.fc1.weight[0:-1].t().clone().detach()
+            # model2.fc1.bias.data = model.fc1.weight[-1].clone().detach()
+            # model2.fc2.weight.data = model.fc2.weight[0:-1].t().clone().detach()
+            # model2.fc2.bias.data = model.fc2.weight[-1].clone().detach()
+            #model2.fc1.weight = torch.nn.Parameter(model.fc1.weight[0:-1].t().clone().detach())
+            #model2.fc1.bias = torch.nn.Parameter(model.fc1.weight[-1].clone().detach())
+            #model2.fc2.weight= torch.nn.Parameter(model.fc2.weight[0:-1].t().clone().detach())
+            #model2.fc2.bias = torch.nn.Parameter(model.fc2.weight[-1].clone().detach())
+            model.fc1.weight.data = torch.cat((model2.fc1.weight.t(), model2.fc1.bias.reshape(1, 128)), 0).clone().detach()
+            model.fc2.weight.data = torch.cat((model2.fc2.weight.t(), model2.fc2.bias.reshape(1, 10)), 0).clone().detach()
+            optimizer2 = optim.SGD(model.parameters(), lr = args.lr)
+        optimizer = po.PimSGD(model, lr=args.lr, momentum=0)
     else:
         model = Net(args.batch_size).to(device)
-        optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
+        #optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
+        optimizer = optim.SGD(model.parameters(), lr = args.lr)
 
     # scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
     for epoch in range(1, args.epochs + 1):
-        train(args, model, device, train_loader, optimizer, epoch)
-        test(model, device, test_loader)
+        train(args, model, device, train_loader, optimizer, epoch, model2, optimizer2)
+        test(model, device, test_loader, model2)
     
     if args.save_model:
         torch.save(model.state_dict(), "mnist_cnn.pt")

@@ -12,6 +12,9 @@ from torch.optim.lr_scheduler import StepLR
 from quantization import int_to_float
 import pim_optimizer as po
 
+from quantization import *
+
+
 class Net(nn.Module):
     def __init__(self, batch_size):
         super(Net, self).__init__()
@@ -19,15 +22,14 @@ class Net(nn.Module):
         self.fc1 = nn.Linear(784, 128)
         self.fc2 = nn.Linear(128, 10)
 
-
     def forward(self, x):
-       
         x = torch.flatten(x, 1)
         x = self.fc1(x)
         x = F.relu(x)
         x = self.fc2(x)
         output = F.log_softmax(x, dim=1)
         return output
+
 
 class PimNet(nn.Module):
     def __init__(self, batch_size):
@@ -38,9 +40,7 @@ class PimNet(nn.Module):
         self.relu = pl.PimRelu()
         self.dequan = pl.DeQuanLayer()
 
-
     def forward(self, x):
-        
         x = torch.flatten(x, 1)
         x_p = pl.creat_quantization_para(bit_width=16, tensor_type=pl.TensorType.Normal)
         x_p.requires_grad_()
@@ -52,6 +52,7 @@ class PimNet(nn.Module):
         x = self.dequan(x, x_p)
         output = F.log_softmax(x, dim=1)
         return output
+
 
 def train(args, model, device, train_loader, optimizer, epoch):
     model.train()
@@ -65,7 +66,7 @@ def train(args, model, device, train_loader, optimizer, epoch):
         if batch_idx % args.log_interval == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, batch_idx * len(data), len(train_loader.dataset),
-                       100. * batch_idx / len(train_loader), loss.item()))
+                100. * batch_idx / len(train_loader), loss.item()))
             if args.dry_run:
                 break
 
@@ -96,13 +97,13 @@ def main():
                         help='input batch size for training (default: 64)')
     parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
                         help='input batch size for testing (default: 1000)')
-    parser.add_argument('--epochs', type=int, default=1, metavar='N',
+    parser.add_argument('--epochs', type=int, default=10, metavar='N',
                         help='number of epochs to train (default: 14)')
-    parser.add_argument('--lr', type=float, default=1.0, metavar='LR',
+    parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
                         help='learning rate (default: 1.0)')
     parser.add_argument('--gamma', type=float, default=0.7, metavar='M',
                         help='Learning rate step gamma (default: 0.7)')
-    parser.add_argument('--no-cuda', action='store_true', default=False,
+    parser.add_argument('--no-cuda', action='store_true', default=True,
                         help='disables CUDA training')
     parser.add_argument('--dry-run', action='store_true', default=False,
                         help='quickly check a single pass')
@@ -112,12 +113,10 @@ def main():
                         help='how many batches to wait before logging training status')
     parser.add_argument('--save-model', action='store_true', default=False,
                         help='For Saving the current Model')
-    parser.add_argument('--pim', action='store_true', default=False,
+    parser.add_argument('--pim', action='store_true', default=True,
                         help='For Saving the current Model')
     args = parser.parse_args()
     use_cuda = not args.no_cuda and torch.cuda.is_available()
-
-    
 
     torch.manual_seed(args.seed)
 
@@ -144,7 +143,7 @@ def main():
     test_loader = torch.utils.data.DataLoader(dataset2, **test_kwargs)
     if args.pim:
         model = PimNet(args.batch_size).to(device)
-        optimizer = po.PimSGD(model, lr=args.lr, momentum=0.9)
+        optimizer = po.PimSGD(model, lr=args.lr, momentum=0.1)
     else:
         model = Net(args.batch_size).to(device)
         optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
@@ -156,7 +155,6 @@ def main():
     
     if args.save_model:
         torch.save(model.state_dict(), "mnist_cnn.pt")
-
 
 
 if __name__ == '__main__':

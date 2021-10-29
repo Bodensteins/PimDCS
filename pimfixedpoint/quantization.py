@@ -200,7 +200,8 @@ def remove_additional_col(float_tensor: Tensor):
     return float_tensor
 
 
-def write_array(array_tensor_list: list, data_tensor_list: list) -> Tensor:
+# if array tensor is None, alloc memory for it, else modify it in place
+def write_array_(array_tensor_list: list, data_tensor_list: list) -> Tensor:
     array_int_tensor, array_quantization_para = parse_float_tensor_list(array_tensor_list)
     _, array_bit_width, array_tensor_type = parse_quantization_para(array_quantization_para)
     data_int_tensor, data_quantization_para = parse_float_tensor_list(data_tensor_list)
@@ -218,10 +219,15 @@ def write_array(array_tensor_list: list, data_tensor_list: list) -> Tensor:
 
         if array_bit_width >= data_bit_width:
             array_quantization_para[0] = data_s
-            array_int_tensor[:, 0:-1] = data_int_tensor.add(neg_levels)
+            # array_int_tensor[:, 0:-1].set_(data_int_tensor.add(neg_levels))
+            # torch.set_ has bugs, last statement will not change array
+            array_int_tensor[:, 0:-1].zero_().add_(data_int_tensor.add(neg_levels))
         else:
             array_quantization_para[0] = data_s + data_bit_width - array_bit_width
-            array_int_tensor[:, 0:-1] = data_int_tensor.__rshift__(data_bit_width - array_bit_width).add(neg_levels)
+            array_int_tensor[:, 0:-1].\
+                zero_().add_(data_int_tensor.__rshift__(data_bit_width - array_bit_width).add(neg_levels))
+            # array_int_tensor[:, 0:-1].
+            # set_(data_int_tensor.__rshift__(data_bit_width - array_bit_width).add(neg_levels))
 
     else:
         raise Exception("We don't implement this tensor_type!", array_tensor_type)
@@ -250,7 +256,8 @@ def set_appropriate_bit_width_(float_tensor_list: list):
     quantization_para[1] = max(bit_width, 2)  # at least 2 bits
 
 
-def normal_matmul_array(normal_tensor_list: list, array_tensor_list: list, matmul_result_para: Tensor = None) -> [Tensor, Tensor]:
+def normal_matmul_array(normal_tensor_list: list, array_tensor_list: list, matmul_result_para: Tensor = None)\
+        -> [Tensor, Tensor]:
     normal_int_tensor, normal_quantization_para = parse_float_tensor_list(normal_tensor_list)
     normal_s, normal_bit_width, normal_tensor_type = parse_quantization_para(normal_quantization_para)
     array_int_tensor, array_quantization_para = parse_float_tensor_list(array_tensor_list)

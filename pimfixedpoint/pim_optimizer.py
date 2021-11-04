@@ -3,7 +3,7 @@ import torch
 from pimlinear import PimLinear
 from collections import defaultdict
 from quantization import add_alpha_tensor_, mul_num, de_quantization, parse_quantization_para, float_to_int, \
-    remove_additional_col, add_additional_col_of_zero
+    remove_additional_col, add_additional_col_of_zero, write_array
 from torch.optim.optimizer import Optimizer
 from torch.optim.sgd import SGD
 

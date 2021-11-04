@@ -9,7 +9,7 @@ import pimlinear as pl
 from torchvision import datasets, transforms
 from torch.optim.lr_scheduler import StepLR
 
-from quantization import int_to_float
+from quantization import de_quantization, int_to_float
 import pim_optimizer as po
 
 class Net(nn.Module):
@@ -22,12 +22,12 @@ class Net(nn.Module):
 
     def forward(self, x):
        
-        x = torch.flatten(x, 1)
-        x = self.fc1(x)
-        x = F.relu(x)
-        x = self.fc2(x)
-        output = F.log_softmax(x, dim=1)
-        return output
+        x1 = torch.flatten(x, 1)
+        x2 = self.fc1(x1)
+        x3 = F.relu(x2)
+        x4 = self.fc2(x3)
+        output = F.log_softmax(x4, dim=1)
+        return output, x2, x3, x4
 
 class PimNet(nn.Module):
     def __init__(self, batch_size):
@@ -42,7 +42,7 @@ class PimNet(nn.Module):
     def forward(self, x):
         
         x = torch.flatten(x, 1)
-        ox = x.clone()
+        ox = x.clone().detach().requires_grad_()
         #ox = None
         x_p = pl.creat_quantization_para(bit_width=16, tensor_type=pl.TensorType.Normal)
         x_p.requires_grad_()
@@ -51,10 +51,11 @@ class PimNet(nn.Module):
         x, x_p, ox = self.fc1(x, x_p, ox)
         x, x_p, ox = self.relu(x, x_p, ox)
         x, x_p, ox = self.fc2(x, x_p, ox)
-        #x = self.dequan(x, x_p)
-        #output = F.log_softmax(x, dim=1)
+        x = self.dequan(x, x_p)
+        output = F.log_softmax(x, dim=1)
         out = F.log_softmax(ox, dim = 1)
-        return out
+        print((output.detach()-out.detach()).abs().max())
+        return (output+out)/2
 
 def train(args, model, device, train_loader, optimizer, epoch, model2, optimizer2):
     model.train()
@@ -64,12 +65,14 @@ def train(args, model, device, train_loader, optimizer, epoch, model2, optimizer
         data, target = data.to(device), target.to(device)
         output2 = None
         if model2 != None:
-            data2 = data.clone().detach()
+            data2 = data.clone().detach().requires_grad_()
             target2 = target.clone().detach()
             optimizer2.zero_grad()
-            output2 = model2(data2)
+            output2, x2, x3, x4 = model2(data2)
+            output2.requires_grad_()
             loss2 = F.nll_loss(output2, target2)
             loss2.backward()
+            #print(model2.fc2.weight.grad.t())
             optimizer2.step()
 
 
@@ -78,10 +81,20 @@ def train(args, model, device, train_loader, optimizer, epoch, model2, optimizer
 
         loss = F.nll_loss(output, target)
         loss.backward()
-
-        #tmp = torch.cat((model2.fc1.weight.data.t().clone(), model2.fc1.bias.data.clone().reshape(1, 128)), 0)
-       # print(tmp - model.fc1.weight)
+        #print(model.fc2.weight.grad)
         optimizer.step()
+
+        # t2diff = model.fc2.weight.data.detach()- \
+        #     de_quantization([model.fc2.wArr.detach(), model.fc2.wArrConfig.detach()])
+
+        # t1diff = model.fc1.weight.data.detach()- \
+        #     de_quantization([model.fc1.wArr.detach(), model.fc1.wArrConfig.detach()]) 
+        # print(t2diff.abs().sum()/t2diff.size(0)/t2diff.size(1))
+        # print(t1diff.abs().sum()/t1diff.size(0)/t1diff.size(1))
+
+
+        # tmp = torch.cat((model2.fc1.weight.data.t().clone(), model2.fc1.bias.data.clone().reshape(1, 128)), 0)
+        # print(tmp - model.fc1.weight)
         if batch_idx % args.log_interval == 0:
             if model2 != None:
                 print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}, {:.6f}'.format(
@@ -157,7 +170,7 @@ def main():
                         help='For Saving the current Model')
     parser.add_argument('--pim', action='store_true', default=True,
                         help='For use pim')
-    parser.add_argument('--both', action='store_true', default=True,
+    parser.add_argument('--both', action='store_true', default=False,
                         help='Both two model runing')
     args = parser.parse_args()
     use_cuda = not args.no_cuda and torch.cuda.is_available()
@@ -192,17 +205,11 @@ def main():
         model = PimNet(args.batch_size).to(device)
         if args.both:
             model2 = Net(args.batch_size).to(device)
-            # model2.fc1.weight.data = model.fc1.weight[0:-1].t().clone().detach()
-            # model2.fc1.bias.data = model.fc1.weight[-1].clone().detach()
-            # model2.fc2.weight.data = model.fc2.weight[0:-1].t().clone().detach()
-            # model2.fc2.bias.data = model.fc2.weight[-1].clone().detach()
-            #model2.fc1.weight = torch.nn.Parameter(model.fc1.weight[0:-1].t().clone().detach())
-            #model2.fc1.bias = torch.nn.Parameter(model.fc1.weight[-1].clone().detach())
-            #model2.fc2.weight= torch.nn.Parameter(model.fc2.weight[0:-1].t().clone().detach())
-            #model2.fc2.bias = torch.nn.Parameter(model.fc2.weight[-1].clone().detach())
-            model.fc1.weight.data = torch.cat((model2.fc1.weight.t(), model2.fc1.bias.reshape(1, 128)), 0).clone().detach()
-            model.fc2.weight.data = torch.cat((model2.fc2.weight.t(), model2.fc2.bias.reshape(1, 10)), 0).clone().detach()
-            optimizer2 = optim.SGD(model.parameters(), lr = args.lr)
+            model2.fc1.weight.data = model.fc1.weight[0:-1].t().clone().detach()
+            model2.fc1.bias.data = model.fc1.weight[-1].clone().detach()
+            model2.fc2.weight.data = model.fc2.weight[0:-1].t().clone().detach()
+            model2.fc2.bias.data = model.fc2.weight[-1].clone().detach()
+            optimizer2 = optim.SGD(model2.parameters(), lr = args.lr)
         optimizer = po.PimSGD(model, lr=args.lr, momentum=0)
     else:
         model = Net(args.batch_size).to(device)

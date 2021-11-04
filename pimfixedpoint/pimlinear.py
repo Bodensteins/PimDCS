@@ -72,7 +72,7 @@ class PimLinearFunction(Function):
         d_w = None
         if ctx.has_origin_input:
             grad_input = torch.matmul(grad_output, ctx.weight.t())
-            d_w = torch.matmul(grad_output.t(), grad_input).t()
+            d_w = torch.matmul(grad_output.t(), ctx.input).t()
         
         if hasBias:
             qgrad_input = remove_additional_col(qgrad_input)

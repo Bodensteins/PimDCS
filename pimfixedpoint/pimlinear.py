@@ -137,7 +137,8 @@ class DeQuanFunction(Function):
 
     @staticmethod
     def backward(ctx, grad_output: Tensor):
-        qgrad_output_config = creat_quantization_para(bit_width=ctx.bit, tensor_type=TensorType.Normal)
+        qgrad_output_config = creat_quantization_para(device=grad_output.device,
+                                                      bit_width=ctx.bit, tensor_type=TensorType.Normal)
 
         qgrad_output = quantization_tensor(qgrad_output_config, grad_output, max(grad_output.abs().max(), 0.0001))
 

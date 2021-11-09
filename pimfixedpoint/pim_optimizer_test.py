@@ -11,8 +11,8 @@ from torch.optim.sgd import SGD
 class PimNet(nn.Module):
   def __init__(self):
     super(PimNet, self).__init__()
-    self.fc1 = PimLinear(10, 10)
-    self.fc2 = PimLinear(10, 10)
+    self.fc1 = PimLinear(10, 10, 8, 2, 8)
+    self.fc2 = PimLinear(10, 10, 8, 2, 8)
     self.relu = PimRelu()
     self.dequant = DeQuanLayer()
 

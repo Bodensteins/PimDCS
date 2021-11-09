@@ -118,6 +118,7 @@ class PimSGD:
                     x = quantization.quantization_tensor(temp, weight.t())
                     write_array_([wtArr, wtArr_cfg], [x, temp])
                     wtArr.grad.zero_()
-                    weight.grad.zero_()
+                    if weight.grad != None:
+                        weight.grad.zero_()
 
         return loss

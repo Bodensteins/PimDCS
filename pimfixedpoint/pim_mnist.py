@@ -37,15 +37,16 @@ class PimNet(nn.Module):
     def __init__(self, batch_size, device: torch.device = torch.device("cpu")):
         super().__init__()
         self.device = device
-        self.fc1 = pl.PimLinear(784, 128, 10, 8, 16, device=device)
-        self.fc2 = pl.PimLinear(128, 10, 10, 8, 16, device=device)
+        self.fc1 = pl.PimLinear(784, 128, 12, 14, 16, device=device)
+        self.fc2 = pl.PimLinear(128, 10, 12, 14, 16, device=device)
         self.relu = pl.PimRelu()
         self.dequan = pl.DeQuanLayer()
 
     def forward(self, x):
         x = torch.flatten(x, 1)
 
-        ox = x.clone().detach().requires_grad_()
+        # ox = x.clone().detach().requires_grad_()
+        ox = None
         x_p = pl.creat_quantization_para(bit_width=16, tensor_type=pl.TensorType.Normal, device=self.device)
         x_p.requires_grad_()
         # print(x.abs().max())
@@ -60,9 +61,9 @@ class PimNet(nn.Module):
         # print((de_quantization([x, x_p]).detach()-ox.detach()).abs().max())
         x = self.dequan(x, x_p)
         output = F.log_softmax(x, dim=1)
-        out = F.log_softmax(ox, dim = 1)
+        #out = F.log_softmax(ox, dim = 1)
         # print((output.detach()-out.detach()).abs().max())
-        return (output+out)/2
+        return output
 
 def train(args, model, device, train_loader, optimizer, epoch, model2, optimizer2):
     model.train()
@@ -215,7 +216,7 @@ def main():
             model2.fc2.weight.data = model.fc2.weight[0:-1].t().clone().detach()
             model2.fc2.bias.data = model.fc2.weight[-1].clone().detach()
             optimizer2 = optim.SGD(model2.parameters(), lr = args.lr)
-        optimizer = po.PimSGD(model, lr=args.lr, momentum=0.9, run_mode=po.OptimMode.float_weight)
+        optimizer = po.PimSGD(model, lr=args.lr, momentum=0.9, run_mode=po.OptimMode.full_fix)
     else:
         model = Net(args.batch_size).to(device)
         #optimizer = optim.Adadelta(model.parameters(), lr=args.lr)

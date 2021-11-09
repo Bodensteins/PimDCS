@@ -115,7 +115,7 @@ class PimSGD:
                     temp = quantization.creat_quantization_para(bit_width=16, tensor_type=quantization.TensorType.Normal)
                     x = quantization.quantization_tensor(temp, weight)
                     write_array_([wArr, wArr_cfg], [x, temp])
-                    x = quantization.quantization_tensor(temp, weight.t(), 1.0)
+                    x = quantization.quantization_tensor(temp, weight.t())
                     write_array_([wtArr, wtArr_cfg], [x, temp])
                     wtArr.grad.zero_()
                     weight.grad.zero_()

@@ -32,17 +32,18 @@ class Net(nn.Module):
 
 
 class PimNet(nn.Module):
-    def __init__(self, batch_size):
+    def __init__(self, batch_size, device: torch.device = torch.device("cpu")):
         super().__init__()
-        
-        self.fc1 = pl.PimLinear(784, 128)
-        self.fc2 = pl.PimLinear(128, 10)
+
+        self.device = device
+        self.fc1 = pl.PimLinear(784, 128, device=device)
+        self.fc2 = pl.PimLinear(128, 10, device=device)
         self.relu = pl.PimRelu()
         self.dequan = pl.DeQuanLayer()
 
     def forward(self, x):
         x = torch.flatten(x, 1)
-        x_p = pl.creat_quantization_para(bit_width=16, tensor_type=pl.TensorType.Normal)
+        x_p = pl.creat_quantization_para(bit_width=16, tensor_type=pl.TensorType.Normal, device=self.device)
         x_p.requires_grad_()
         x = pl.quantization_tensor(x_p, x, x.abs().max())
 
@@ -142,7 +143,7 @@ def main():
     train_loader = torch.utils.data.DataLoader(dataset1,**train_kwargs)
     test_loader = torch.utils.data.DataLoader(dataset2, **test_kwargs)
     if args.pim:
-        model = PimNet(args.batch_size).to(device)
+        model = PimNet(args.batch_size, device=device).to(device)
         optimizer = po.PimSGD(model, lr=args.lr, momentum=0.1)
     else:
         model = Net(args.batch_size).to(device)

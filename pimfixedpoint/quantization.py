@@ -99,7 +99,7 @@ def parse_float_tensor_list(float_tensor_list: list):
 
 
 def creat_quantization_para(s: int = None, bit_width: int = None, tensor_type: TensorType = None,
-                            device: torch.device = torch.device("cuda")):
+                            device: torch.device = torch.device("cpu")):
     # todo: add device info, need to modify
     quantization_para = torch.empty(3, dtype=torch_int, device=device)
     if s is not None:

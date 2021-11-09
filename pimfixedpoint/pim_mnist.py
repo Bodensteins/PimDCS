@@ -12,13 +12,15 @@ from torch.optim.lr_scheduler import StepLR
 from quantization import de_quantization, int_to_float
 import pim_optimizer as po
 
+from quantization import *
+
+
 class Net(nn.Module):
     def __init__(self, batch_size):
         super(Net, self).__init__()
         
         self.fc1 = nn.Linear(784, 128)
         self.fc2 = nn.Linear(128, 10)
-
 
     def forward(self, x):
        
@@ -29,6 +31,7 @@ class Net(nn.Module):
         output = F.log_softmax(x4, dim=1)
         return output, x2, x3, x4
 
+
 class PimNet(nn.Module):
     def __init__(self, batch_size):
         super().__init__()
@@ -38,24 +41,22 @@ class PimNet(nn.Module):
         self.relu = pl.PimRelu()
         self.dequan = pl.DeQuanLayer()
 
-
     def forward(self, x):
-        
         x = torch.flatten(x, 1)
         ox = x.clone().detach().requires_grad_()
         #ox = None
         x_p = pl.creat_quantization_para(bit_width=16, tensor_type=pl.TensorType.Normal)
         x_p.requires_grad_()
-        x = pl.quantization_tensor(x_p, x, x.abs().max())
+        x = pl.quantization_tensor(x_p, x)
 
         x, x_p, ox = self.fc1(x, x_p, ox)
         x, x_p, ox = self.relu(x, x_p, ox)
         x, x_p, ox = self.fc2(x, x_p, ox)
         x = self.dequan(x, x_p)
         output = F.log_softmax(x, dim=1)
-        out = F.log_softmax(ox, dim = 1)
-        print((output.detach()-out.detach()).abs().max())
-        return (output+out)/2
+        # out = F.log_softmax(ox, dim = 1)
+        # print((output.detach()-out.detach()).abs().max())
+        return output
 
 def train(args, model, device, train_loader, optimizer, epoch, model2, optimizer2):
     model.train()
@@ -89,8 +90,8 @@ def train(args, model, device, train_loader, optimizer, epoch, model2, optimizer
 
         # t1diff = model.fc1.weight.data.detach()- \
         #     de_quantization([model.fc1.wArr.detach(), model.fc1.wArrConfig.detach()]) 
-        # print(t2diff.abs().sum()/t2diff.size(0)/t2diff.size(1))
-        # print(t1diff.abs().sum()/t1diff.size(0)/t1diff.size(1))
+        # print(t2diff.abs().max())#/t2diff.size(0)/t2diff.size(1))
+        # print(t1diff.abs().max())#/t1diff.size(0)/t1diff.size(1))
 
 
         # tmp = torch.cat((model2.fc1.weight.data.t().clone(), model2.fc1.bias.data.clone().reshape(1, 128)), 0)
@@ -103,7 +104,7 @@ def train(args, model, device, train_loader, optimizer, epoch, model2, optimizer
             else:
                 print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, batch_idx * len(data), len(train_loader.dataset),
-                       100. * batch_idx / len(train_loader), loss.item()))
+                100. * batch_idx / len(train_loader), loss.item()))
             if args.dry_run:
                 break
 
@@ -152,7 +153,7 @@ def main():
                         help='input batch size for training (default: 64)')
     parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
                         help='input batch size for testing (default: 1000)')
-    parser.add_argument('--epochs', type=int, default=1, metavar='N',
+    parser.add_argument('--epochs', type=int, default=10, metavar='N',
                         help='number of epochs to train (default: 14)')
     parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
                         help='learning rate (default: 1.0)')
@@ -174,8 +175,6 @@ def main():
                         help='Both two model runing')
     args = parser.parse_args()
     use_cuda = not args.no_cuda and torch.cuda.is_available()
-
-    
 
     torch.manual_seed(args.seed)
 
@@ -210,7 +209,7 @@ def main():
             model2.fc2.weight.data = model.fc2.weight[0:-1].t().clone().detach()
             model2.fc2.bias.data = model.fc2.weight[-1].clone().detach()
             optimizer2 = optim.SGD(model2.parameters(), lr = args.lr)
-        optimizer = po.PimSGD(model, lr=args.lr, momentum=0)
+        optimizer = po.PimSGD(model, lr=args.lr, momentum=0.9, run_mode=po.OptimMode.float_weight)
     else:
         model = Net(args.batch_size).to(device)
         #optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
@@ -223,7 +222,6 @@ def main():
     
     if args.save_model:
         torch.save(model.state_dict(), "mnist_cnn.pt")
-
 
 
 if __name__ == '__main__':

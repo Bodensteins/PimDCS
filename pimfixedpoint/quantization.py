@@ -101,10 +101,37 @@ def creat_quantization_para(s: int = None, bit_width: int = None, tensor_type: T
     return int_to_float(quantization_para)
 
 
-# return int_to_float(quantization_tensor), quantization_para can be modified in this method, don't need to return
-def quantization_tensor(quantization_para: Tensor, tensor: Tensor, max_abs_value: float) -> torch.Tensor:
+"""
+float-int type: int type, but shown as float
+int-float type: float type, but shown as int
+
+Parameters:
+    quantization_para: parameters for quantization, which is a float-int type tensor. 
+    This tensor has 3 values. [0]: s [1]: bit_width [2]: tensor_type
+
+    tensor: Float type tensor, that is the real number for you to quantize
+
+    max_abs_value: float, the max abs value used for quantization
+
+Returns:
+    The float-int type tensor. the quantization of input tensor.
+"""
+def quantization_tensor(quantization_para: Tensor, tensor: Tensor, user_set_max_left: float = None, user_set_max_right: float = None) -> torch.Tensor:
     quantization_para = float_to_int(quantization_para)
     _, bit_width, tensor_type = parse_quantization_para(quantization_para)  # s is unknown
+
+    max_abs_value = tensor.abs().max().item()
+    ori_max = max_abs_value
+    if user_set_max_right != None:
+        max_abs_value = min(max_abs_value, user_set_max_right)
+    if user_set_max_left != None:
+        max_abs_value = max(max_abs_value, user_set_max_left)
+
+    #special deal, if max_abs_value is not the maximum of the tensor.
+    if ori_max>max_abs_value:
+        tensor = tensor.detach().clone()
+        tensor[tensor>max_abs_value] = max_abs_value
+        tensor[tensor<-max_abs_value] = -max_abs_value
 
     if tensor_type == TensorType.Normal:
         s = get_fixed_point_position(max_abs_value, bit_width)
@@ -134,12 +161,12 @@ def de_quantization(float_tensor_list: list) -> Tensor:
     if tensor_type == TensorType.Normal:
         resolution = pow(2, s)
 
-        return int_tensor.mul(resolution)
+        return int_tensor.to(torch_float).mul(resolution)
     elif tensor_type == TensorType.Ref:
         resolution = pow(2, s)
         neg_levels = pow_2_n(bit_width - 1)
 
-        return int_tensor[:, 0:-1].sub(neg_levels).mul(resolution)
+        return int_tensor[:, 0:-1].sub(neg_levels).to(torch_float).mul(resolution)
     elif tensor_type == TensorType.PN:
         raise Exception("We don't implement this tensor_type!", tensor_type)
     else:
@@ -200,7 +227,8 @@ def remove_additional_col(float_tensor: Tensor):
     return float_tensor
 
 
-def write_array(array_tensor_list: list, data_tensor_list: list) -> Tensor:
+# if array tensor is None, alloc memory for it, else modify it in place
+def write_array_(array_tensor_list: list, data_tensor_list: list) -> Tensor:
     array_int_tensor, array_quantization_para = parse_float_tensor_list(array_tensor_list)
     _, array_bit_width, array_tensor_type = parse_quantization_para(array_quantization_para)
     data_int_tensor, data_quantization_para = parse_float_tensor_list(data_tensor_list)
@@ -218,10 +246,15 @@ def write_array(array_tensor_list: list, data_tensor_list: list) -> Tensor:
 
         if array_bit_width >= data_bit_width:
             array_quantization_para[0] = data_s
-            array_int_tensor[:, 0:-1] = data_int_tensor.add(neg_levels)
+            # array_int_tensor[:, 0:-1].set_(data_int_tensor.add(neg_levels))
+            # torch.set_ has bugs, last statement will not change array
+            array_int_tensor[:, 0:-1].zero_().add_(data_int_tensor.add(neg_levels))
         else:
             array_quantization_para[0] = data_s + data_bit_width - array_bit_width
-            array_int_tensor[:, 0:-1] = data_int_tensor.__rshift__(data_bit_width - array_bit_width).add(neg_levels)
+            array_int_tensor[:, 0:-1].\
+                zero_().add_(data_int_tensor.__rshift__(data_bit_width - array_bit_width).add(neg_levels))
+            # array_int_tensor[:, 0:-1].
+            # set_(data_int_tensor.__rshift__(data_bit_width - array_bit_width).add(neg_levels))
 
     else:
         raise Exception("We don't implement this tensor_type!", array_tensor_type)
@@ -250,7 +283,8 @@ def set_appropriate_bit_width_(float_tensor_list: list):
     quantization_para[1] = max(bit_width, 2)  # at least 2 bits
 
 
-def normal_matmul_array(normal_tensor_list: list, array_tensor_list: list, matmul_result_para: Tensor = None) -> [Tensor, Tensor]:
+def normal_matmul_array(normal_tensor_list: list, array_tensor_list: list, matmul_result_para: Tensor = None)\
+        -> [Tensor, Tensor]:
     normal_int_tensor, normal_quantization_para = parse_float_tensor_list(normal_tensor_list)
     normal_s, normal_bit_width, normal_tensor_type = parse_quantization_para(normal_quantization_para)
     array_int_tensor, array_quantization_para = parse_float_tensor_list(array_tensor_list)

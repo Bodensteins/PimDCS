@@ -1,16 +1,22 @@
 # -*- coding: utf-8 -*-
 import torch
+import quantization
 from pimlinear import PimLinear
 from collections import defaultdict
 from quantization import add_alpha_tensor_, mul_num, de_quantization, parse_quantization_para, float_to_int, \
-    remove_additional_col, add_additional_col_of_zero, write_array
+    remove_additional_col, add_additional_col_of_zero, write_array_
 from torch.optim.optimizer import Optimizer
 from torch.optim.sgd import SGD
+from enum import Enum
 
+
+class OptimMode(Enum):
+    full_fix = 0
+    float_weight = 1
 
 class PimSGD:
     def __init__(self, network, lr=0.1, momentum=0, dampening=0,
-                 weight_decay=0, nesterov=False):
+                 weight_decay=0, nesterov=False, run_mode = OptimMode.full_fix):
         if lr < 0.0:
             raise ValueError("Invalid learning rate: {}".format(lr))
         if momentum < 0.0:
@@ -21,7 +27,7 @@ class PimSGD:
         if nesterov and (momentum <= 0 or dampening != 0):
             raise ValueError(
                 "Nesterov momentum requires a momentum and zero dampening")
-
+        self.runMode = run_mode
         self.state = defaultdict(dict)
         self.defaults = dict(lr=lr, momentum=momentum, dampening=dampening,
                              weight_decay=weight_decay, nesterov=nesterov)
@@ -96,19 +102,22 @@ class PimSGD:
                         d_wt = buf
                     self.state[wtArr]['momentum_buffer'] = buf
                 
-                
-                add_alpha_tensor_([wtArr, wtArr_cfg], [
-                                      d_wt, d_wt_cfg], -lr)
-                d_w = add_additional_col_of_zero(
-                        [remove_additional_col(d_wt).t(), d_wt_cfg])
-                add_alpha_tensor_([wArr, wArr_cfg], [d_w, d_wt_cfg], -lr)
-                # print(de_quantization([wtArr, wtArr_cfg]))
-                #print(de_quantization([wArr, wArr_cfg]))
-            if weight.grad != None:
-                weight.add_(weight.grad*(-lr))
-                weight.grad = None
-                #print(weight.grad)
-                #print(weight)
-
+                if self.runMode == OptimMode.full_fix:
+                    add_alpha_tensor_([wtArr, wtArr_cfg], [
+                                        d_wt, d_wt_cfg], -lr)
+                    d_w = add_additional_col_of_zero(
+                            [remove_additional_col(d_wt).t(), d_wt_cfg])
+                    
+                    add_alpha_tensor_([wArr, wArr_cfg], [d_w, d_wt_cfg], -lr)
+                    wtArr.grad.zero_()
+                elif self.runMode == OptimMode.float_weight:
+                    weight.add_(-lr*de_quantization([remove_additional_col(d_wt).t(), d_wt_cfg]))
+                    temp = quantization.creat_quantization_para(bit_width=16, tensor_type=quantization.TensorType.Normal)
+                    x = quantization.quantization_tensor(temp, weight)
+                    write_array_([wArr, wArr_cfg], [x, temp])
+                    x = quantization.quantization_tensor(temp, weight.t(), 1.0)
+                    write_array_([wtArr, wtArr_cfg], [x, temp])
+                    wtArr.grad.zero_()
+                    weight.grad.zero_()
 
         return loss

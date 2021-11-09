@@ -3,9 +3,12 @@ import torch
 import math
 from torch.autograd import Function, grad
 from torch import Tensor
-from quantization import add_additional_col_of_one, change_bit_width_, parse_float_tensor_list, write_array, normal_matmul_array, \
+from quantization import add_additional_col_of_one, change_bit_width_, parse_float_tensor_list, write_array_, normal_matmul_array, \
     remove_additional_col, normal_t_matmul_array, TensorType, creat_quantization_para, quantization_tensor, \
     parse_quantization_para, de_quantization, quantization_tensor_less, float_to_int, add_additional_col_of_zero
+
+
+# torch.set_printoptions(profile="full")
 
 class PimLinearFunction(Function):
     @staticmethod
@@ -40,7 +43,12 @@ class PimLinearFunction(Function):
             ctx.has_origin_input = True 
 
         change_bit_width_([qinput, qinput_config], inputBits)
-        qinputArr = write_array([qinputArr, qinputArr_config], [qinput, qinput_config])
+
+        if qinputArr is None:
+            qinputArr = write_array_([qinputArr, qinputArr_config], [qinput, qinput_config])
+        else:
+            write_array_([qinputArr, qinputArr_config], [qinput, qinput_config])
+
         qoutput, qoutput_config = normal_matmul_array([qinput, qinput_config], [qweight, qweight_config])
 
         ctx.save_for_backward(qinputArr, qweight_t)
@@ -84,6 +92,7 @@ class PimLinearFunction(Function):
 
         delta_qweight_t = add_additional_col_of_zero([delta_qweight_t, delta_qweight_t_config])
 
+        # print(f"delta_weight_t = {delta_qweight_t.data_ptr()}")
         return qgrad_input, qgrad_input_config, None, None, None, None, delta_qweight_t, None, None, None, None, None, grad_input, d_w 
 
 
@@ -124,9 +133,8 @@ class PimLinear(torch.nn.Module):
 
         self.weight = torch.nn.Parameter(temp_weight.clone().detach().requires_grad_())
         #self.delta_qweight_t_config = torch.nn.Parameter(self.delta_qweight_t_config)
-        temp_max = min(max(self.maxValueLeft, temp_weight.abs().max()), self.maxValueRight)
-        self.wArr = torch.nn.Parameter(quantization_tensor(self.wArrConfig, temp_weight, temp_max))
-        self.wtArr = torch.nn.Parameter(quantization_tensor(self.wtArrConfig, temp_weight.t(), temp_max))
+        self.wArr = torch.nn.Parameter(quantization_tensor(self.wArrConfig, temp_weight, self.maxValueLeft, self.maxValueRight))
+        self.wtArr = torch.nn.Parameter(quantization_tensor(self.wtArrConfig, temp_weight.t(), self.maxValueLeft, self.maxValueRight))
 
 
 

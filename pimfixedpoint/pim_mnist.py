@@ -36,27 +36,32 @@ class PimNet(nn.Module):
     def __init__(self, batch_size):
         super().__init__()
         
-        self.fc1 = pl.PimLinear(784, 128)
-        self.fc2 = pl.PimLinear(128, 10)
+        self.fc1 = pl.PimLinear(784, 128, 10, 8, 16)
+        self.fc2 = pl.PimLinear(128, 10, 10, 8, 16)
         self.relu = pl.PimRelu()
         self.dequan = pl.DeQuanLayer()
 
     def forward(self, x):
         x = torch.flatten(x, 1)
         ox = x.clone().detach().requires_grad_()
-        #ox = None
+        # ox = None
         x_p = pl.creat_quantization_para(bit_width=16, tensor_type=pl.TensorType.Normal)
         x_p.requires_grad_()
+        # print(x.abs().max())
         x = pl.quantization_tensor(x_p, x)
 
+        # print((de_quantization([x, x_p])-ox).abs().max())
         x, x_p, ox = self.fc1(x, x_p, ox)
+        # print((de_quantization([x, x_p])-ox).abs().max())
         x, x_p, ox = self.relu(x, x_p, ox)
+        # print((de_quantization([x, x_p])-ox).abs().max())
         x, x_p, ox = self.fc2(x, x_p, ox)
+        # print((de_quantization([x, x_p]).detach()-ox.detach()).abs().max())
         x = self.dequan(x, x_p)
         output = F.log_softmax(x, dim=1)
-        # out = F.log_softmax(ox, dim = 1)
+        out = F.log_softmax(ox, dim = 1)
         # print((output.detach()-out.detach()).abs().max())
-        return output
+        return (output+out)/2
 
 def train(args, model, device, train_loader, optimizer, epoch, model2, optimizer2):
     model.train()

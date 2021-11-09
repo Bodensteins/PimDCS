@@ -71,7 +71,6 @@ class PimLinearFunction(Function):
         # print(grad_output)
         hasBias = ctx.hasBias
         qgrad_output_bits = ctx.gradOutputBits
-
         change_bit_width_([qgrad_output, qgrad_output_config], qgrad_output_bits)
         
         qgrad_input, qgrad_input_config = normal_matmul_array([qgrad_output, qgrad_output_config], [qweight_t, qweight_t_config])

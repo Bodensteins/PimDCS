@@ -234,6 +234,11 @@ def write_array_(array_tensor_list: list, data_tensor_list: list) -> Tensor:
     data_int_tensor, data_quantization_para = parse_float_tensor_list(data_tensor_list)
     data_s, data_bit_width, data_tensor_type = parse_quantization_para(data_quantization_para)
 
+    # if array_int_tensor != None:
+    #     array_int_tensor = array_int_tensor.detach()
+    #     array_quantization_para = array_quantization_para.detach()
+    # data_int_tensor = data_int_tensor.detach()
+    # data_quantization_para = data_quantization_para.detach()
     assert (array_tensor_type == TensorType.Ref or array_tensor_type == TensorType.PN)
     assert (data_tensor_type == TensorType.Normal)
 

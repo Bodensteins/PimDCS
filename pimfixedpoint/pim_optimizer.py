@@ -13,6 +13,7 @@ from enum import Enum
 class OptimMode(Enum):
     full_fix = 0
     float_weight = 1
+    full_float = 2
 
 class PimSGD:
     def __init__(self, network, lr=0.1, momentum=0, dampening=0,
@@ -78,29 +79,30 @@ class PimSGD:
             d_wt = wtArr.grad
             if d_wt is not None:
                 # print(parse_quantization_para(float_to_int(d_wt_cfg)))
-                # print(de_quantization([d_wt, d_wt_cfg]))
+                # print(de_quantization([remove_additional_col(d_wt).t(), d_wt_cfg]))
+                # print((weight.grad-de_quantization([remove_additional_col(d_wt).t(), d_wt_cfg])).abs().max())
                 # print(de_quantization([wtArr, wtArr_cfg]).t())
 
-                state = self.state[wArr]
+                # state = self.state[wArr]
 
                 # merge
-                if weight_decay != 0:
-                    add_alpha_tensor_([d_wt, d_wt_cfg], [
-                                      wtArr, wtArr_cfg], weight_decay)
-                if momentum != 0:
-                    if 'momentum_buffer' not in state:
-                        buf = torch.clone(d_wt).detach()
-                    else:
-                        buf = state['momentum_buffer']
-                        buf, d_wt_cfg = mul_num([buf, d_wt_cfg], momentum)
-                        add_alpha_tensor_([buf, d_wt_cfg], [
-                                          d_wt, d_wt_cfg], 1 - dampening)
-                    if nesterov:
-                        add_alpha_tensor_([d_wt, d_wt_cfg], [
-                                          buf, d_wt_cfg], momentum)
-                    else:
-                        d_wt = buf
-                    self.state[wtArr]['momentum_buffer'] = buf
+                # if weight_decay != 0:
+                #     add_alpha_tensor_([d_wt, d_wt_cfg], [
+                #                       wtArr, wtArr_cfg], weight_decay)
+                # if momentum != 0:
+                #     if 'momentum_buffer' not in state:
+                #         buf = torch.clone(d_wt).detach()
+                #     else:
+                #         buf = state['momentum_buffer']
+                #         buf, d_wt_cfg = mul_num([buf, d_wt_cfg], momentum)
+                #         add_alpha_tensor_([buf, d_wt_cfg], [
+                #                           d_wt, d_wt_cfg], 1 - dampening)
+                #     if nesterov:
+                #         add_alpha_tensor_([d_wt, d_wt_cfg], [
+                #                           buf, d_wt_cfg], momentum)
+                #     else:
+                #         d_wt = buf
+                #     self.state[wtArr]['momentum_buffer'] = buf
                 
                 if self.runMode == OptimMode.full_fix:
                     add_alpha_tensor_([wtArr, wtArr_cfg], [
@@ -120,5 +122,13 @@ class PimSGD:
                     wtArr.grad.zero_()
                     if weight.grad != None:
                         weight.grad.zero_()
-
+                elif self.runMode == OptimMode.full_float:
+                    weight.add_(weight.grad*(-lr))
+                    temp = quantization.creat_quantization_para(bit_width=16, tensor_type=quantization.TensorType.Normal)
+                    x = quantization.quantization_tensor(temp, weight)
+                    write_array_([wArr, wArr_cfg], [x, temp])
+                    x = quantization.quantization_tensor(temp, weight.t())
+                    write_array_([wtArr, wtArr_cfg], [x, temp])
+                    wtArr.grad.zero_()
+                    weight.grad.zero_()
         return loss

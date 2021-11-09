@@ -1,6 +1,7 @@
 from __future__ import print_function
 import argparse
 import torch
+from torch._C import device
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
@@ -33,19 +34,19 @@ class Net(nn.Module):
 
 
 class PimNet(nn.Module):
-    def __init__(self, batch_size):
+    def __init__(self, batch_size, device: torch.device = torch.device("cpu")):
         super().__init__()
-        
-        self.fc1 = pl.PimLinear(784, 128, 10, 8, 16)
-        self.fc2 = pl.PimLinear(128, 10, 10, 8, 16)
+        self.device = device
+        self.fc1 = pl.PimLinear(784, 128, 10, 8, 16, device=device)
+        self.fc2 = pl.PimLinear(128, 10, 10, 8, 16, device=device)
         self.relu = pl.PimRelu()
         self.dequan = pl.DeQuanLayer()
 
     def forward(self, x):
         x = torch.flatten(x, 1)
+
         ox = x.clone().detach().requires_grad_()
-        # ox = None
-        x_p = pl.creat_quantization_para(bit_width=16, tensor_type=pl.TensorType.Normal)
+        x_p = pl.creat_quantization_para(bit_width=16, tensor_type=pl.TensorType.Normal, device=self.device)
         x_p.requires_grad_()
         # print(x.abs().max())
         x = pl.quantization_tensor(x_p, x)
@@ -164,7 +165,7 @@ def main():
                         help='learning rate (default: 1.0)')
     parser.add_argument('--gamma', type=float, default=0.7, metavar='M',
                         help='Learning rate step gamma (default: 0.7)')
-    parser.add_argument('--no-cuda', action='store_true', default=True,
+    parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='disables CUDA training')
     parser.add_argument('--dry-run', action='store_true', default=False,
                         help='quickly check a single pass')
@@ -206,7 +207,7 @@ def main():
     test_loader = torch.utils.data.DataLoader(dataset2, **test_kwargs)
     model2, optimizer2 = None, None
     if args.pim:
-        model = PimNet(args.batch_size).to(device)
+        model = PimNet(args.batch_size, device=device).to(device)
         if args.both:
             model2 = Net(args.batch_size).to(device)
             model2.fc1.weight.data = model.fc1.weight[0:-1].t().clone().detach()

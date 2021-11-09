@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import torch
 from torch import Tensor
-import numpy as np
+from torch import IntTensor
 import math
 
 from enum import Enum
@@ -16,25 +16,33 @@ class TensorType(Enum):
 
 system_bit_width = 50
 data_flow_bit_width = system_bit_width >> 1
+half_data_flow_bit_width = data_flow_bit_width >> 1
 # data flow bit width must be half of system bit width to avoid overflow
 if system_bit_width <= 32:
     torch_int = torch.int32
     torch_float = torch.float32
-    numpy_int = np.int32
-    numpy_float = np.float32
 else:
     torch_int = torch.int64
     torch_float = torch.float64
-    numpy_int = np.int64
-    numpy_float = np.float64
 
 
-def int_to_float(int_tensor: Tensor) -> Tensor:
-    return torch.from_numpy(int_tensor.numpy().view(dtype=numpy_float))
+def int_to_float(int_tensor: IntTensor) -> Tensor:
+    return int_tensor.view(dtype=torch_float)
 
 
-def float_to_int(float_tensor: Tensor) -> Tensor:
-    return torch.from_numpy(float_tensor.detach().numpy().view(dtype=numpy_int))
+def float_to_int(float_tensor: Tensor) -> IntTensor:
+    return float_tensor.detach().view(dtype=torch_int)
+
+
+# int_tensor matmul int_tensor is not supported in pytorch now(2021/11/6)
+def matmul_int_cuda(int_tensor1: IntTensor, int_tensor2: IntTensor):
+    assert (int_tensor1.is_cuda and int_tensor2.is_cuda)
+
+    float_tensor1 = int_tensor1.to(dtype=torch_float)
+    float_tensor2 = int_tensor2.to(dtype=torch_float)
+    mul_res = float_tensor1.matmul(float_tensor2)
+
+    return mul_res.to(dtype=torch_int)
 
 
 def get_fixed_point_position(max_abs: float, bit_width: int) -> int:
@@ -51,6 +59,7 @@ def get_pos_bit_width(pos_int: int):
 
 def get_neg_bit_width(neg_int: int):
     return math.ceil(math.log2(-neg_int)) + 1
+
 
 # input: quantization parameters, should be int Tensor
 # return: quantization para. {s, bit_width, tensor_type(Normal or ref or PN)}
@@ -89,8 +98,10 @@ def parse_float_tensor_list(float_tensor_list: list):
     return int_tensor, quantization_para
 
 
-def creat_quantization_para(s: int = None, bit_width: int = None, tensor_type: TensorType = None):
-    quantization_para = torch.empty(3, dtype=torch_int)
+def creat_quantization_para(s: int = None, bit_width: int = None, tensor_type: TensorType = None,
+                            device: torch.device = torch.device("cpu")):
+    # todo: add device info, need to modify
+    quantization_para = torch.empty(3, dtype=torch_int, device=device)
     if s is not None:
         quantization_para[0] = s
     if bit_width is not None:
@@ -202,7 +213,7 @@ def add_additional_col_of_one(float_tensor_list: list) -> Tensor:
         new_bit_width = get_pos_bit_width(int_one)
         change_bit_width_(float_tensor_list, new_bit_width)
 
-    full_one_col = torch.full([int_tensor.size()[0], 1], int_one, dtype=torch_int)
+    full_one_col = torch.full([int_tensor.size()[0], 1], int_one, dtype=torch_int, device=int_tensor.device)
     int_tensor = torch.cat((int_tensor, full_one_col), 1)
 
     return int_to_float(int_tensor)
@@ -214,7 +225,7 @@ def add_additional_col_of_zero(float_tensor_list: list) -> Tensor:
 
     assert (tensor_type == TensorType.Normal)
 
-    full_zero_col = torch.full([int_tensor.size()[0], 1], 0, dtype=torch_int)
+    full_zero_col = torch.full([int_tensor.size()[0], 1], 0, dtype=torch_int, device=int_tensor.device)
     int_tensor = torch.cat((int_tensor, full_zero_col), 1)
 
     return int_to_float(int_tensor)
@@ -246,7 +257,8 @@ def write_array_(array_tensor_list: list, data_tensor_list: list) -> Tensor:
         neg_levels = pow_2_n(array_bit_width - 1)
         if array_int_tensor is None:
             array_int_tensor = \
-                torch.empty([data_int_tensor.size()[0], data_int_tensor.size()[1] + 1], dtype=torch_int)
+                torch.empty([data_int_tensor.size()[0],
+                             data_int_tensor.size()[1] + 1], dtype=torch_int, device=data_int_tensor.device)
             array_int_tensor[:, -1] = neg_levels
 
         if array_bit_width >= data_bit_width:
@@ -299,11 +311,16 @@ def normal_matmul_array(normal_tensor_list: list, array_tensor_list: list, matmu
     assert (array_tensor_type == TensorType.Ref or array_tensor_type == TensorType.PN)
 
     if array_tensor_type == TensorType.Ref:
-        temp_result = normal_int_tensor.matmul(array_int_tensor)
+        if normal_int_tensor.is_cuda:
+            temp_result = matmul_int_cuda(normal_int_tensor, array_int_tensor)
+        else:
+            temp_result = torch.matmul(normal_int_tensor, array_int_tensor)
+
         matmul_result = temp_result[:, 0:-1] - temp_result[:, -1].unsqueeze(0).t()
 
         if matmul_result_para is None:
-            matmul_result_para = creat_quantization_para(s=normal_s + array_s, tensor_type=TensorType.Normal)
+            matmul_result_para = creat_quantization_para(device=normal_int_tensor.device,
+                                                         s=normal_s + array_s, tensor_type=TensorType.Normal)
         else:
             int_matmul_result_para = float_to_int(matmul_result_para)
             int_matmul_result_para[0] = normal_s + array_s
@@ -347,14 +364,14 @@ def mul_num(float_tensor_list: list, alpha: float, alpha_bit_width: int = 16) ->
     if tensor_type == TensorType.Normal:
         mul_num_int_tensor = int_tensor.mul(alpha_int)
         mul_num_s = s + alpha_s
-        mul_num_para = creat_quantization_para(s=mul_num_s, tensor_type=TensorType.Normal)
+        mul_num_para = creat_quantization_para(device=int_tensor.device, s=mul_num_s, tensor_type=TensorType.Normal)
         set_appropriate_bit_width_([mul_num_int_tensor, mul_num_para])
     elif tensor_type == TensorType.Ref:
         data_part = int_tensor[..., 0:-1]
         ref_part = int_tensor[..., -1].unsqueeze(0).t()
         mul_num_int_tensor = (data_part - ref_part).mul(alpha_int)
         mul_num_s = s + alpha_s
-        mul_num_para = creat_quantization_para(s=mul_num_s, tensor_type=TensorType.Normal)
+        mul_num_para = creat_quantization_para(device=int_tensor.device, s=mul_num_s, tensor_type=TensorType.Normal)
         set_appropriate_bit_width_([mul_num_int_tensor, mul_num_para])
     else:
         raise Exception("We don't implement this tensor_type!", tensor_type)

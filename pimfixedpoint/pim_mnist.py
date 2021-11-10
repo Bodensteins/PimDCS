@@ -37,10 +37,10 @@ class PimNet(nn.Module):
     def __init__(self, batch_size, device: torch.device = torch.device("cpu")):
         super().__init__()
         self.device = device
-        self.fc1 = pl.PimLinear(784, 128, 12, 14, 16, device=device)
-        self.fc2 = pl.PimLinear(128, 10, 12, 14, 16, device=device)
+        self.fc1 = pl.PimLinear(784, 128, 8, 8, 8, device=device)
+        self.fc2 = pl.PimLinear(128, 10, 8, 8, 8, device=device)
         self.relu = pl.PimRelu()
-        self.dequan = pl.DeQuanLayer()
+        self.dequan = pl.DeQuanLayer(8)
 
     def forward(self, x):
         x = torch.flatten(x, 1)
@@ -52,12 +52,14 @@ class PimNet(nn.Module):
         # print(x.abs().max())
         x = pl.quantization_tensor(x_p, x)
 
-        # print((de_quantization([x, x_p])-ox).abs().max())
         x, x_p, ox = self.fc1(x, x_p, ox)
-        # print((de_quantization([x, x_p])-ox).abs().max())
+        # print(float_to_int(x_p))
+        # print((de_quantization([x, x_p])).abs().max())
         x, x_p, ox = self.relu(x, x_p, ox)
+        # print(float_to_int(x_p))
         # print((de_quantization([x, x_p])-ox).abs().max())
         x, x_p, ox = self.fc2(x, x_p, ox)
+        # print(float_to_int(x_p))
         # print((de_quantization([x, x_p]).detach()-ox.detach()).abs().max())
         x = self.dequan(x, x_p)
         output = F.log_softmax(x, dim=1)
@@ -65,23 +67,10 @@ class PimNet(nn.Module):
         # print((output.detach()-out.detach()).abs().max())
         return output
 
-def train(args, model, device, train_loader, optimizer, epoch, model2, optimizer2):
+def train(args, model, device, train_loader, optimizer, epoch):
     model.train()
-    if model2 != None:
-        model2.train()
     for batch_idx, (data, target) in enumerate(train_loader):
         data, target = data.to(device), target.to(device)
-        output2 = None
-        if model2 != None:
-            data2 = data.clone().detach().requires_grad_()
-            target2 = target.clone().detach()
-            optimizer2.zero_grad()
-            output2, x2, x3, x4 = model2(data2)
-            output2.requires_grad_()
-            loss2 = F.nll_loss(output2, target2)
-            loss2.backward()
-            #print(model2.fc2.weight.grad.t())
-            optimizer2.step()
 
 
         optimizer.zero_grad()
@@ -104,19 +93,14 @@ def train(args, model, device, train_loader, optimizer, epoch, model2, optimizer
         # tmp = torch.cat((model2.fc1.weight.data.t().clone(), model2.fc1.bias.data.clone().reshape(1, 128)), 0)
         # print(tmp - model.fc1.weight)
         if batch_idx % args.log_interval == 0:
-            if model2 != None:
-                print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}, {:.6f}'.format(
-                epoch, batch_idx * len(data), len(train_loader.dataset),
-                       100. * batch_idx / len(train_loader), loss.item(), loss2.item()))
-            else:
-                print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, batch_idx * len(data), len(train_loader.dataset),
                 100. * batch_idx / len(train_loader), loss.item()))
             if args.dry_run:
                 break
 
 
-def test(model, device, test_loader, model2):
+def test(model, device, test_loader):
     model.eval()
     test_loss = 0
     correct = 0
@@ -133,9 +117,6 @@ def test(model, device, test_loader, model2):
     print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
         test_loss, correct, len(test_loader.dataset),
         100. * correct / len(test_loader.dataset)))
-    if model2 == None:
-        return
-    model = model2
     model.eval()
     test_loss = 0
     correct = 0
@@ -160,13 +141,13 @@ def main():
                         help='input batch size for training (default: 64)')
     parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
                         help='input batch size for testing (default: 1000)')
-    parser.add_argument('--epochs', type=int, default=10, metavar='N',
+    parser.add_argument('--epochs', type=int, default=50, metavar='N',
                         help='number of epochs to train (default: 14)')
     parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
                         help='learning rate (default: 1.0)')
     parser.add_argument('--gamma', type=float, default=0.7, metavar='M',
                         help='Learning rate step gamma (default: 0.7)')
-    parser.add_argument('--no-cuda', action='store_true', default=False,
+    parser.add_argument('--no-cuda', action='store_true', default=True,
                         help='disables CUDA training')
     parser.add_argument('--dry-run', action='store_true', default=False,
                         help='quickly check a single pass')
@@ -178,8 +159,6 @@ def main():
                         help='For Saving the current Model')
     parser.add_argument('--pim', action='store_true', default=True,
                         help='For use pim')
-    parser.add_argument('--both', action='store_true', default=False,
-                        help='Both two model runing')
     args = parser.parse_args()
     use_cuda = not args.no_cuda and torch.cuda.is_available()
 
@@ -206,17 +185,9 @@ def main():
                               transform=transform)
     train_loader = torch.utils.data.DataLoader(dataset1,**train_kwargs)
     test_loader = torch.utils.data.DataLoader(dataset2, **test_kwargs)
-    model2, optimizer2 = None, None
     if args.pim:
         model = PimNet(args.batch_size, device=device).to(device)
-        if args.both:
-            model2 = Net(args.batch_size).to(device)
-            model2.fc1.weight.data = model.fc1.weight[0:-1].t().clone().detach()
-            model2.fc1.bias.data = model.fc1.weight[-1].clone().detach()
-            model2.fc2.weight.data = model.fc2.weight[0:-1].t().clone().detach()
-            model2.fc2.bias.data = model.fc2.weight[-1].clone().detach()
-            optimizer2 = optim.SGD(model2.parameters(), lr = args.lr)
-        optimizer = po.PimSGD(model, lr=args.lr, momentum=0.9, run_mode=po.OptimMode.full_fix)
+        optimizer = po.PimSGD(model, lr=args.lr, momentum=0.9, run_mode=po.OptimMode.float_weight)
     else:
         model = Net(args.batch_size).to(device)
         #optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
@@ -224,8 +195,8 @@ def main():
 
     # scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
     for epoch in range(1, args.epochs + 1):
-        train(args, model, device, train_loader, optimizer, epoch, model2, optimizer2)
-        test(model, device, test_loader, model2)
+        train(args, model, device, train_loader, optimizer, epoch)
+        test(model, device, test_loader)
     
     if args.save_model:
         torch.save(model.state_dict(), "mnist_cnn.pt")

@@ -67,7 +67,6 @@ class PimLinearFunction(Function):
         qinputArr_config = ctx.qinputArr_config
         qweight_t_config = ctx.qweight_t_config
         delta_qweight_t_config = ctx.delta_qweight_t_config
-        # print(de_quantization([qgrad_output, qgrad_output_config]))
         # print(grad_output)
         hasBias = ctx.hasBias
         qgrad_output_bits = ctx.gradOutputBits
@@ -86,11 +85,16 @@ class PimLinearFunction(Function):
             if ctx.has_origin_input:
                 grad_input = grad_input[:, 0:-1]
 
+        # print(f'qgradout= {de_quantization([qgrad_output, qgrad_output_config])}')
+        # print(f'qintputarr= {de_quantization([qinputArr, qinputArr_config])}')
         delta_qweight_t, _ = normal_t_matmul_array(
             [qgrad_output, qgrad_output_config], [qinputArr, qinputArr_config], delta_qweight_t_config)
 
+        # print(f'delta= {de_quantization([delta_qweight_t, delta_qweight_t_config])}')
         delta_qweight_t = add_additional_col_of_zero([delta_qweight_t, delta_qweight_t_config])
 
+        # print(float_to_int(delta_qweight_t))
+        # print('----------------')
         # print(f"delta_weight_t = {delta_qweight_t.data_ptr()}")
         return qgrad_input, qgrad_input_config, None, None, None, None, delta_qweight_t, None, None, None, None, None, grad_input, d_w 
 

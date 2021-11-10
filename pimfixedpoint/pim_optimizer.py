@@ -119,9 +119,8 @@ class PimSGD:
                     write_array_([wArr, wArr_cfg], [x, temp])
                     x = quantization.quantization_tensor(temp, weight.t())
                     write_array_([wtArr, wtArr_cfg], [x, temp])
-                    wtArr.grad.zero_()
-                    if weight.grad != None:
-                        weight.grad.zero_()
+                    wtArr.grad = None
+                    weight.grad = None
                 elif self.runMode == OptimMode.full_float:
                     weight.add_(weight.grad*(-lr))
                     temp = quantization.creat_quantization_para(bit_width=16, tensor_type=quantization.TensorType.Normal)
@@ -129,6 +128,6 @@ class PimSGD:
                     write_array_([wArr, wArr_cfg], [x, temp])
                     x = quantization.quantization_tensor(temp, weight.t())
                     write_array_([wtArr, wtArr_cfg], [x, temp])
-                    wtArr.grad.zero_()
-                    weight.grad.zero_()
+                    wtArr.grad = None
+                    weight.grad = None
         return loss

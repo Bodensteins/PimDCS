@@ -15,6 +15,7 @@ class OptimMode(Enum):
     float_weight = 1
     full_float = 2
 
+
 class PimSGD:
     def __init__(self, network, lr=0.1, momentum=0, dampening=0,
                  weight_decay=0, nesterov=False, run_mode = OptimMode.full_fix):
@@ -111,10 +112,14 @@ class PimSGD:
                             [remove_additional_col(d_wt).t(), d_wt_cfg])
                     
                     add_alpha_tensor_([wArr, wArr_cfg], [d_w, d_wt_cfg], -lr)
-                    wtArr.grad.zero_()
+                    # wtArr.grad.zero_()
+                    wtArr.grad = None
+                    weight.grad = None
                 elif self.runMode == OptimMode.float_weight:
                     weight.add_(-lr*de_quantization([remove_additional_col(d_wt).t(), d_wt_cfg]))
-                    temp = quantization.creat_quantization_para(bit_width=16, tensor_type=quantization.TensorType.Normal)
+                    temp = quantization.creat_quantization_para(bit_width=16,
+                                                                tensor_type=quantization.TensorType.Normal,
+                                                                device=d_wt.device)
                     x = quantization.quantization_tensor(temp, weight)
                     write_array_([wArr, wArr_cfg], [x, temp])
                     x = quantization.quantization_tensor(temp, weight.t())

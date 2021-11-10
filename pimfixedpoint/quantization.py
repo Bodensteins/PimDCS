@@ -14,6 +14,11 @@ class TensorType(Enum):
     PN = 2
 
 
+class ChangeBitWithMode(Enum):
+    Shift = 0
+    Round = 1
+
+
 system_bit_width = 32
 data_flow_bit_width = system_bit_width >> 1
 half_data_flow_bit_width = data_flow_bit_width >> 1
@@ -26,11 +31,11 @@ else:
     torch_float = torch.float64
 
 
-def int_to_float(int_tensor: IntTensor) -> Tensor:
+def int_to_float(int_tensor):
     return int_tensor.view(dtype=torch_float)
 
 
-def float_to_int(float_tensor: Tensor) -> IntTensor:
+def float_to_int(float_tensor):
     return float_tensor.detach().view(dtype=torch_int)
 
 
@@ -100,7 +105,6 @@ def parse_float_tensor_list(float_tensor_list: list):
 
 def creat_quantization_para(s: int = None, bit_width: int = None, tensor_type: TensorType = None,
                             device: torch.device = torch.device("cpu")):
-    # todo: add device info, need to modify
     quantization_para = torch.empty(3, dtype=torch_int, device=device)
     if s is not None:
         quantization_para[0] = s
@@ -112,37 +116,33 @@ def creat_quantization_para(s: int = None, bit_width: int = None, tensor_type: T
     return int_to_float(quantization_para)
 
 
-"""
-float-int type: int type, but shown as float
-int-float type: float type, but shown as int
-
-Parameters:
-    quantization_para: parameters for quantization, which is a float-int type tensor. 
+def quantization_tensor(quantization_para: Tensor, tensor: Tensor, user_set_max_left: float = None,
+                        user_set_max_right: float = None) -> Tensor:
+    """
+    float-int type: int type, but shown as float
+    int-float type: float type, but shown as int
+    :param quantization_para: parameters for quantization, which is a float-int type tensor.
     This tensor has 3 values. [0]: s [1]: bit_width [2]: tensor_type
-
-    tensor: Float type tensor, that is the real number for you to quantize
-
-    max_abs_value: float, the max abs value used for quantization
-
-Returns:
-    The float-int type tensor. the quantization of input tensor.
-"""
-def quantization_tensor(quantization_para: Tensor, tensor: Tensor, user_set_max_left: float = None, user_set_max_right: float = None) -> torch.Tensor:
+    :param tensor: Float type tensor, that is the real number for you to quantize
+    :param user_set_max_left: float, the max abs value used for quantization
+    :param user_set_max_right: float, the max abs value used for quantization
+    :return: The float-int type tensor. the quantization of input tensor.
+    """
     quantization_para = float_to_int(quantization_para)
     _, bit_width, tensor_type = parse_quantization_para(quantization_para)  # s is unknown
 
     max_abs_value = tensor.abs().max().item()
     ori_max = max_abs_value
-    if user_set_max_right != None:
+    if user_set_max_right is not None:
         max_abs_value = min(max_abs_value, user_set_max_right)
-    if user_set_max_left != None:
+    if user_set_max_left is not None:
         max_abs_value = max(max_abs_value, user_set_max_left)
 
-    #special deal, if max_abs_value is not the maximum of the tensor.
-    if ori_max>max_abs_value:
+    # special deal, if max_abs_value is not the maximum of the tensor.
+    if ori_max > max_abs_value:
         tensor = tensor.detach().clone()
-        tensor[tensor>max_abs_value] = max_abs_value
-        tensor[tensor<-max_abs_value] = -max_abs_value
+        tensor[tensor > max_abs_value] = max_abs_value
+        tensor[tensor < -max_abs_value] = -max_abs_value
 
     if tensor_type == TensorType.Normal:
         s = get_fixed_point_position(max_abs_value, bit_width)
@@ -184,7 +184,7 @@ def de_quantization(float_tensor_list: list) -> Tensor:
         raise Exception("Invalid tensor_type!", tensor_type)
 
 
-def change_bit_width_(float_tensor_list: list, new_bit_width):
+def change_bit_width_(float_tensor_list: list, new_bit_width: int, mode: ChangeBitWithMode = ChangeBitWithMode.Shift):
     int_tensor, quantization_para = parse_float_tensor_list(float_tensor_list)
     s, bit_width, tensor_type = parse_quantization_para(quantization_para)
 
@@ -192,7 +192,14 @@ def change_bit_width_(float_tensor_list: list, new_bit_width):
 
     if new_bit_width < bit_width:
         quantization_para[0] = s + bit_width - new_bit_width
-        int_tensor.__irshift__(bit_width - new_bit_width)
+
+        if mode == ChangeBitWithMode.Shift:
+            int_tensor.__irshift__(bit_width - new_bit_width)
+        elif mode == ChangeBitWithMode.Round:
+            temp = int_tensor.div(pow_2_n(bit_width - new_bit_width)).round().to(dtype=torch_int)
+            int_tensor.zero_().add_(temp)
+        else:
+            raise Exception("We don't support this change bit width mode!", mode)
 
     quantization_para[1] = new_bit_width
 
@@ -263,15 +270,11 @@ def write_array_(array_tensor_list: list, data_tensor_list: list) -> Tensor:
 
         if array_bit_width >= data_bit_width:
             array_quantization_para[0] = data_s
-            # array_int_tensor[:, 0:-1].set_(data_int_tensor.add(neg_levels))
-            # torch.set_ has bugs, last statement will not change array
             array_int_tensor[:, 0:-1].zero_().add_(data_int_tensor.add(neg_levels))
         else:
             array_quantization_para[0] = data_s + data_bit_width - array_bit_width
             array_int_tensor[:, 0:-1].\
                 zero_().add_(data_int_tensor.__rshift__(data_bit_width - array_bit_width).add(neg_levels))
-            # array_int_tensor[:, 0:-1].
-            # set_(data_int_tensor.__rshift__(data_bit_width - array_bit_width).add(neg_levels))
 
     else:
         raise Exception("We don't implement this tensor_type!", array_tensor_type)

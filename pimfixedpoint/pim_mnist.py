@@ -37,10 +37,10 @@ class PimNet(nn.Module):
     def __init__(self, batch_size, device: torch.device = torch.device("cpu")):
         super().__init__()
         self.device = device
-        self.fc1 = pl.PimLinear(784, 128, 12, 14, 16, device=device)
-        self.fc2 = pl.PimLinear(128, 10, 12, 14, 16, device=device)
+        self.fc1 = pl.PimLinear(784, 128, 8, 3, 8, device=device)
+        self.fc2 = pl.PimLinear(128, 10, 8, 3, 8, device=device)
         self.relu = pl.PimRelu()
-        self.dequan = pl.DeQuanLayer()
+        self.dequan = pl.DeQuanLayer(8)
 
     def forward(self, x):
         x = torch.flatten(x, 1)
@@ -166,7 +166,7 @@ def main():
                         help='learning rate (default: 1.0)')
     parser.add_argument('--gamma', type=float, default=0.7, metavar='M',
                         help='Learning rate step gamma (default: 0.7)')
-    parser.add_argument('--no-cuda', action='store_true', default=False,
+    parser.add_argument('--no-cuda', action='store_true', default=True,
                         help='disables CUDA training')
     parser.add_argument('--dry-run', action='store_true', default=False,
                         help='quickly check a single pass')
@@ -216,7 +216,7 @@ def main():
             model2.fc2.weight.data = model.fc2.weight[0:-1].t().clone().detach()
             model2.fc2.bias.data = model.fc2.weight[-1].clone().detach()
             optimizer2 = optim.SGD(model2.parameters(), lr = args.lr)
-        optimizer = po.PimSGD(model, lr=args.lr, momentum=0.9, run_mode=po.OptimMode.full_fix)
+        optimizer = po.PimSGD(model, lr=args.lr, momentum=0.9, run_mode=po.OptimMode.float_weight)
     else:
         model = Net(args.batch_size).to(device)
         #optimizer = optim.Adadelta(model.parameters(), lr=args.lr)

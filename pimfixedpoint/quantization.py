@@ -14,12 +14,12 @@ class TensorType(Enum):
     PN = 2
 
 
-class ChangeBitWithMode(Enum):
+class ChangeBitWidthMode(Enum):
     Shift = 0
     Round = 1
 
 
-system_bit_width = 32
+system_bit_width = 50
 data_flow_bit_width = system_bit_width >> 1
 half_data_flow_bit_width = data_flow_bit_width >> 1
 # data flow bit width must be half of system bit width to avoid overflow
@@ -184,7 +184,8 @@ def de_quantization(float_tensor_list: list) -> Tensor:
         raise Exception("Invalid tensor_type!", tensor_type)
 
 
-def change_bit_width_(float_tensor_list: list, new_bit_width: int, mode: ChangeBitWithMode = ChangeBitWithMode.Shift):
+def change_bit_width_(float_tensor_list: list, new_bit_width: int, mode: ChangeBitWidthMode = ChangeBitWidthMode.Round):
+    set_appropriate_bit_width_(float_tensor_list)
     int_tensor, quantization_para = parse_float_tensor_list(float_tensor_list)
     s, bit_width, tensor_type = parse_quantization_para(quantization_para)
 
@@ -193,9 +194,9 @@ def change_bit_width_(float_tensor_list: list, new_bit_width: int, mode: ChangeB
     if new_bit_width < bit_width:
         quantization_para[0] = s + bit_width - new_bit_width
 
-        if mode == ChangeBitWithMode.Shift:
+        if mode == ChangeBitWidthMode.Shift:
             int_tensor.__irshift__(bit_width - new_bit_width)
-        elif mode == ChangeBitWithMode.Round:
+        elif mode == ChangeBitWidthMode.Round:
             temp = int_tensor.div(pow_2_n(bit_width - new_bit_width)).round().to(dtype=torch_int)
             int_tensor.zero_().add_(temp)
         else:
@@ -410,6 +411,7 @@ def add_alpha_tensor_(source_tensor_list: list, add_tensor_list: list, alpha: fl
         shift = source_s - mul_num_s
         # data = source_int_tensor[:, 0:-1]
         data = source_int_tensor
+        # why delete it?
         if shift >= 0:
             mul_num_int_tensor.__irshift__(shift)
         else:

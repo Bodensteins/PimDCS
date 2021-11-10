@@ -37,10 +37,10 @@ class PimNet(nn.Module):
     def __init__(self, batch_size, device: torch.device = torch.device("cpu")):
         super().__init__()
         self.device = device
-        self.fc1 = pl.PimLinear(784, 128, 8, 8, 8, device=device)
-        self.fc2 = pl.PimLinear(128, 10, 8, 8, 8, device=device)
+        self.fc1 = pl.PimLinear(784, 128, 16, 16, 16, device=device)
+        self.fc2 = pl.PimLinear(128, 10, 16, 16, 16, device=device)
         self.relu = pl.PimRelu()
-        self.dequan = pl.DeQuanLayer(8)
+        self.dequan = pl.DeQuanLayer(16)
 
     def forward(self, x):
         x = torch.flatten(x, 1)
@@ -67,11 +67,11 @@ class PimNet(nn.Module):
         # print((output.detach()-out.detach()).abs().max())
         return output
 
+
 def train(args, model, device, train_loader, optimizer, epoch):
     model.train()
     for batch_idx, (data, target) in enumerate(train_loader):
         data, target = data.to(device), target.to(device)
-
 
         optimizer.zero_grad()
         output = model(data)
@@ -117,22 +117,7 @@ def test(model, device, test_loader):
     print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
         test_loss, correct, len(test_loader.dataset),
         100. * correct / len(test_loader.dataset)))
-    model.eval()
-    test_loss = 0
-    correct = 0
-    with torch.no_grad():
-        for data, target in test_loader:
-            data, target = data.to(device), target.to(device)
-            output = model(data)
-            test_loss += F.nll_loss(output, target, reduction='sum').item()  # sum up batch loss
-            pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
-            correct += pred.eq(target.view_as(pred)).sum().item()
 
-    test_loss /= len(test_loader.dataset)
-
-    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
-        test_loss, correct, len(test_loader.dataset),
-        100. * correct / len(test_loader.dataset)))
 
 def main():
     # Training settings
@@ -147,7 +132,7 @@ def main():
                         help='learning rate (default: 1.0)')
     parser.add_argument('--gamma', type=float, default=0.7, metavar='M',
                         help='Learning rate step gamma (default: 0.7)')
-    parser.add_argument('--no-cuda', action='store_true', default=True,
+    parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='disables CUDA training')
     parser.add_argument('--dry-run', action='store_true', default=False,
                         help='quickly check a single pass')
@@ -187,7 +172,7 @@ def main():
     test_loader = torch.utils.data.DataLoader(dataset2, **test_kwargs)
     if args.pim:
         model = PimNet(args.batch_size, device=device).to(device)
-        optimizer = po.PimSGD(model, lr=args.lr, momentum=0.9, run_mode=po.OptimMode.float_weight)
+        optimizer = po.PimSGD(model, lr=args.lr, momentum=0.9, run_mode=po.OptimMode.full_fix)
     else:
         model = Net(args.batch_size).to(device)
         #optimizer = optim.Adadelta(model.parameters(), lr=args.lr)

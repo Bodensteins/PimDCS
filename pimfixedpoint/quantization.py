@@ -14,7 +14,7 @@ class TensorType(Enum):
     PN = 2
 
 
-system_bit_width = 50
+system_bit_width = 32
 data_flow_bit_width = system_bit_width >> 1
 half_data_flow_bit_width = data_flow_bit_width >> 1
 # data flow bit width must be half of system bit width to avoid overflow

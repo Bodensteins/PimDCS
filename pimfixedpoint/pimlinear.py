@@ -149,7 +149,6 @@ class PimLinear(torch.nn.Module):
         self.wArr = torch.nn.Parameter(quantization_tensor(self.wArrConfig, temp_weight, self.maxValueLeft, self.maxValueRight))
         self.wtArr = torch.nn.Parameter(quantization_tensor(self.wtArrConfig, temp_weight.t(), self.maxValueLeft, self.maxValueRight))
 
-
     def forward(self, qinput: Tensor, qinput_config: Tensor, input: Tensor = None):
         qoutput, qoutput_config, _ = PimLinearFunction.apply(qinput, qinput_config, self.inputArr,
                                                                self.inputArrConfig, self.wArr, self.wArrConfig,

@@ -184,7 +184,7 @@ def de_quantization(float_tensor_list: list) -> Tensor:
         raise Exception("Invalid tensor_type!", tensor_type)
 
 
-def change_bit_width_(float_tensor_list: list, new_bit_width: int, mode: ChangeBitWidthMode = ChangeBitWidthMode.Shift):
+def change_bit_width_(float_tensor_list: list, new_bit_width: int, mode: ChangeBitWidthMode = ChangeBitWidthMode.Round):
     int_tensor, quantization_para = parse_float_tensor_list(float_tensor_list)
     s, bit_width, tensor_type = parse_quantization_para(quantization_para)
 
@@ -196,8 +196,8 @@ def change_bit_width_(float_tensor_list: list, new_bit_width: int, mode: ChangeB
         if mode == ChangeBitWidthMode.Shift:
             int_tensor.__irshift__(bit_width - new_bit_width)
         elif mode == ChangeBitWidthMode.Round:
-            temp = int_tensor.div(pow_2_n(bit_width - new_bit_width)).round().to(dtype=torch_int)
-            int_tensor.zero_().add_(temp)
+            round_bit = int_tensor.bitwise_and(1 << (bit_width - new_bit_width - 1))
+            int_tensor.add_(round_bit).__irshift__(bit_width - new_bit_width)
         else:
             raise Exception("We don't support this change bit width mode!", mode)
 

@@ -19,7 +19,7 @@ class ChangeBitWidthMode(Enum):
     Round = 1
 
 
-system_bit_width = 50
+system_bit_width = 33
 data_flow_bit_width = system_bit_width >> 1
 half_data_flow_bit_width = data_flow_bit_width >> 1
 # data flow bit width must be half of system bit width to avoid overflow
@@ -184,8 +184,7 @@ def de_quantization(float_tensor_list: list) -> Tensor:
         raise Exception("Invalid tensor_type!", tensor_type)
 
 
-def change_bit_width_(float_tensor_list: list, new_bit_width: int, mode: ChangeBitWidthMode = ChangeBitWidthMode.Round):
-    set_appropriate_bit_width_(float_tensor_list)
+def change_bit_width_(float_tensor_list: list, new_bit_width: int, mode: ChangeBitWidthMode = ChangeBitWidthMode.Shift):
     int_tensor, quantization_para = parse_float_tensor_list(float_tensor_list)
     s, bit_width, tensor_type = parse_quantization_para(quantization_para)
 
@@ -423,3 +422,6 @@ def add_alpha_tensor_(source_tensor_list: list, add_tensor_list: list, alpha: fl
         data[data > max_int_number] = max_int_number
     else:
         raise Exception("We don't implement this source_tensor_type!", source_tensor_type)
+
+if __name__ == '__main__':
+    torch.nn.Unfold

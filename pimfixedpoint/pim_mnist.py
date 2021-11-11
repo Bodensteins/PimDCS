@@ -9,7 +9,7 @@ import numpy as np
 import pimlinear as pl
 from torchvision import datasets, transforms
 from torch.optim.lr_scheduler import StepLR
-
+import pimconv as pc
 from quantization import de_quantization, int_to_float
 import pim_optimizer as po
 
@@ -32,6 +32,36 @@ class Net(nn.Module):
         output = F.log_softmax(x4, dim=1)
         return output, x2, x3, x4
 
+class PimConvNet(nn.Module):
+    def __init__(self, batch_size, device: torch.device = torch.device("cpu")):
+        super().__init__()
+        self.device = device
+        self.conv1 = pc.PimConv2D((1, 28, 28), (5, 5), 10, device=device)
+        self.conv2 = pc.PimConv2D((10, 12, 12), (5, 5), 20, device=device) 
+        self.fc = pl.PimLinear(4*4*20, 10, device=device)
+        self.dequan = pl.DeQuanLayer(16)
+
+    def forward(self, x):
+
+        x, x_f = pl.quanFunction.apply(x, 16)
+        _, _, x = self.conv1(x, x_f)
+
+        x = torch.relu(x)
+        x = torch.nn.functional.max_pool2d(x, kernel_size=(2, 2), stride=2)
+        x, x_f = pl.quanFunction.apply(x, 16)
+
+        _, _, x = self.conv2(x, x_f)
+        x = torch.relu(x)
+        x = torch.nn.functional.max_pool2d(x, kernel_size=(2, 2), stride=2)
+        x = torch.flatten(x, 1)
+        x, x_f = pl.quanFunction.apply(x, 16)
+
+        x, x_f = self.fc(x, x_f)
+        x = self.dequan(x, x_f)
+
+        output = F.log_softmax(x, dim=1)
+
+        return output
 
 class PimNet(nn.Module):
     def __init__(self, batch_size, device: torch.device = torch.device("cpu")):
@@ -46,25 +76,15 @@ class PimNet(nn.Module):
         x = torch.flatten(x, 1)
 
         # ox = x.clone().detach().requires_grad_()
-        ox = None
         x_p = pl.creat_quantization_para(bit_width=16, tensor_type=pl.TensorType.Normal, device=self.device)
         x_p.requires_grad_()
-        # print(x.abs().max())
         x = pl.quantization_tensor(x_p, x)
 
-        x, x_p, ox = self.fc1(x, x_p, ox)
-        # print(float_to_int(x_p))
-        # print((de_quantization([x, x_p])).abs().max())
-        x, x_p, ox = self.relu(x, x_p, ox)
-        # print(float_to_int(x_p))
-        # print((de_quantization([x, x_p])-ox).abs().max())
-        x, x_p, ox = self.fc2(x, x_p, ox)
-        # print(float_to_int(x_p))
-        # print((de_quantization([x, x_p]).detach()-ox.detach()).abs().max())
+        x, x_p = self.fc1(x, x_p)
+        x, x_p = self.relu(x, x_p)
+        x, x_p = self.fc2(x, x_p)
         x = self.dequan(x, x_p)
         output = F.log_softmax(x, dim=1)
-        #out = F.log_softmax(ox, dim = 1)
-        # print((output.detach()-out.detach()).abs().max())
         return output
 
 
@@ -122,7 +142,7 @@ def test(model, device, test_loader):
 def main():
     # Training settings
     parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
-    parser.add_argument('--batch-size', type=int, default=64, metavar='N',
+    parser.add_argument('--batch-size', type=int, default=128, metavar='N',
                         help='input batch size for training (default: 64)')
     parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
                         help='input batch size for testing (default: 1000)')
@@ -144,6 +164,8 @@ def main():
                         help='For Saving the current Model')
     parser.add_argument('--pim', action='store_true', default=True,
                         help='For use pim')
+    parser.add_argument('--pimconv', action='store_true', default=True,
+                        help='For use pimconv')
     args = parser.parse_args()
     use_cuda = not args.no_cuda and torch.cuda.is_available()
 
@@ -171,7 +193,11 @@ def main():
     train_loader = torch.utils.data.DataLoader(dataset1,**train_kwargs)
     test_loader = torch.utils.data.DataLoader(dataset2, **test_kwargs)
     if args.pim:
-        model = PimNet(args.batch_size, device=device).to(device)
+        if args.pimconv:
+            model = PimConvNet(args.batch_size, device=device).to(device)
+        else:
+            model = PimNet(args.batch_size, device=device).to(device)
+
         optimizer = po.PimSGD(model, lr=args.lr, momentum=0.9, run_mode=po.OptimMode.full_fix)
     else:
         model = Net(args.batch_size).to(device)

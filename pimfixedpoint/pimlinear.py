@@ -103,17 +103,19 @@ class PimLinearFunction(Function):
 
 class PimLinear(torch.nn.Module):
     def __init__(self, m: int, n: int, inputBits: int = 16, weightBits: int = 16, gradOutputBits: int = 16,
-                 arrayMode: str = "RefTensor", quantizerMode: str = "", absMaxValueLeft: float = 1.0,
-                 absMaxValueRight: float = 4.0, hasBias: bool = True,
+                 arrayMode: str = "RefTensor", quantizerMode: str = "", absMaxValueLeft = None, absMaxValueRight = None, hasBias: bool = True,
                  device: torch.device = torch.device("cpu")):
         super().__init__()
         if hasBias:
             m += 1
         self.m, self.n, self.hasBias, self.maxValueLeft, self.maxValueRight = m, n, hasBias, absMaxValueLeft, absMaxValueRight
         # quantizer mode dynamic, static.
-        self.quantizerMode = quantizerMode
+        self.quantizerMode = quantizerMode 
+        self.device = device
         self.inputBits, self.gradOutputBits = inputBits, gradOutputBits
         self.wArr, self.wtArr, self.inputArr = None, None, None
+
+        # this bit_width is not used in fact.
         self.delta_qweight_t_config = creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Normal,
                                                               device=device)
 
@@ -130,11 +132,11 @@ class PimLinear(torch.nn.Module):
         #    self.inputArr = PNTensor(batch_size, m, absMaxValue, bitwidth)
         else:
             raise Exception("We don't implement this array mode!", arrayMode)
-
-        self.weight_init(device)
-
-    def weight_init(self, device: torch.device = torch.device("cpu")):
-        temp_weight = torch.empty(self.m, self.n, device=device)
+        
+        self.weight_init()
+    
+    def weight_init(self):
+        temp_weight = torch.empty(self.m, self.n, device=self.device)
         torch.nn.init.kaiming_uniform_(temp_weight, math.sqrt(5))
 
         if self.hasBias:
@@ -143,51 +145,66 @@ class PimLinear(torch.nn.Module):
             torch.nn.init.uniform_(temp_weight[-1], -bound, bound)
 
         self.weight = torch.nn.Parameter(temp_weight.clone().detach().requires_grad_())
-        # self.delta_qweight_t_config = torch.nn.Parameter(self.delta_qweight_t_config)
-        self.wArr = torch.nn.Parameter(
-            quantization_tensor(self.wArrConfig, temp_weight, self.maxValueLeft, self.maxValueRight))
-        self.wtArr = torch.nn.Parameter(
-            quantization_tensor(self.wtArrConfig, temp_weight.t(), self.maxValueLeft, self.maxValueRight))
+        #self.delta_qweight_t_config = torch.nn.Parameter(self.delta_qweight_t_config)
+        self.wArr = torch.nn.Parameter(quantization_tensor(self.wArrConfig, temp_weight, self.maxValueLeft, self.maxValueRight))
+        self.wtArr = torch.nn.Parameter(quantization_tensor(self.wtArrConfig, temp_weight.t(), self.maxValueLeft, self.maxValueRight))
+
 
     def forward(self, qinput: Tensor, qinput_config: Tensor, input: Tensor = None):
-        qoutput, qoutput_config, out = PimLinearFunction.apply(qinput, qinput_config, self.inputArr,
+        qoutput, qoutput_config, _ = PimLinearFunction.apply(qinput, qinput_config, self.inputArr,
                                                                self.inputArrConfig, self.wArr, self.wArrConfig,
                                                                self.wtArr,
                                                                self.wtArrConfig, self.delta_qweight_t_config,
                                                                self.inputBits, self.gradOutputBits, self.hasBias, input,
                                                                self.weight)
 
-        return qoutput, qoutput_config, out
+        return qoutput, qoutput_config
 
 
 class DeQuanFunction(Function):
     @staticmethod
-    def forward(ctx, qinput: Tensor, qinput_config: Tensor, bit: int, quantizerMode: str):
+    def forward(ctx, qinput: Tensor, qinput_config: Tensor, bit: int, backBit: int, quantizerMode: str = "dynamic"):
         if quantizerMode == "dynamic":
-            _, ctx.bit, _ = parse_quantization_para(float_to_int(qinput_config))
+            _, ctx.backBit, _ = parse_quantization_para(float_to_int(qinput_config))
         else:
-            ctx.bit = bit
+            ctx.backBit = backBit
+        
+        if bit is not None:
+            change_bit_width_([qinput, qinput_config], bit)
 
         return de_quantization([qinput, qinput_config])
 
     @staticmethod
     def backward(ctx, grad_output: Tensor):
-        qgrad_output_config = creat_quantization_para(bit_width=ctx.bit, tensor_type=TensorType.Normal,
+        qgrad_output_config = creat_quantization_para(bit_width=ctx.backBit, tensor_type=TensorType.Normal,
                                                       device=grad_output.device)
 
-        qgrad_output = quantization_tensor(qgrad_output_config, grad_output, user_set_max_left=0.001)
+        qgrad_output = quantization_tensor(qgrad_output_config, grad_output)
 
-        return qgrad_output, qgrad_output_config, None, None
+        return qgrad_output, qgrad_output_config, None, None, None
 
 
 class DeQuanLayer(torch.nn.Module):
-    def __init__(self, bitWidth: int = 16, quantizerMode: str = "dynamic"):
+    def __init__(self, bitWidth: int = 16, backBitWidth: int = 16, quantizerMode: str = "dynamic"):
         super().__init__()
         self.quantizerMode = quantizerMode
         self.bit = bitWidth
+        self.backBit = backBitWidth
 
     def forward(self, qinput: Tensor, qinput_config: Tensor):
-        return DeQuanFunction.apply(qinput, qinput_config, self.bit, self.quantizerMode)
+        return DeQuanFunction.apply(qinput, qinput_config, self.bit, self.backBit, self.quantizerMode)
+
+
+class quanFunction(Function):
+    @staticmethod
+    def forward(ctx, input, bit):
+        qoutput_config = creat_quantization_para(bit_width=bit, tensor_type=TensorType.Normal, device=input.device)
+        qoutput = quantization_tensor(qoutput_config, input)
+        return qoutput, qoutput_config
+
+    @staticmethod
+    def backward(ctx, qgrad_output, qgrad_output_config):
+        return de_quantization([qgrad_output, qgrad_output_config]), None
 
 
 class ReluFunction(Function):
@@ -216,7 +233,8 @@ class PimRelu(torch.nn.Module):
         super().__init__()
 
     def forward(self, qinput: Tensor, qinput_config: Tensor, origin_input: Tensor = None):
-        return ReluFunction.apply(qinput, qinput_config, origin_input)
+        qoutput, qoutput_config, _ = ReluFunction.apply(qinput, qinput_config, origin_input)
+        return qoutput, qoutput_config
 
 
 if __name__ == "__main__":

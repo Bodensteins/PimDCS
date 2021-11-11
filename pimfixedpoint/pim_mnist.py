@@ -1,11 +1,9 @@
 from __future__ import print_function
 import argparse
 import torch
-from torch._C import device
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-import numpy as np
 import pimlinear as pl
 from torchvision import datasets, transforms
 from torch.optim.lr_scheduler import StepLR
@@ -90,6 +88,7 @@ class PimNet(nn.Module):
 
 def train(args, model, device, train_loader, optimizer, epoch):
     model.train()
+    loss_log_interval = 0
     for batch_idx, (data, target) in enumerate(train_loader):
         data, target = data.to(device), target.to(device)
 
@@ -97,6 +96,8 @@ def train(args, model, device, train_loader, optimizer, epoch):
         output = model(data)
 
         loss = F.nll_loss(output, target)
+        loss_value = loss.item()
+        loss_log_interval += loss_value
         loss.backward()
         #print(model.fc2.weight.grad)
         optimizer.step()
@@ -112,12 +113,14 @@ def train(args, model, device, train_loader, optimizer, epoch):
 
         # tmp = torch.cat((model2.fc1.weight.data.t().clone(), model2.fc1.bias.data.clone().reshape(1, 128)), 0)
         # print(tmp - model.fc1.weight)
-        if batch_idx % args.log_interval == 0:
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                epoch, batch_idx * len(data), len(train_loader.dataset),
-                100. * batch_idx / len(train_loader), loss.item()))
+        if (batch_idx + 1) % args.log_interval == 0:
+            print('Train Epoch: {} [{}/{} ({:.0f}%)]\t Average Loss: {:.6f}'.format(
+                epoch, (batch_idx + 1) * len(data), len(train_loader.dataset),
+                100. * (batch_idx + 1) / len(train_loader), loss_log_interval / args.log_interval))
+            loss_log_interval = 0
             if args.dry_run:
                 break
+
 
 
 def test(model, device, test_loader):
@@ -134,7 +137,7 @@ def test(model, device, test_loader):
 
     test_loss /= len(test_loader.dataset)
 
-    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.2f}%)\n'.format(
         test_loss, correct, len(test_loader.dataset),
         100. * correct / len(test_loader.dataset)))
 
@@ -190,7 +193,7 @@ def main():
                               transform=transform)
     dataset2 = datasets.MNIST('../data', train=False,
                               transform=transform)
-    train_loader = torch.utils.data.DataLoader(dataset1,**train_kwargs)
+    train_loader = torch.utils.data.DataLoader(dataset1, **train_kwargs)
     test_loader = torch.utils.data.DataLoader(dataset2, **test_kwargs)
     if args.pim:
         if args.pimconv:
@@ -201,7 +204,7 @@ def main():
         optimizer = po.PimSGD(model, lr=args.lr, momentum=0.9, run_mode=po.OptimMode.full_fix)
     else:
         model = Net(args.batch_size).to(device)
-        #optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
+        # optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
         optimizer = optim.SGD(model.parameters(), lr = args.lr)
 
     # scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
@@ -210,7 +213,7 @@ def main():
         test(model, device, test_loader)
     
     if args.save_model:
-        torch.save(model.state_dict(), "mnist_cnn.pt")
+        torch.save(model.state_dict(), "mnist_fc.pt")
 
 
 if __name__ == '__main__':

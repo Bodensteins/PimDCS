@@ -100,7 +100,7 @@ class PimConv2D(torch.nn.Module):
         #Here, for simpicity, we use dequan & fold & quan to simulate fixed-point fold
         output = DeQuanFunction.apply(qoutput, qoutput_config, None, None)
         output = output.reshape(batch_size, -1, self.output_chs).transpose(1, 2)
-        output = torch.nn.functional.fold(output, self.output_size, (1, 1), self.dilation, self.padding, self.stride)
+        output = torch.nn.functional.fold(output, self.output_size, (1, 1))
 
         qoutput, qoutput_config = quanFunction.apply(output, float_to_int(qoutput_config)[1])
 

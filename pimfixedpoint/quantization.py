@@ -421,5 +421,3 @@ def add_alpha_tensor_(source_tensor_list: list, add_tensor_list: list, alpha: fl
     else:
         raise Exception("We don't implement this source_tensor_type!", source_tensor_type)
 
-if __name__ == '__main__':
-    torch.nn.Unfold

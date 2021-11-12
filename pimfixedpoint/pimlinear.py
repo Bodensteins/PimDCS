@@ -43,12 +43,13 @@ class PimLinearFunction(Function):
             ctx.weight = weight
             ctx.has_origin_input = True
 
-        change_bit_width_([qinput, qinput_config], inputBits)
 
         if qinputArr is None:
             qinputArr = write_array_([qinputArr, qinputArr_config], [qinput, qinput_config])
         else:
             write_array_([qinputArr, qinputArr_config], [qinput, qinput_config])
+
+        change_bit_width_([qinput, qinput_config], inputBits)
 
         qoutput, qoutput_config = normal_matmul_array([qinput, qinput_config], [qweight, qweight_config])
 

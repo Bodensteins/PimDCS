@@ -24,7 +24,8 @@ class WriteArrayMode(Enum):
     Round = 1
 
 
-system_bit_width = 33
+system_bit_width = 50
+
 data_flow_bit_width = system_bit_width >> 1
 half_data_flow_bit_width = data_flow_bit_width >> 1
 # data flow bit width must be half of system bit width to avoid overflow
@@ -190,6 +191,8 @@ def de_quantization(float_tensor_list: list) -> Tensor:
 
 
 def change_bit_width_(float_tensor_list: list, new_bit_width: int, mode: ChangeBitWidthMode = ChangeBitWidthMode.Round):
+    set_appropriate_bit_width_(float_tensor_list)
+
     int_tensor, quantization_para = parse_float_tensor_list(float_tensor_list)
     s, bit_width, tensor_type = parse_quantization_para(quantization_para)
 
@@ -343,7 +346,6 @@ def normal_matmul_array(normal_tensor_list: list, array_tensor_list: list, matmu
             int_matmul_result_para[0] = normal_s + array_s
             assert (int_matmul_result_para[2] == TensorType.Normal.value)
 
-        set_appropriate_bit_width_([matmul_result, matmul_result_para])
     else:
         raise Exception("We don't implement this tensor_type!", array_tensor_type)
 
@@ -382,14 +384,12 @@ def mul_num(float_tensor_list: list, alpha: float, alpha_bit_width: int = 16) ->
         mul_num_int_tensor = int_tensor.mul(alpha_int)
         mul_num_s = s + alpha_s
         mul_num_para = creat_quantization_para(device=int_tensor.device, s=mul_num_s, tensor_type=TensorType.Normal)
-        set_appropriate_bit_width_([mul_num_int_tensor, mul_num_para])
     elif tensor_type == TensorType.Ref:
         data_part = int_tensor[..., 0:-1]
         ref_part = int_tensor[..., -1].unsqueeze(0).t()
         mul_num_int_tensor = (data_part - ref_part).mul(alpha_int)
         mul_num_s = s + alpha_s
         mul_num_para = creat_quantization_para(device=int_tensor.device, s=mul_num_s, tensor_type=TensorType.Normal)
-        set_appropriate_bit_width_([mul_num_int_tensor, mul_num_para])
     else:
         raise Exception("We don't implement this tensor_type!", tensor_type)
 
@@ -437,6 +437,3 @@ def add_alpha_tensor_(source_tensor_list: list, add_tensor_list: list, alpha: fl
     else:
         raise Exception("We don't implement this source_tensor_type!", source_tensor_type)
 
-
-if __name__ == '__main__':
-    torch.nn.Unfold

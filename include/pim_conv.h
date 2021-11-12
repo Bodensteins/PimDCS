@@ -335,14 +335,14 @@ namespace PIM {
 
             reset();
             this->to(op.device());
-            create_pim_array(wb_ptr, {
-                options_.bias() ? (*kernel_size)[0] * (*kernel_size)[1] * n_input_plane + 1 :
-                (*kernel_size)[0] * (*kernel_size)[1] * n_input_plane, n_output_plane
-                }, pim_type, op);
+            create_pim_array(wb_ptr, {options_.bias() ? (*kernel_size)[0] * (*kernel_size)[1] * n_input_plane + 1 : (*kernel_size)[0] * (*kernel_size)[1] * n_input_plane, n_output_plane}, pim_type, op);
             if (train_mode != PIMRunMode::inference)
             {
                 create_pim_array(wb_t_ptr, {(*kernel_size)[0] * (*kernel_size)[1] * n_output_plane, n_input_plane}, pim_type, op);
-                create_pim_array_list(prev_ptrs, {(*input_shape)[0], (*input_shape)[2] * (*input_shape)[3], (*input_shape)[1]}, pim_type, op);
+                if (train_mode == PIMRunMode::train_transientInBuffer)
+                    create_pim_array_list(prev_ptrs, {(*input_shape)[0], (*input_shape)[2] * (*input_shape)[3], (*input_shape)[1]}, PimArrayType::simple_logic_array, op);
+                else
+                    create_pim_array_list(prev_ptrs, {(*input_shape)[0], (*input_shape)[2] * (*input_shape)[3], (*input_shape)[1]}, pim_type, op);
             }
             sync_weight();
         }

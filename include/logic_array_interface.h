@@ -8,25 +8,30 @@
 #include <iostream>
 
 namespace PIM {
-  enum class PimArrayType {
-    simple_logic_array, pim_array_pro, pim_array_fast
-  };
-    enum class PIMRunMode 
-    {
-        train,
-        fast_mode_train, // backend is digital
-        inference
-    };
 
- std::ostream &operator << ( std::ostream& stream, const PimArrayType &type)
- {
-   const std::string name[] = {
-       "PIM::simple_logic_array",
-       "PIM::pim_array_pro",
-       "PIM::pim_array_fast"
-   };
-   return stream << name[(int)type];
- }
+enum class PimArrayType
+{
+    simple_logic_array,
+    pim_array_pro,
+    pim_array_fast
+};
+
+enum class PIMRunMode
+{
+    train,  //nomal training, transient data used for backward is also stored in phy pim array. refers to Pipelayer (hpca2017), or Time (dac17) architecture.
+    fast_mode_train, // backend is digital
+    inference,
+    train_transientInBuffer, // transient data used for backward is store in buffer.
+};
+
+std::ostream &operator<<(std::ostream &stream, const PimArrayType &type)
+{
+    const std::string name[] = {
+        "PIM::simple_logic_array",
+        "PIM::pim_array_pro",
+        "PIM::pim_array_fast"};
+    return stream << name[(int)type];
+}
 
 /**
  * LogicArrayInterface is a API for libtorch to map operations to PIM simulator.

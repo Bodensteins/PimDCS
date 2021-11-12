@@ -209,7 +209,7 @@ class quanFunction(Function):
 
 class ReluFunction(Function):
     @staticmethod
-    def forward(ctx, qinput: Tensor, qinput_config: Tensor, origin_input: Tensor):
+    def forward(ctx, qinput: Tensor, qinput_config: Tensor, origin_input: Tensor = None):
         neg_position = quantization_tensor_less([qinput, qinput_config], 0)
         ctx.neg_position = neg_position
         qinput[neg_position] = 0  # The zero in ieee754 is all zero as well.

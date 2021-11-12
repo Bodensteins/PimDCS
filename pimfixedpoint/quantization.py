@@ -19,6 +19,11 @@ class ChangeBitWidthMode(Enum):
     Round = 1
 
 
+class WriteArrayMode(Enum):
+    Shift = 0
+    Round = 1
+
+
 system_bit_width = 33
 data_flow_bit_width = system_bit_width >> 1
 half_data_flow_bit_width = data_flow_bit_width >> 1
@@ -246,7 +251,8 @@ def remove_additional_col(float_tensor: Tensor):
 
 
 # if array tensor is None, alloc memory for it, else modify it in place
-def write_array_(array_tensor_list: list, data_tensor_list: list) -> Tensor:
+def write_array_(array_tensor_list: list, data_tensor_list: list, mode: WriteArrayMode = WriteArrayMode.Shift):
+    set_appropriate_bit_width_(data_tensor_list)
     array_int_tensor, array_quantization_para = parse_float_tensor_list(array_tensor_list)
     _, array_bit_width, array_tensor_type = parse_quantization_para(array_quantization_para)
     data_int_tensor, data_quantization_para = parse_float_tensor_list(data_tensor_list)
@@ -273,8 +279,16 @@ def write_array_(array_tensor_list: list, data_tensor_list: list) -> Tensor:
             array_int_tensor[:, 0:-1].zero_().add_(data_int_tensor.add(neg_levels))
         else:
             array_quantization_para[0] = data_s + data_bit_width - array_bit_width
-            array_int_tensor[:, 0:-1].\
-                zero_().add_(data_int_tensor.__rshift__(data_bit_width - array_bit_width).add(neg_levels))
+
+            if mode == WriteArrayMode.Shift:
+                write_tensor = data_int_tensor.__rshift__(data_bit_width - array_bit_width)
+            elif mode == WriteArrayMode.Round:
+                round_bit = data_int_tensor.bitwise_and(1 << (data_bit_width - array_bit_width - 1))
+                write_tensor = data_int_tensor.add(round_bit).__rshift__(data_bit_width - array_bit_width)
+            else:
+                raise Exception("We don't support this write array mode!", mode)
+
+            array_int_tensor[:, 0:-1].zero_().add_(write_tensor.add(neg_levels))
 
     else:
         raise Exception("We don't implement this tensor_type!", array_tensor_type)
@@ -422,6 +436,7 @@ def add_alpha_tensor_(source_tensor_list: list, add_tensor_list: list, alpha: fl
         data[data > max_int_number] = max_int_number
     else:
         raise Exception("We don't implement this source_tensor_type!", source_tensor_type)
+
 
 if __name__ == '__main__':
     torch.nn.Unfold

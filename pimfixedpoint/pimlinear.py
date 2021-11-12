@@ -31,24 +31,24 @@ class PimLinearFunction(Function):
 
         if hasBias:
             qinput = add_additional_col_of_one([qinput, qinput_config])
-            if input != None:
+            if input is not None:
                 full_one_col = torch.full([input.size()[0], 1], 1, dtype=input.dtype, device=input.device)
                 input = torch.cat((input, full_one_col), 1)
 
         ctx.has_origin_input = False
         output = None
-        if input != None:
+        if input is not None:
             output = torch.matmul(input, weight)
             ctx.input = input
             ctx.weight = weight
             ctx.has_origin_input = True
 
-        change_bit_width_([qinput, qinput_config], inputBits)
-
         if qinputArr is None:
             qinputArr = write_array_([qinputArr, qinputArr_config], [qinput, qinput_config])
         else:
             write_array_([qinputArr, qinputArr_config], [qinput, qinput_config])
+
+        change_bit_width_([qinput, qinput_config], inputBits)
 
         qoutput, qoutput_config = normal_matmul_array([qinput, qinput_config], [qweight, qweight_config])
 

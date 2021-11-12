@@ -167,7 +167,7 @@ def main():
                         help='For Saving the current Model')
     parser.add_argument('--pim', action='store_true', default=True,
                         help='For use pim')
-    parser.add_argument('--pimconv', action='store_true', default=True,
+    parser.add_argument('--pimconv', action='store_true', default=False,
                         help='For use pimconv')
     args = parser.parse_args()
     use_cuda = not args.no_cuda and torch.cuda.is_available()

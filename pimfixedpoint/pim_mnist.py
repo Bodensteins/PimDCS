@@ -1,14 +1,11 @@
 from __future__ import print_function
 import argparse
-import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import pimlinear as pl
 from torchvision import datasets, transforms
-from torch.optim.lr_scheduler import StepLR
 import pimconv as pc
-from quantization import de_quantization, int_to_float
 import pim_optimizer as po
 
 from quantization import *
@@ -29,6 +26,7 @@ class Net(nn.Module):
         x4 = self.fc2(x3)
         output = F.log_softmax(x4, dim=1)
         return output, x2, x3, x4
+
 
 class PimConvNet(nn.Module):
     def __init__(self, batch_size, device: torch.device = torch.device("cpu")):
@@ -61,12 +59,13 @@ class PimConvNet(nn.Module):
 
         return output
 
+
 class PimNet(nn.Module):
     def __init__(self, batch_size, device: torch.device = torch.device("cpu")):
         super().__init__()
         self.device = device
-        self.fc1 = pl.PimLinear(784, 128, 16, 16, 16, device=device)
-        self.fc2 = pl.PimLinear(128, 10, 16, 16, 16, device=device)
+        self.fc1 = pl.PimLinear(784, 128, 16, 8, 16, device=device)
+        self.fc2 = pl.PimLinear(128, 10, 16, 8, 16, device=device)
         self.relu = pl.PimRelu()
         self.dequan = pl.DeQuanLayer(16)
 
@@ -99,7 +98,7 @@ def train(args, model, device, train_loader, optimizer, epoch):
         loss_value = loss.item()
         loss_log_interval += loss_value
         loss.backward()
-        #print(model.fc2.weight.grad)
+        # print(model.fc2.weight.grad)
         optimizer.step()
 
         # t2diff = model.fc2.weight.data.detach()- \
@@ -110,7 +109,6 @@ def train(args, model, device, train_loader, optimizer, epoch):
         # print(t2diff.abs().max())#/t2diff.size(0)/t2diff.size(1))
         # print(t1diff.abs().max())#/t1diff.size(0)/t1diff.size(1))
 
-
         # tmp = torch.cat((model2.fc1.weight.data.t().clone(), model2.fc1.bias.data.clone().reshape(1, 128)), 0)
         # print(tmp - model.fc1.weight)
         if (batch_idx + 1) % args.log_interval == 0:
@@ -120,7 +118,6 @@ def train(args, model, device, train_loader, optimizer, epoch):
             loss_log_interval = 0
             if args.dry_run:
                 break
-
 
 
 def test(model, device, test_loader):
@@ -145,7 +142,7 @@ def test(model, device, test_loader):
 def main():
     # Training settings
     parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
-    parser.add_argument('--batch-size', type=int, default=128, metavar='N',
+    parser.add_argument('--batch-size', type=int, default=64, metavar='N',
                         help='input batch size for training (default: 64)')
     parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
                         help='input batch size for testing (default: 1000)')
@@ -155,13 +152,13 @@ def main():
                         help='learning rate (default: 1.0)')
     parser.add_argument('--gamma', type=float, default=0.7, metavar='M',
                         help='Learning rate step gamma (default: 0.7)')
-    parser.add_argument('--no-cuda', action='store_true', default=False,
+    parser.add_argument('--no-cuda', action='store_true', default=True,
                         help='disables CUDA training')
     parser.add_argument('--dry-run', action='store_true', default=False,
                         help='quickly check a single pass')
     parser.add_argument('--seed', type=int, default=3, metavar='S',
                         help='random seed (default: 1)')
-    parser.add_argument('--log-interval', type=int, default=100, metavar='N',
+    parser.add_argument('--log-interval', type=int, default=1, metavar='N',
                         help='how many batches to wait before logging training status')
     parser.add_argument('--save-model', action='store_true', default=False,
                         help='For Saving the current Model')
@@ -174,7 +171,7 @@ def main():
 
     torch.manual_seed(args.seed)
 
-    device = torch.device("cuda" if use_cuda else "cpu")
+    device = torch.device("cuda:2" if use_cuda else "cpu")
 
     train_kwargs = {'batch_size': args.batch_size}
     test_kwargs = {'batch_size': args.test_batch_size}

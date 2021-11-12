@@ -53,10 +53,8 @@ class PimSGD:
                             'weight': weight}
         self.param_group.update(self.defaults)
 
-
     def zero_grad(self):
         pass
-
 
     @torch.no_grad()
     def step(self, closure=None):

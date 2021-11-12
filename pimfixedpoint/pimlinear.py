@@ -31,13 +31,13 @@ class PimLinearFunction(Function):
 
         if hasBias:
             qinput = add_additional_col_of_one([qinput, qinput_config])
-            if input != None:
+            if input is not None:
                 full_one_col = torch.full([input.size()[0], 1], 1, dtype=input.dtype, device=input.device)
                 input = torch.cat((input, full_one_col), 1)
 
         ctx.has_origin_input = False
         output = None
-        if input != None:
+        if input is not None:
             output = torch.matmul(input, weight)
             ctx.input = input
             ctx.weight = weight
@@ -149,7 +149,6 @@ class PimLinear(torch.nn.Module):
         #self.delta_qweight_t_config = torch.nn.Parameter(self.delta_qweight_t_config)
         self.wArr = torch.nn.Parameter(quantization_tensor(self.wArrConfig, temp_weight, self.maxValueLeft, self.maxValueRight))
         self.wtArr = torch.nn.Parameter(quantization_tensor(self.wtArrConfig, temp_weight.t(), self.maxValueLeft, self.maxValueRight))
-
 
     def forward(self, qinput: Tensor, qinput_config: Tensor, input: Tensor = None):
         qoutput, qoutput_config, _ = PimLinearFunction.apply(qinput, qinput_config, self.inputArr,

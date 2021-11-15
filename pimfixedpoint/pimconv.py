@@ -1,0 +1,107 @@
+from os import stat
+from typing import List
+import torch
+import math
+from torch.autograd import Function, grad
+from torch import Tensor
+from pimlinear import DeQuanFunction, PimLinearFunction, quanFunction
+from quantization import add_additional_col_of_one, change_bit_width_, parse_float_tensor_list, write_array_, normal_matmul_array, \
+    remove_additional_col, normal_t_matmul_array, TensorType, creat_quantization_para, quantization_tensor, \
+    parse_quantization_para, de_quantization, quantization_tensor_less, float_to_int, add_additional_col_of_zero
+
+
+class PimConv2D(torch.nn.Module):
+    def __init__(self, input_shape: List, kernel_size: List, output_chs: int, stride: int = 1, padding: int = 0, dilation: int = 1,
+            inputBits: int = 16, weightBits: int = 16, gradOutputBits: int = 16,
+            arrayMode: str = "RefTensor", quantizerMode: str = "", absMaxValueLeft = None, absMaxValueRight = None, hasBias: bool = True,
+            device: torch.device = torch.device("cpu")): 
+        super().__init__()
+        self.output_chs = output_chs
+        self.input_shape = input_shape
+        self.kernel_size = kernel_size
+
+        self.input_chs = self.input_shape[0]
+        self.input_h = self.input_shape[1]
+        self.input_w = self.input_shape[2]
+        self.kernel_h = self.kernel_size[0]
+        self.kernel_w = self.kernel_size[1]
+
+        self.stride = (stride, stride) if type(stride)==int else stride
+        self.padding = (padding, padding) if type(padding)==int else padding
+        self.dilation = (dilation, dilation) if type(dilation)==int else dilation
+
+        self.m = self.kernel_h*self.kernel_w*self.input_chs
+        self.kernel_size_all = self.m
+        self.n = self.output_chs
+        self.output_size = (math.floor((self.input_h+2*self.padding[0]-self.dilation[0]*(self.kernel_h-1)-1)/self.stride[0]+1), \
+                            math.floor((self.input_w+2*self.padding[1]-self.dilation[1]*(self.kernel_w-1)-1)/self.stride[1]+1))
+
+        self.inputArr = None
+
+        self.hasBias = hasBias
+        if self.hasBias:
+            self.m += 1
+
+        self.inputBits, self.weightBits, self.gradOutputBits = inputBits, weightBits, gradOutputBits
+        self.quantizerMode, self.absMaxValueLeft, self.absMaxValueRight = quantizerMode, absMaxValueLeft, absMaxValueRight
+
+        self.device = device
+
+        # this bit_width is not used in fact.
+        self.delta_qweight_t_config = creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Normal,
+                                                              device=device)
+        if arrayMode == "RefTensor":
+            self.inputArrConfig = creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Ref,
+                                                          device=device)
+            self.wArrConfig = creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Ref,
+                                                      device=device)
+            self.wtArrConfig = creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Ref,
+                                                       device=device)
+        # elif arrayMode == "PNTensor":
+        #    self.wArr = PNTensor(m, n, absMaxValue, bitwidth)
+        #    self.wtArr = PNTensor(n, m, absMaxValue, bitwidth) 
+        #    self.inputArr = PNTensor(batch_size, m, absMaxValue, bitwidth)
+        else:
+            raise Exception("We don't implement this array mode!", arrayMode)
+
+        self.weight_init()
+    
+    def weight_init(self):
+        temp_weight = torch.empty(self.m, self.n, device=self.device)
+        torch.nn.init.kaiming_uniform_(temp_weight, math.sqrt(5))
+
+        if self.hasBias:
+            fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(temp_weight[0:-1])
+            bound = 1 / math.sqrt(fan_in)
+            torch.nn.init.uniform_(temp_weight[-1], -bound, bound)
+
+        self.weight = torch.nn.Parameter(temp_weight.clone().detach().requires_grad_())
+        self.wArr = torch.nn.Parameter(quantization_tensor(self.wArrConfig, temp_weight, self.absMaxValueLeft, self.absMaxValueRight))
+        self.wtArr = torch.nn.Parameter(quantization_tensor(self.wtArrConfig, temp_weight.t(), self.absMaxValueLeft, self.absMaxValueRight))
+
+        
+
+    def forward(self, qinput: Tensor, qinput_config: Tensor):
+        #reshaple qinput to the matrix-shape
+        #Here, for simplicity, we use dequan & unfold & quan to simulate fixed-point unfold. 
+        batch_size = qinput.size(0)
+        input = DeQuanFunction.apply(qinput, qinput_config, self.inputBits, self.gradOutputBits, "") 
+        input = torch.nn.functional.unfold(input, self.kernel_size, dilation=self.dilation, padding=self.padding, stride=self.stride)
+        input = input.transpose(1, 2).reshape(-1, self.kernel_size_all)
+        qinput, qinput_config = quanFunction.apply(input, self.inputBits)
+
+
+        #re-use pimlinerfunction to get the answer
+        qoutput, qoutput_config, _= PimLinearFunction.apply(qinput, qinput_config, self.inputArr, self.inputArrConfig, \
+            self.wArr, self.wArrConfig, self.wtArr, self.wtArrConfig, self.delta_qweight_t_config, self.inputBits, \
+                self.gradOutputBits, self.hasBias, None, self.weight)
+
+        #reshape the qoutput to the conv-shape
+        #Here, for simpicity, we use dequan & fold & quan to simulate fixed-point fold
+        output = DeQuanFunction.apply(qoutput, qoutput_config, None, None)
+        output = output.reshape(batch_size, -1, self.output_chs).transpose(1, 2)
+        output = torch.nn.functional.fold(output, self.output_size, (1, 1))
+
+        qoutput, qoutput_config = quanFunction.apply(output, float_to_int(qoutput_config)[1])
+
+        return qoutput, qoutput_config, output

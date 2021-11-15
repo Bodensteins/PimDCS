@@ -59,6 +59,7 @@ else()
     message(STATUS "Using config path: ${PIM_ARRAY_CONFIG_PATH}")
 endif()
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/include/config_path.h.in ${CMAKE_CURRENT_SOURCE_DIR}/include/config_path.h)
+<<<<<<< HEAD
 
 add_executable(pim_conv_mnist test/pim_conv_mnist.cpp)
 add_dependencies(pim_conv_mnist YAML_CPP_EXTERNAL_PROJECT)
@@ -70,50 +71,14 @@ add_dependencies(pim_fc_mnist YAML_CPP_EXTERNAL_PROJECT)
 target_link_libraries(pim_fc_mnist "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
 set_property(TARGET pim_fc_mnist PROPERTY CXX_STANDARD 14)
 
-add_executable(original_conv_mnist test/original_conv_mnist.cpp)
-add_dependencies(original_conv_mnist YAML_CPP_EXTERNAL_PROJECT)
-target_link_libraries(original_conv_mnist "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
-set_property(TARGET original_conv_mnist PROPERTY CXX_STANDARD 14)
 
-add_executable(original_fc_mnist test/original_fc_mnist.cpp)
-add_dependencies(original_fc_mnist YAML_CPP_EXTERNAL_PROJECT)
-target_link_libraries(original_fc_mnist "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
-set_property(TARGET original_fc_mnist PROPERTY CXX_STANDARD 14)
-
-add_executable(original_vgg8_cifar10 test/original_vgg8_cifar10.cc)
-add_dependencies(original_vgg8_cifar10 YAML_CPP_EXTERNAL_PROJECT)
-target_link_libraries(original_vgg8_cifar10 "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
-set_property(TARGET original_vgg8_cifar10 PROPERTY CXX_STANDARD 14)
 
 add_executable(pim_vgg8_cifar10_inference test/pim_vgg8_cifar10_inference.cpp)
 add_dependencies(pim_vgg8_cifar10_inference YAML_CPP_EXTERNAL_PROJECT)
 target_link_libraries(pim_vgg8_cifar10_inference "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
 set_property(TARGET pim_vgg8_cifar10_inference PROPERTY CXX_STANDARD 14)
 
-add_executable(original_vgg16_cifar10 test/original_vgg16_cifar10.cc)
-add_dependencies(original_vgg16_cifar10 YAML_CPP_EXTERNAL_PROJECT)
-target_link_libraries(original_vgg16_cifar10 "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
-set_property(TARGET original_vgg16_cifar10 PROPERTY CXX_STANDARD 14)
 
-add_executable(pim_vgg8 test/pim_vgg8_cifar10.cc)
-add_dependencies(pim_vgg8 YAML_CPP_EXTERNAL_PROJECT)
-target_link_libraries(pim_vgg8 "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
-set_property(TARGET pim_vgg8 PROPERTY CXX_STANDARD 14)
-
-add_executable(pim_fc_xor test/pim_fc_xor.cpp)
-add_dependencies(pim_fc_xor YAML_CPP_EXTERNAL_PROJECT)
-target_link_libraries(pim_fc_xor "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
-set_property(TARGET pim_fc_xor PROPERTY CXX_STANDARD 14)
-
-add_executable(conv_test test/conv_test.cpp)
-add_dependencies(conv_test YAML_CPP_EXTERNAL_PROJECT)
-target_link_libraries(conv_test "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
-set_property(TARGET conv_test PROPERTY CXX_STANDARD 14)
-
-add_executable(linear_test test/linear_test.cpp)
-add_dependencies(linear_test YAML_CPP_EXTERNAL_PROJECT)
-target_link_libraries(linear_test "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
-set_property(TARGET linear_test PROPERTY CXX_STANDARD 14)
 
 # cifar-10
 add_executable(original_vgg test/vgg/original_vgg.cpp)
@@ -121,7 +86,4 @@ add_dependencies(original_vgg YAML_CPP_EXTERNAL_PROJECT)
 target_link_libraries(original_vgg "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
 set_property(TARGET original_vgg PROPERTY CXX_STANDARD 14)
 
-add_executable(pim_vgg test/vgg/pim_vgg.cpp)
-add_dependencies(pim_vgg YAML_CPP_EXTERNAL_PROJECT)
-target_link_libraries(pim_vgg "${TORCH_LIBRARIES}" "${YAML_CPP_LIBRARIES}")
-set_property(TARGET pim_vgg PROPERTY CXX_STANDARD 14)
+

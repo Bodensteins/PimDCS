@@ -24,13 +24,6 @@ struct VGG8_Net: torch::nn::Module
 {
     VGG8_Net(): conv(7, nullptr), fc1(nullptr), fc2(nullptr)
     {
-        //conv[0] = register_module("conv0", torch::nn::Conv2d(torch::nn::Conv2dOptions(3, 128, 3).padding(1)));
-        //conv[1] = register_module("conv1", torch::nn::Conv2d(torch::nn::Conv2dOptions(128, 128, 3).padding(1)));
-        //conv[2] = register_module("conv2", torch::nn::Conv2d(torch::nn::Conv2dOptions(128, 256, 3).padding(1)));
-        //conv[3] = register_module("conv3", torch::nn::Conv2d(torch::nn::Conv2dOptions(256, 256, 3).padding(1)));
-        //conv[4] = register_module("conv4", torch::nn::Conv2d(torch::nn::Conv2dOptions(256, 512, 3).padding(1)));
-        //conv[5] = register_module("conv5", torch::nn::Conv2d(torch::nn::Conv2dOptions(512, 512, 3).padding(1)));
-        // conv[6] = register_module("conv6", torch::nn::Conv2d(torch::nn::Conv2dOptions(512, 1024, 3).padding(1)));
         conv[0] = register_module("conv0", PimConv2d(ExpandingArray<4>({kTrainBatchSize, 3, 32, 32}),pim_type, Conv2dOptions(3, 128, 3).padding(1), fast_mode, TensorOptions(ktype).device(runDev)));
 
         std::cout << "0" << std::endl;

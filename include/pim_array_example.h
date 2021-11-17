@@ -6,6 +6,7 @@
 #include "pim_array_config.h"
 #include "phy_array_simple.h"
 #include "logic_array_interface.h"
+#include "pim_quantizer.h"
 #include "pim_func.h"
 #include <cassert>
 #include <mutex>
@@ -13,6 +14,7 @@
 #include <map>
 #include <vector>
 
+namespace PIM {
 using std::min;
 using PIM::LogicArrayInterface;
 using PIM::SimpleLogicArray;
@@ -686,12 +688,9 @@ at::Tensor pimArrayPro::read_mat(int row, int col, int m, int n)
             return data;
         };
 
-        auto digit2unit = [&](const at::Tensor &in) -> at::Tensor
-        {
-            return in.to(torch::kFloat64).mul(conf->max_weight_value / (conf->unitLevels - 1));
-        };
+        static arrPNQuantizer q;
 
-        return digit2unit(cell2digit(pos_cell)) - digit2unit(cell2digit(neg_cell));
+        return q.dequan(std::make_pair(cell2digit(pos_cell), cell2digit(neg_cell)));
     }
 
     int ed_arrY, ed_arrColId;
@@ -749,11 +748,9 @@ at::Tensor pimArrayPro::read_mat(int row, int col, int m, int n)
         return data;
     };
 
-    auto digit2unit = [&](const at::Tensor &in) -> at::Tensor
-    {
-        return in.to(torch::kFloat64).div((conf->unitLevels - 1) / 2.0).subtract(1).mul(conf->max_weight_value);
-    };
-    return digit2unit(cell2digit(data_cell));
+    static arrRefQuantizer q;
+
+    return q.dequan(cell2digit(data_cell));
 }
 
 /**
@@ -783,22 +780,6 @@ void pimArrayPro::write_mat(const at::Tensor &matin, int row, int col)
     // getRowPos(ed_row, ed_arrX, ed_arrRowId);
     if (conf->mode == 0) // positive array & negative array
     {
-        auto unit2digit = [&](const at::Tensor &x, at::Tensor &pos, at::Tensor &neg) -> void
-        {
-            pos = x.div(conf->max_weight_value);
-            pos.index_put_({pos > 1}, 1.0);
-            pos.index_put_({pos < -1}, -1.0); // -1~~1
-
-            pos = pos.mul(conf->unitLevels - 1); // -(unitLevels -1 ) ~~~~ (unitLevels -1 )
-            neg = pos.clone();
-
-            pos.index_put_({pos < 0}, 0); // 0 ~ unitLevels-1
-            neg.index_put_({neg > 0}, 0);
-            neg.abs_(); // 0 ~ unitLevels-1
-            pos = pos.round_().to(torch::kInt32);
-            neg = neg.round_().to(torch::kInt32);
-        };
-
         int mask = (conf->cellLevels) - 1;
         auto digit2cell = [&](at::Tensor &in, at::Tensor &out) -> void
         {
@@ -806,11 +787,12 @@ void pimArrayPro::write_mat(const at::Tensor &matin, int row, int col)
             out.__irshift__(conf->crshift.to(in.device())).bitwise_and_(mask);
             out = out.view({m, n * conf->cellsPerUnit});
         };
-        at::Tensor neg, pos, pos_cell, neg_cell;
+        at::Tensor pos_cell, neg_cell;
+        static arrPNQuantizer q;
 
-        unit2digit(mat, pos, neg); //pos {}
-        digit2cell(pos, pos_cell);
-        digit2cell(neg, neg_cell);
+        auto q_mat = q.quan(mat); //pos {}
+        digit2cell(q_mat.first, pos_cell);
+        digit2cell(q_mat.second, neg_cell);
 
         int ed_arrY, ed_arrColId;
         int ed_arrX, ed_arrRowId;
@@ -864,14 +846,8 @@ void pimArrayPro::write_mat(const at::Tensor &matin, int row, int col)
         return;
     }
 
+    static arrRefQuantizer q;
     //ref column mode
-    auto unit2digit = [&](const at::Tensor &x) -> at::Tensor
-    {
-        auto y = x.div(conf->max_weight_value);
-        y.index_put_({y > 1}, 1.0);
-        y.index_put_({y < -1}, -1.0);
-        return y.add(1).div(2.0).mul(conf->unitLevels - 1).add(0.5).to(torch::kInt32);
-    };
 
     int mask = (conf->cellLevels) - 1;
     auto digit2cell = [&](at::Tensor &in, at::Tensor &out) -> void
@@ -881,7 +857,7 @@ void pimArrayPro::write_mat(const at::Tensor &matin, int row, int col)
         out = out.view({m, -1});
     };
 
-    at::Tensor data = unit2digit(mat);
+    at::Tensor data = q.quan(mat);
     at::Tensor data_cell;
     digit2cell(data, data_cell);
 
@@ -945,8 +921,12 @@ at::Tensor pimArrayPro::mm(const at::Tensor &matin)
         int batch_size = mat.size(0);
         int siz = mat.size(1);
         double max_one;
+        PIM::ioQuantizer q;
+
         phyArrManPro.op_add(((int64_t)rowSize * colSize + (int64_t)(rowSize - 1) * colSize) * batch_size, 1);
-        at::Tensor input = phyArrayPro::preWorkForMM(mat, conf, std::ref(max_one)); // input should be tensor of size {batch_size, inBits/inVBits, rowSize}
+        auto qo = q.quan(mat);
+        auto input = qo.first;
+        max_one = qo.second;
 
         at::Tensor out = torch::zeros({arrX_size, batch_size, arrY_size * conf->unitsPerPhyRow}, op.dtype(torch::kF64));
 
@@ -960,18 +940,20 @@ at::Tensor pimArrayPro::mm(const at::Tensor &matin)
             phyArrManPro.latency_add(batch_size*phyArrManPro.calculate_latency(2*arrX_size, arrY_size, 5), 5);
             at::Tensor nout = torch::zeros({arrX_size, batch_size, arrY_size * conf->unitsPerPhyRow}, op.dtype(torch::kF64));
             at::parallel_for(0, arrX_size * arrY_size, 0, [&](int st, int ed)
-                             {
-                                 for (int k = st; k < ed; ++k)
-                                 {
-                                     int i = k / arrY_size;
-                                     int j = k % arrY_size;
-                                     if (i * conf->phyArrRowSize >= siz)
-                                         continue;
-                                     out[i].index({Slice(), Slice(j * conf->unitsPerPhyRow, (j + 1) * conf->unitsPerPhyRow)}) = phyArrManPro[arr[i][j]].mm(input.index({Slice(), Slice(), Slice(i * conf->phyArrRowSize, (i + 1) * conf->phyArrRowSize)}), conf, max_one, phyArrayPro::postWorkForMM);
+                            {
+                                for (int k = st; k < ed; ++k)
+                                {
+                                    int i = k / arrY_size;
+                                    int j = k % arrY_size;
+                                    if (i * conf->phyArrRowSize >= siz)
+                                        continue;
 
-                                     nout[i].index({Slice(), Slice(j * conf->unitsPerPhyRow, (j + 1) * conf->unitsPerPhyRow)}) = phyArrManPro[narr[i][j]].mm(input.index({Slice(), Slice(), Slice(i * conf->phyArrRowSize, (i + 1) * conf->phyArrRowSize)}), conf, max_one, phyArrayPro::postWorkForMM);
-                                 }
-                             });
+                                    auto temp = phyArrManPro[arr[i][j]].mm(input.index({Slice(), Slice(), Slice(i * conf->phyArrRowSize, (i + 1) * conf->phyArrRowSize)}));
+                                    out[i].index({Slice(), Slice(j * conf->unitsPerPhyRow, (j + 1) * conf->unitsPerPhyRow)}) = q.dequan(make_pair(temp, max_one));
+                                    auto tempn = phyArrManPro[narr[i][j]].mm(input.index({Slice(), Slice(), Slice(i * conf->phyArrRowSize, (i + 1) * conf->phyArrRowSize)}));
+                                    nout[i].index({Slice(), Slice(j * conf->unitsPerPhyRow, (j + 1) * conf->unitsPerPhyRow)}) = q.dequan(make_pair(tempn, max_one));
+                                } 
+                            });
             out.subtract_(nout);
         }
         else // ref col mode
@@ -985,16 +967,17 @@ at::Tensor pimArrayPro::mm(const at::Tensor &matin)
             phyArrManPro.latency_add(batch_size*phyArrManPro.calculate_latency(arrX_size, arrY_size, 4), 4);
             phyArrManPro.latency_add(batch_size*phyArrManPro.calculate_latency(arrX_size, arrY_size, 5), 5);
             at::parallel_for(0, arrX_size * arrY_size, 0, [&](int st, int ed)
-                             {
-                                 for (int k = st; k < ed; ++k)
-                                 {
-                                     int i = k / arrY_size;
-                                     int j = k % arrY_size;
-                                     if (i * conf->phyArrRowSize >= siz)
-                                         continue;
-                                     out[i].index({Slice(), Slice(j * conf->unitsPerPhyRow, (j + 1) * conf->unitsPerPhyRow)}) = phyArrManPro[arr[i][j]].mm(input.index({Slice(), Slice(), Slice(i * conf->phyArrRowSize, (i + 1) * conf->phyArrRowSize)}), conf, max_one, phyArrayPro::postWorkForMM);
-                                 }
-                             });
+                            {
+                                for (int k = st; k < ed; ++k)
+                                {
+                                    int i = k / arrY_size;
+                                    int j = k % arrY_size;
+                                    if (i * conf->phyArrRowSize >= siz)
+                                        continue;
+                                    auto temp = phyArrManPro[arr[i][j]].mm(input.index({Slice(), Slice(), Slice(i * conf->phyArrRowSize, (i + 1) * conf->phyArrRowSize)}));
+                                    out[i].index({Slice(), Slice(j * conf->unitsPerPhyRow, (j + 1) * conf->unitsPerPhyRow)}) = q.dequan(make_pair(temp, max_one));
+                                }
+                            });
         }
         return out.sum(0).index({Slice(), Slice(0, colSize)});
     };
@@ -1013,4 +996,5 @@ at::Tensor pimArrayPro::mm(const at::Tensor &matin)
     }
 }
 
+}
 #endif

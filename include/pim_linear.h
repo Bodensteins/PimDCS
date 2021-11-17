@@ -189,9 +189,9 @@ namespace PIM {
             case PimArrayType::pim_array_pro:
                 return PimLinearFunction<pimArrayPro>::apply(wb_ptr, wb_t_ptr, prev_ptr, input, weight,
                                                              options.bias() ? bias : c10::optional<Tensor>(), is_training(), train_mode);
-            case PimArrayType::pim_array_fast:
-                return PimLinearFunction<pimArrayFast>::apply(wb_ptr, wb_t_ptr, prev_ptr, input, weight,
-                                                              options.bias() ? bias : c10::optional<Tensor>(), is_training(), train_mode);
+            // case PimArrayType::pim_array_fast:
+            //     return PimLinearFunction<pimArrayFast>::apply(wb_ptr, wb_t_ptr, prev_ptr, input, weight,
+            //                                                   options.bias() ? bias : c10::optional<Tensor>(), is_training(), train_mode);
             default:
                 TORCH_INTERNAL_ASSERT(false, "pimlinear, forward type not support!")
             }

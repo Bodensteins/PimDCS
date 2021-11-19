@@ -276,7 +276,6 @@ at::Tensor ioQuantizer::dequan(pair<at::Tensor, double> input)
         output = output.__lshift__(1)-refValue;
 
         out = (output* conf->inScalar.to(mat.device())).sum(1).mul_(scalar_value);  //{batch_size, unitNumPerPhyRow}
-        return out;
     }
     else // postive & negative array mode,  in this single array, normal calculation.
     {
@@ -294,8 +293,8 @@ at::Tensor ioQuantizer::dequan(pair<at::Tensor, double> input)
         output.index({Ellipsis}) = out.transpose_(2, 1).view({mat.size(0), conf->unitsPerPhyRow, conf->cellsPerUnit, conf->inPluses}).sum(2).transpose_(1, 2);
 
         out = (output * conf->inScalar.to(mat.device())).sum(1).mul_(scalar_value); //{batch_size, unitNumPerPhyRow}
-        return out;
     }
+    return out;
 }
 
 }

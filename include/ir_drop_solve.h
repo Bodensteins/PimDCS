@@ -35,8 +35,8 @@ struct IR_solver
         }
         else
         {
-            g_load = 2.8;
-            g_wire = 2.8;
+            g_load = 1;
+            g_wire = 1;
         }
         
         init();

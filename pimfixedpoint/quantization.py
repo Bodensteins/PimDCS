@@ -254,7 +254,7 @@ def remove_additional_col(float_tensor: Tensor):
 
 
 # if array tensor is None, alloc memory for it, else modify it in place
-def write_array_(array_tensor_list: list, data_tensor_list: list, mode: WriteArrayMode = WriteArrayMode.Shift):
+def write_array_(array_tensor_list: list, data_tensor_list: list, mode: WriteArrayMode = WriteArrayMode.Round):
     set_appropriate_bit_width_(data_tensor_list)
     array_int_tensor, array_quantization_para = parse_float_tensor_list(array_tensor_list)
     _, array_bit_width, array_tensor_type = parse_quantization_para(array_quantization_para)
@@ -328,26 +328,29 @@ def normal_matmul_array(normal_tensor_list: list, array_tensor_list: list, matmu
     array_s, array_bit_width, array_tensor_type = parse_quantization_para(array_quantization_para)
 
     assert (normal_tensor_type == TensorType.Normal)
-    assert (array_tensor_type == TensorType.Ref or array_tensor_type == TensorType.PN)
+    # we now support normal matmul normal
+    # assert (array_tensor_type == TensorType.Ref or array_tensor_type == TensorType.PN)
+
+    if normal_int_tensor.is_cuda:
+        matmul_result = matmul_int_cuda(normal_int_tensor, array_int_tensor)
+    else:
+        matmul_result = torch.matmul(normal_int_tensor, array_int_tensor)
 
     if array_tensor_type == TensorType.Ref:
-        if normal_int_tensor.is_cuda:
-            temp_result = matmul_int_cuda(normal_int_tensor, array_int_tensor)
-        else:
-            temp_result = torch.matmul(normal_int_tensor, array_int_tensor)
-
-        matmul_result = temp_result[:, 0:-1] - temp_result[:, -1].unsqueeze(0).t()
-
-        if matmul_result_para is None:
-            matmul_result_para = creat_quantization_para(device=normal_int_tensor.device,
-                                                         s=normal_s + array_s, tensor_type=TensorType.Normal)
-        else:
-            int_matmul_result_para = float_to_int(matmul_result_para)
-            int_matmul_result_para[0] = normal_s + array_s
-            assert (int_matmul_result_para[2] == TensorType.Normal.value)
-
+        matmul_result = matmul_result[:, 0:-1] - matmul_result[:, -1].unsqueeze(0).t()
+    elif array_tensor_type == TensorType.Normal:
+        # todo: need unit test
+        pass
     else:
         raise Exception("We don't implement this tensor_type!", array_tensor_type)
+
+    if matmul_result_para is None:
+        matmul_result_para = creat_quantization_para(device=normal_int_tensor.device,
+                                                     s=normal_s + array_s, tensor_type=TensorType.Normal)
+    else:
+        int_matmul_result_para = float_to_int(matmul_result_para)
+        assert (int_matmul_result_para[2] == TensorType.Normal.value)
+        int_matmul_result_para[0] = normal_s + array_s
 
     change_bit_width_([matmul_result, matmul_result_para], data_flow_bit_width)
     return int_to_float(matmul_result), int_to_float(matmul_result_para)
@@ -397,7 +400,8 @@ def mul_num(float_tensor_list: list, alpha: float, alpha_bit_width: int = 16) ->
     return int_to_float(mul_num_int_tensor), int_to_float(mul_num_para)
 
 
-def add_alpha_tensor_(source_tensor_list: list, add_tensor_list: list, alpha: float = 1, alpha_bit_width: int = 16):
+def add_alpha_tensor_(source_tensor_list: list, add_tensor_list: list, alpha: float = 1,
+                      alpha_bit_width: int = data_flow_bit_width):
     source_int_tensor, source_quantization_para = parse_float_tensor_list(source_tensor_list)
     source_s, source_bit_width, source_tensor_type = parse_quantization_para(source_quantization_para)
 
@@ -436,4 +440,3 @@ def add_alpha_tensor_(source_tensor_list: list, add_tensor_list: list, alpha: fl
         data[data > max_int_number] = max_int_number
     else:
         raise Exception("We don't implement this source_tensor_type!", source_tensor_type)
-

@@ -112,7 +112,7 @@ class PimSGD:
                     add_alpha_tensor_([wArr, wArr_cfg], [d_w, d_wt_cfg], -lr)
                     # wtArr.grad.zero_()
                     wtArr.grad = None
-                    weight.grad = None
+                    # weight.grad = None
                 elif self.runMode == OptimMode.float_weight:
                     weight.add_(-lr*de_quantization([remove_additional_col(d_wt).t(), d_wt_cfg]))
                     temp = quantization.creat_quantization_para(bit_width=16,

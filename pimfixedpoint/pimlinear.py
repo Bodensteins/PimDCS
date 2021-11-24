@@ -3,8 +3,7 @@ import torch
 import math
 from torch.autograd import Function, grad
 from torch import Tensor
-from quantization import add_additional_col_of_one, change_bit_width_, parse_float_tensor_list, write_array_, \
-    normal_matmul_array, \
+from quantization import add_additional_col_of_one, change_bit_width_, write_array_, normal_matmul_array, \
     remove_additional_col, normal_t_matmul_array, TensorType, creat_quantization_para, quantization_tensor, \
     parse_quantization_para, de_quantization, quantization_tensor_less, float_to_int, add_additional_col_of_zero
 
@@ -42,7 +41,6 @@ class PimLinearFunction(Function):
             ctx.input = input
             ctx.weight = weight
             ctx.has_origin_input = True
-
 
         if qinputArr is None:
             qinputArr = write_array_([qinputArr, qinputArr_config], [qinput, qinput_config])

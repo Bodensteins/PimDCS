@@ -120,11 +120,9 @@ struct ioQuantizer: baseQ<pair<at::Tensor, double>>
 pair<at::Tensor, double> ioQuantizer::quan(at::Tensor x)
 {
     double x_max = x.abs().max().item<double>();
-    double mx;
+    double mx = conf->max_phy_input_value;
     if (conf->dynamic_max_input)
         mx = std::min(mx, x_max);
-    else
-        mx = conf->max_phy_input_value;
 
     at::Tensor out;
 

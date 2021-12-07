@@ -104,17 +104,17 @@ class PimSGD:
                 #     self.state[wtArr]['momentum_buffer'] = buf
                 
                 if self.runMode == OptimMode.full_fix:
-                    add_alpha_tensor_([wtArr, wtArr_cfg], [
-                                        d_wt, d_wt_cfg], -lr)
-                    d_w = add_additional_col_of_zero(
-                            [remove_additional_col(d_wt).t(), d_wt_cfg])
+                    add_alpha_tensor_([wtArr, wtArr_cfg], [d_wt, d_wt_cfg], -lr)
+                    d_w = add_additional_col_of_zero([remove_additional_col(d_wt).t(), d_wt_cfg])
                     
                     add_alpha_tensor_([wArr, wArr_cfg], [d_w, d_wt_cfg], -lr)
                     # wtArr.grad.zero_()
                     wtArr.grad = None
-                    weight.grad = None
+                    # weight.grad = None
                 elif self.runMode == OptimMode.float_weight:
-                    weight.add_(-lr*de_quantization([remove_additional_col(d_wt).t(), d_wt_cfg]))
+                    # weight.add_(-lr*de_quantization([remove_additional_col(d_wt).t(), d_wt_cfg]))
+                    weight_grad = de_quantization(mul_num([remove_additional_col(d_wt).t(), d_wt_cfg], -lr))
+                    weight.add_(weight_grad)
                     temp = quantization.creat_quantization_para(bit_width=16,
                                                                 tensor_type=quantization.TensorType.Normal,
                                                                 device=d_wt.device)

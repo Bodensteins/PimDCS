@@ -64,8 +64,8 @@ class PimNet(nn.Module):
     def __init__(self, batch_size, device: torch.device = torch.device("cpu")):
         super().__init__()
         self.device = device
-        self.fc1 = pl.PimLinear(784, 128, 16, 8, 16, device=device)
-        self.fc2 = pl.PimLinear(128, 10, 16, 8, 16, device=device)
+        self.fc1 = pl.PimLinear(784, 128, batch_size, 16, 8, 16, device=device)
+        self.fc2 = pl.PimLinear(128, 10, batch_size, 16, 8, 16, device=device)
         self.relu = pl.PimRelu()
         self.dequan = pl.DeQuanLayer(16)
 
@@ -98,7 +98,6 @@ def train(args, model, device, train_loader, optimizer, epoch):
         loss_value = loss.item()
         loss_log_interval += loss_value
         loss.backward()
-        # print(model.fc2.weight.grad)
         optimizer.step()
 
         # t2diff = model.fc2.weight.data.detach()- \
@@ -146,19 +145,19 @@ def main():
                         help='input batch size for training (default: 64)')
     parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
                         help='input batch size for testing (default: 1000)')
-    parser.add_argument('--epochs', type=int, default=50, metavar='N',
+    parser.add_argument('--epochs', type=int, default=200, metavar='N',
                         help='number of epochs to train (default: 14)')
-    parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
+    parser.add_argument('--lr', type=float, default=0.1, metavar='LR',
                         help='learning rate (default: 1.0)')
     parser.add_argument('--gamma', type=float, default=0.7, metavar='M',
                         help='Learning rate step gamma (default: 0.7)')
-    parser.add_argument('--no-cuda', action='store_true', default=True,
+    parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='disables CUDA training')
     parser.add_argument('--dry-run', action='store_true', default=False,
                         help='quickly check a single pass')
-    parser.add_argument('--seed', type=int, default=3, metavar='S',
+    parser.add_argument('--seed', type=int, default=4, metavar='S',
                         help='random seed (default: 1)')
-    parser.add_argument('--log-interval', type=int, default=1, metavar='N',
+    parser.add_argument('--log-interval', type=int, default=100, metavar='N',
                         help='how many batches to wait before logging training status')
     parser.add_argument('--save-model', action='store_true', default=False,
                         help='For Saving the current Model')
@@ -171,7 +170,7 @@ def main():
 
     torch.manual_seed(args.seed)
 
-    device = torch.device("cuda:2" if use_cuda else "cpu")
+    device = torch.device("cuda:1" if use_cuda else "cpu")
 
     train_kwargs = {'batch_size': args.batch_size}
     test_kwargs = {'batch_size': args.test_batch_size}

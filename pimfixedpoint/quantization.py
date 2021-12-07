@@ -24,7 +24,12 @@ class WriteArrayMode(Enum):
     Round = 1
 
 
-system_bit_width = 50
+class WeightUpdateStrategy(Enum):
+    StaticRange = 0
+    DynamicRange = 1
+
+
+system_bit_width = 64
 
 data_flow_bit_width = system_bit_width >> 1
 half_data_flow_bit_width = data_flow_bit_width >> 1
@@ -181,7 +186,7 @@ def de_quantization(float_tensor_list: list) -> Tensor:
         return int_tensor.to(torch_float).mul(resolution)
     elif tensor_type == TensorType.Ref:
         resolution = pow(2, s)
-        neg_levels = pow_2_n(bit_width - 1)
+        neg_levels = int_tensor[0, -1].item()
 
         return int_tensor[:, 0:-1].sub(neg_levels).to(torch_float).mul(resolution)
     elif tensor_type == TensorType.PN:
@@ -190,13 +195,45 @@ def de_quantization(float_tensor_list: list) -> Tensor:
         raise Exception("Invalid tensor_type!", tensor_type)
 
 
+def set_appropriate_bit_width_(float_tensor_list: list):
+    # todo:add auto parse
+    # todo:get_appropriate_bit_width
+    int_tensor, quantization_para = parse_float_tensor_list(float_tensor_list)
+    _, tensor_bit_width, tensor_type = parse_quantization_para(quantization_para)
+
+    # now we support array set_appropriate_bit_width
+    # assert (tensor_type == TensorType.Normal)
+    if tensor_type == TensorType.Ref:
+        neg_levels = int_tensor[0, -1].item()
+        int_tensor = int_tensor[:, 0:-1].sub(neg_levels)
+
+    max_int = int_tensor.max().item()
+    min_int = int_tensor.min().item()
+    bit_width = 2
+
+    if max_int <= 0:
+        if min_int != 0:
+            bit_width = get_neg_bit_width(min_int)
+    elif min_int >= 0:
+        bit_width = get_pos_bit_width(max_int)
+    else:
+        bit_width = max(get_pos_bit_width(max_int), get_neg_bit_width(min_int))
+
+    quantization_para[1] = max(bit_width, 2)  # at least 2 bits
+
+
 def change_bit_width_(float_tensor_list: list, new_bit_width: int, mode: ChangeBitWidthMode = ChangeBitWidthMode.Round):
     set_appropriate_bit_width_(float_tensor_list)
 
     int_tensor, quantization_para = parse_float_tensor_list(float_tensor_list)
     s, bit_width, tensor_type = parse_quantization_para(quantization_para)
 
-    assert (tensor_type == TensorType.Normal)
+    neg_levels = 0
+    # assert (tensor_type == TensorType.Normal)
+    if tensor_type == TensorType.Ref:
+        neg_levels = int_tensor[0, -1].item()
+        int_tensor = int_tensor[:, 0:-1]
+        int_tensor.sub_(neg_levels)
 
     if new_bit_width < bit_width:
         quantization_para[0] = s + bit_width - new_bit_width
@@ -208,6 +245,9 @@ def change_bit_width_(float_tensor_list: list, new_bit_width: int, mode: ChangeB
             int_tensor.add_(round_bit).__irshift__(bit_width - new_bit_width)
         else:
             raise Exception("We don't support this change bit width mode!", mode)
+
+    if tensor_type == TensorType.Ref:
+        int_tensor.add_(neg_levels)
 
     quantization_para[1] = new_bit_width
 
@@ -253,7 +293,6 @@ def remove_additional_col(float_tensor: Tensor):
     return float_tensor
 
 
-# if array tensor is None, alloc memory for it, else modify it in place
 def write_array_(array_tensor_list: list, data_tensor_list: list, mode: WriteArrayMode = WriteArrayMode.Shift):
     set_appropriate_bit_width_(data_tensor_list)
     array_int_tensor, array_quantization_para = parse_float_tensor_list(array_tensor_list)
@@ -270,56 +309,32 @@ def write_array_(array_tensor_list: list, data_tensor_list: list, mode: WriteArr
     assert (data_tensor_type == TensorType.Normal)
 
     if array_tensor_type == TensorType.Ref:
-        neg_levels = pow_2_n(array_bit_width - 1)
-        if array_int_tensor is None:
-            array_int_tensor = \
-                torch.empty([data_int_tensor.size()[0],
-                             data_int_tensor.size()[1] + 1], dtype=torch_int, device=data_int_tensor.device)
-            array_int_tensor[:, -1] = neg_levels
+        neg_levels = array_int_tensor[0, -1].item()
 
         if array_bit_width >= data_bit_width:
             array_quantization_para[0] = data_s
-            array_int_tensor[:, 0:-1].zero_().add_(data_int_tensor.add(neg_levels))
         else:
             array_quantization_para[0] = data_s + data_bit_width - array_bit_width
 
             if mode == WriteArrayMode.Shift:
-                write_tensor = data_int_tensor.__rshift__(data_bit_width - array_bit_width)
+                data_int_tensor = data_int_tensor.__rshift__(data_bit_width - array_bit_width)
             elif mode == WriteArrayMode.Round:
                 round_bit = data_int_tensor.bitwise_and(1 << (data_bit_width - array_bit_width - 1))
-                write_tensor = data_int_tensor.add(round_bit).__rshift__(data_bit_width - array_bit_width)
+                data_int_tensor = data_int_tensor.add(round_bit).__rshift__(data_bit_width - array_bit_width)
             else:
                 raise Exception("We don't support this write array mode!", mode)
 
-            array_int_tensor[:, 0:-1].zero_().add_(write_tensor.add(neg_levels))
-
+        if array_int_tensor.shape[0] == data_int_tensor.shape[0]:
+            array_int_tensor[:, 0:-1].zero_().add_(data_int_tensor.add(neg_levels))
+        else:
+            array_int_tensor[0:data_int_tensor.shape[0], 0:-1].zero_().add_(data_int_tensor.add(neg_levels))
     else:
         raise Exception("We don't implement this tensor_type!", array_tensor_type)
 
     return int_to_float(array_int_tensor)
 
 
-def set_appropriate_bit_width_(float_tensor_list: list):
-    int_tensor, quantization_para = parse_float_tensor_list(float_tensor_list)
-    _, _, tensor_type = parse_quantization_para(quantization_para)
-
-    assert (tensor_type == TensorType.Normal)
-
-    max_int = int_tensor.max().item()
-    min_int = int_tensor.min().item()
-    bit_width = 2
-
-    if max_int <= 0:
-        if min_int != 0:
-            bit_width = get_neg_bit_width(min_int)
-    elif min_int >= 0:
-        bit_width = get_pos_bit_width(max_int)
-    else:
-        bit_width = max(get_pos_bit_width(max_int), get_neg_bit_width(min_int))
-
-    quantization_para[1] = max(bit_width, 2)  # at least 2 bits
-
-
+# todo: rename
 def normal_matmul_array(normal_tensor_list: list, array_tensor_list: list, matmul_result_para: Tensor = None)\
         -> [Tensor, Tensor]:
     normal_int_tensor, normal_quantization_para = parse_float_tensor_list(normal_tensor_list)
@@ -328,28 +343,36 @@ def normal_matmul_array(normal_tensor_list: list, array_tensor_list: list, matmu
     array_s, array_bit_width, array_tensor_type = parse_quantization_para(array_quantization_para)
 
     assert (normal_tensor_type == TensorType.Normal)
-    assert (array_tensor_type == TensorType.Ref or array_tensor_type == TensorType.PN)
+    # we now support normal matmul normal
+    # assert (array_tensor_type == TensorType.Ref or array_tensor_type == TensorType.PN)
+
+    if normal_int_tensor.shape[1] != array_int_tensor.shape[0]:
+        zero_cols = torch.zeros([normal_int_tensor.shape[0], array_int_tensor.shape[0] - normal_int_tensor.shape[1]],
+                                dtype=normal_int_tensor.dtype, device=normal_int_tensor.device)
+        normal_int_tensor = torch.cat((normal_int_tensor, zero_cols), 1)
+
+    if normal_int_tensor.is_cuda:
+        matmul_result = matmul_int_cuda(normal_int_tensor, array_int_tensor)
+    else:
+        matmul_result = torch.matmul(normal_int_tensor, array_int_tensor)
 
     if array_tensor_type == TensorType.Ref:
-        if normal_int_tensor.is_cuda:
-            temp_result = matmul_int_cuda(normal_int_tensor, array_int_tensor)
-        else:
-            temp_result = torch.matmul(normal_int_tensor, array_int_tensor)
-
-        matmul_result = temp_result[:, 0:-1] - temp_result[:, -1].unsqueeze(0).t()
-
-        if matmul_result_para is None:
-            matmul_result_para = creat_quantization_para(device=normal_int_tensor.device,
-                                                         s=normal_s + array_s, tensor_type=TensorType.Normal)
-        else:
-            int_matmul_result_para = float_to_int(matmul_result_para)
-            int_matmul_result_para[0] = normal_s + array_s
-            assert (int_matmul_result_para[2] == TensorType.Normal.value)
-
+        matmul_result = matmul_result[:, 0:-1] - matmul_result[:, -1].unsqueeze(0).t()
+    elif array_tensor_type == TensorType.Normal:
+        # todo: need unit test
+        pass
     else:
         raise Exception("We don't implement this tensor_type!", array_tensor_type)
 
-    change_bit_width_([matmul_result, matmul_result_para], data_flow_bit_width)
+    if matmul_result_para is None:
+        matmul_result_para = creat_quantization_para(device=normal_int_tensor.device,
+                                                     s=normal_s + array_s, tensor_type=TensorType.Normal)
+    else:
+        int_matmul_result_para = float_to_int(matmul_result_para)
+        assert (int_matmul_result_para[2] == TensorType.Normal.value)
+        int_matmul_result_para[0] = normal_s + array_s
+
+    change_bit_width_([int_to_float(matmul_result), int_to_float(matmul_result_para)], data_flow_bit_width)
     return int_to_float(matmul_result), int_to_float(matmul_result_para)
 
 
@@ -393,20 +416,19 @@ def mul_num(float_tensor_list: list, alpha: float, alpha_bit_width: int = 16) ->
     else:
         raise Exception("We don't implement this tensor_type!", tensor_type)
 
-    change_bit_width_([mul_num_int_tensor, mul_num_para], data_flow_bit_width)
+    change_bit_width_([int_to_float(mul_num_int_tensor), int_to_float(mul_num_para)], data_flow_bit_width)
     return int_to_float(mul_num_int_tensor), int_to_float(mul_num_para)
 
 
-def add_alpha_tensor_(source_tensor_list: list, add_tensor_list: list, alpha: float = 1, alpha_bit_width: int = 16):
+def add_alpha_tensor_(source_tensor_list: list, add_tensor_list: list, alpha: float = 1,
+                      alpha_bit_width: int = data_flow_bit_width,
+                      strategy: WeightUpdateStrategy = WeightUpdateStrategy.StaticRange):
     source_int_tensor, source_quantization_para = parse_float_tensor_list(source_tensor_list)
     source_s, source_bit_width, source_tensor_type = parse_quantization_para(source_quantization_para)
 
     mul_num_tensor, mul_num_para = mul_num(add_tensor_list, alpha, alpha_bit_width)
     mul_num_int_tensor, mul_num_quantization_para = parse_float_tensor_list([mul_num_tensor, mul_num_para])
     mul_num_s, mul_num_bit_width, mul_num_tensor_type = parse_quantization_para(mul_num_quantization_para)
-    # print_quantization_info(mul_num_s, mul_num_bit_width, mul_num_tensor_type)
-    # print(float_to_int(mul_num_int_tensor))
-    # print(de_quantization([mul_num_int_tensor, mul_num_para]))
 
     if source_tensor_type == TensorType.Normal:
         shift = source_s - mul_num_s
@@ -420,20 +442,27 @@ def add_alpha_tensor_(source_tensor_list: list, add_tensor_list: list, alpha: fl
         pos_levels = neg_levels - 1
         source_int_tensor[source_int_tensor < -neg_levels] = -neg_levels
         source_int_tensor[source_int_tensor > pos_levels] = pos_levels
+        # todo:modify strategy
     elif source_tensor_type == TensorType.Ref:
         shift = source_s - mul_num_s
         # data = source_int_tensor[:, 0:-1]
-        data = source_int_tensor
         # why delete it?
-        if shift >= 0:
-            mul_num_int_tensor.__irshift__(shift)
+        if shift >= 0:  # todo: has value loss and judge bit_width range
+            neg_levels = source_int_tensor[0, -1].item()
+            source_int_tensor[:, 0:-1].sub_(neg_levels).__ilshift__(shift)
+            source_int_tensor.add_(mul_num_int_tensor)
+            source_int_tensor[:, 0:-1].__irshift__(shift).add_(neg_levels)
         else:
             mul_num_int_tensor.__ilshift__(-shift)
+            source_int_tensor.add_(mul_num_int_tensor)
 
-        data.add_(mul_num_int_tensor)
-        max_int_number = pow_2_n(source_bit_width) - 1
-        data[data < 0] = 0
-        data[data > max_int_number] = max_int_number
+        if strategy == WeightUpdateStrategy.StaticRange:
+            max_int_number = pow_2_n(source_bit_width) - 1
+            source_int_tensor[source_int_tensor < 0] = 0
+            source_int_tensor[source_int_tensor > max_int_number] = max_int_number
+        else:
+            # todo: has bugs
+            change_bit_width_([int_to_float(source_int_tensor), int_to_float(source_quantization_para)],
+                              source_bit_width)
     else:
         raise Exception("We don't implement this source_tensor_type!", source_tensor_type)
-

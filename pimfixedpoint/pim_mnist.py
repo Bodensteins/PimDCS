@@ -87,7 +87,8 @@ class PimNet(nn.Module):
 
 def train(args, model, device, train_loader, optimizer, epoch):
     model.train()
-    loss_log_interval = 0
+    loss_log_interval = 0.0
+    done_data = 0
     for batch_idx, (data, target) in enumerate(train_loader):
         data, target = data.to(device), target.to(device)
 
@@ -99,7 +100,7 @@ def train(args, model, device, train_loader, optimizer, epoch):
         loss_log_interval += loss_value
         loss.backward()
         optimizer.step()
-
+        done_data += len(data)
         # t2diff = model.fc2.weight.data.detach()- \
         #     de_quantization([model.fc2.wArr.detach(), model.fc2.wArrConfig.detach()])
 
@@ -111,9 +112,9 @@ def train(args, model, device, train_loader, optimizer, epoch):
         # tmp = torch.cat((model2.fc1.weight.data.t().clone(), model2.fc1.bias.data.clone().reshape(1, 128)), 0)
         # print(tmp - model.fc1.weight)
         if (batch_idx + 1) % args.log_interval == 0:
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\t Average Loss: {:.6f}'.format(
-                epoch, (batch_idx + 1) * len(data), len(train_loader.dataset),
-                100. * (batch_idx + 1) / len(train_loader), loss_log_interval / args.log_interval))
+            print('Train Epoch: {} [{}/{} ({:.2f}%)]\t Average Loss: {:.6f}'.format(
+                epoch, done_data, len(train_loader.dataset), 100. * done_data / len(train_loader.dataset),
+                loss_log_interval / args.log_interval))
             loss_log_interval = 0
             if args.dry_run:
                 break
@@ -134,8 +135,7 @@ def test(model, device, test_loader):
     test_loss /= len(test_loader.dataset)
 
     print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.2f}%)\n'.format(
-        test_loss, correct, len(test_loader.dataset),
-        100. * correct / len(test_loader.dataset)))
+        test_loss, correct, len(test_loader.dataset), 100. * correct / len(test_loader.dataset)))
 
 
 def main():
@@ -157,7 +157,7 @@ def main():
                         help='quickly check a single pass')
     parser.add_argument('--seed', type=int, default=4, metavar='S',
                         help='random seed (default: 1)')
-    parser.add_argument('--log-interval', type=int, default=100, metavar='N',
+    parser.add_argument('--log-interval', type=int, default=1, metavar='N',
                         help='how many batches to wait before logging training status')
     parser.add_argument('--save-model', action='store_true', default=False,
                         help='For Saving the current Model')
@@ -176,12 +176,12 @@ def main():
     test_kwargs = {'batch_size': args.test_batch_size}
     if use_cuda:
         cuda_kwargs = {'num_workers': 1,
-                       'pin_memory': True,
+                       'pin_memory': False,
                        'shuffle': True}
         train_kwargs.update(cuda_kwargs)
         test_kwargs.update(cuda_kwargs)
 
-    transform=transforms.Compose([
+    transform = transforms.Compose([
         transforms.ToTensor(),
         transforms.Normalize((0.1307,), (0.3081,))
     ])
@@ -201,7 +201,7 @@ def main():
     else:
         model = Net(args.batch_size).to(device)
         # optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
-        optimizer = optim.SGD(model.parameters(), lr = args.lr)
+        optimizer = optim.SGD(model.parameters(), lr=args.lr)
 
     # scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
     for epoch in range(1, args.epochs + 1):

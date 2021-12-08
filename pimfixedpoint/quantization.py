@@ -14,13 +14,8 @@ class TensorType(Enum):
     PN = 2
 
 
-class ChangeBitWidthMode(Enum):
-    Shift = 0
-    Round = 1
-
-
-class WriteArrayMode(Enum):
-    Shift = 0
+class RightShiftMode(Enum):
+    Abandon = 0
     Round = 1
 
 
@@ -41,6 +36,8 @@ else:
     torch_int = torch.int64
     torch_float = torch.float64
 
+# todo:add auto parse int or float type
+
 
 def int_to_float(int_tensor):
     return int_tensor.view(dtype=torch_float)
@@ -56,9 +53,9 @@ def matmul_int_cuda(int_tensor1: IntTensor, int_tensor2: IntTensor):
 
     float_tensor1 = int_tensor1.to(dtype=torch_float)
     float_tensor2 = int_tensor2.to(dtype=torch_float)
-    mul_res = float_tensor1.matmul(float_tensor2)
+    mul_result = float_tensor1.matmul(float_tensor2)
 
-    return mul_res.to(dtype=torch_int)
+    return mul_result.to(dtype=torch_int)
 
 
 def get_fixed_point_position(max_abs: float, bit_width: int) -> int:
@@ -75,6 +72,18 @@ def get_pos_bit_width(pos_int: int):
 
 def get_neg_bit_width(neg_int: int):
     return math.ceil(math.log2(-neg_int)) + 1
+
+
+def round_rshift_(int_tensor, shift: int):
+    assert (shift > 0)
+    round_bit = int_tensor.bitwise_and(1 << (shift - 1))
+    int_tensor.add_(round_bit).__irshift__(shift)
+
+
+def round_rshift(int_tensor, shift: int):
+    assert (shift > 0)
+    round_bit = int_tensor.bitwise_and(1 << (shift - 1))
+    return int_tensor.add(round_bit).__rshift__(shift)
 
 
 # input: quantization parameters, should be int Tensor
@@ -196,7 +205,6 @@ def de_quantization(float_tensor_list: list) -> Tensor:
 
 
 def set_appropriate_bit_width_(float_tensor_list: list):
-    # todo:add auto parse
     # todo:get_appropriate_bit_width
     int_tensor, quantization_para = parse_float_tensor_list(float_tensor_list)
     _, tensor_bit_width, tensor_type = parse_quantization_para(quantization_para)
@@ -222,7 +230,7 @@ def set_appropriate_bit_width_(float_tensor_list: list):
     quantization_para[1] = max(bit_width, 2)  # at least 2 bits
 
 
-def change_bit_width_(float_tensor_list: list, new_bit_width: int, mode: ChangeBitWidthMode = ChangeBitWidthMode.Round):
+def change_bit_width_(float_tensor_list: list, new_bit_width: int, mode: RightShiftMode = RightShiftMode.Abandon):
     set_appropriate_bit_width_(float_tensor_list)
 
     int_tensor, quantization_para = parse_float_tensor_list(float_tensor_list)
@@ -238,13 +246,12 @@ def change_bit_width_(float_tensor_list: list, new_bit_width: int, mode: ChangeB
     if new_bit_width < bit_width:
         quantization_para[0] = s + bit_width - new_bit_width
 
-        if mode == ChangeBitWidthMode.Shift:
+        if mode == RightShiftMode.Abandon:
             int_tensor.__irshift__(bit_width - new_bit_width)
-        elif mode == ChangeBitWidthMode.Round:
-            round_bit = int_tensor.bitwise_and(1 << (bit_width - new_bit_width - 1))
-            int_tensor.add_(round_bit).__irshift__(bit_width - new_bit_width)
+        elif mode == RightShiftMode.Round:
+            round_rshift_(int_tensor, bit_width - new_bit_width)
         else:
-            raise Exception("We don't support this change bit width mode!", mode)
+            raise Exception("We don't support this right shift mode!", mode)
 
     if tensor_type == TensorType.Ref:
         int_tensor.add_(neg_levels)
@@ -286,14 +293,11 @@ def add_additional_col_of_zero(float_tensor_list: list) -> Tensor:
     return int_to_float(int_tensor)
 
 
-# don't need?
 def remove_additional_col(float_tensor: Tensor):
-    float_tensor = float_tensor[:, 0:-1]
-
-    return float_tensor
+    return float_tensor[:, 0:-1]
 
 
-def write_array_(array_tensor_list: list, data_tensor_list: list, mode: WriteArrayMode = WriteArrayMode.Shift):
+def write_array_(array_tensor_list: list, data_tensor_list: list, mode: RightShiftMode = RightShiftMode.Abandon):
     set_appropriate_bit_width_(data_tensor_list)
     array_int_tensor, array_quantization_para = parse_float_tensor_list(array_tensor_list)
     _, array_bit_width, array_tensor_type = parse_quantization_para(array_quantization_para)
@@ -316,13 +320,12 @@ def write_array_(array_tensor_list: list, data_tensor_list: list, mode: WriteArr
         else:
             array_quantization_para[0] = data_s + data_bit_width - array_bit_width
 
-            if mode == WriteArrayMode.Shift:
+            if mode == RightShiftMode.Abandon:
                 data_int_tensor = data_int_tensor.__rshift__(data_bit_width - array_bit_width)
-            elif mode == WriteArrayMode.Round:
-                round_bit = data_int_tensor.bitwise_and(1 << (data_bit_width - array_bit_width - 1))
-                data_int_tensor = data_int_tensor.add(round_bit).__rshift__(data_bit_width - array_bit_width)
+            elif mode == RightShiftMode.Round:
+                data_int_tensor = round_rshift(data_int_tensor, data_bit_width - array_bit_width)
             else:
-                raise Exception("We don't support this write array mode!", mode)
+                raise Exception("We don't support this right shift mode!", mode)
 
         if array_int_tensor.shape[0] == data_int_tensor.shape[0]:
             array_int_tensor[:, 0:-1].zero_().add_(data_int_tensor.add(neg_levels))
@@ -421,7 +424,7 @@ def mul_num(float_tensor_list: list, alpha: float, alpha_bit_width: int = 16) ->
 
 
 def add_alpha_tensor_(source_tensor_list: list, add_tensor_list: list, alpha: float = 1,
-                      alpha_bit_width: int = data_flow_bit_width,
+                      alpha_bit_width: int = data_flow_bit_width, mode: RightShiftMode = RightShiftMode.Round,
                       strategy: WeightUpdateStrategy = WeightUpdateStrategy.StaticRange):
     source_int_tensor, source_quantization_para = parse_float_tensor_list(source_tensor_list)
     source_s, source_bit_width, source_tensor_type = parse_quantization_para(source_quantization_para)
@@ -445,14 +448,23 @@ def add_alpha_tensor_(source_tensor_list: list, add_tensor_list: list, alpha: fl
         # todo:modify strategy
     elif source_tensor_type == TensorType.Ref:
         shift = source_s - mul_num_s
-        # data = source_int_tensor[:, 0:-1]
-        # why delete it?
-        if shift >= 0:  # todo: has value loss and judge bit_width range
+        if shift > 0:
+            assert (source_bit_width + shift < system_bit_width)  # one bit for sign bit
             neg_levels = source_int_tensor[0, -1].item()
-            source_int_tensor[:, 0:-1].sub_(neg_levels).__ilshift__(shift)
+            data_part = source_int_tensor[:, 0:-1]
+            data_part.sub_(neg_levels).__ilshift__(shift)
             source_int_tensor.add_(mul_num_int_tensor)
-            source_int_tensor[:, 0:-1].__irshift__(shift).add_(neg_levels)
+
+            if mode == RightShiftMode.Abandon:
+                data_part.__irshift__(shift)
+            elif mode == RightShiftMode.Round:
+                round_rshift_(data_part, shift)
+            else:
+                raise Exception("We don't support this right shift mode!", mode)
+
+            data_part.add_(neg_levels)
         else:
+            assert (mul_num_bit_width - shift < system_bit_width)  # one bit for sign bit
             mul_num_int_tensor.__ilshift__(-shift)
             source_int_tensor.add_(mul_num_int_tensor)
 
@@ -461,7 +473,6 @@ def add_alpha_tensor_(source_tensor_list: list, add_tensor_list: list, alpha: fl
             source_int_tensor[source_int_tensor < 0] = 0
             source_int_tensor[source_int_tensor > max_int_number] = max_int_number
         else:
-            # todo: has bugs
             change_bit_width_([int_to_float(source_int_tensor), int_to_float(source_quantization_para)],
                               source_bit_width)
     else:

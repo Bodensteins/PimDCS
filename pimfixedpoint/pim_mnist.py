@@ -1,4 +1,5 @@
 from __future__ import print_function
+import torch.utils.data
 import argparse
 import torch.nn as nn
 import torch.nn.functional as F
@@ -25,16 +26,16 @@ class Net(nn.Module):
         x3 = F.relu(x2)
         x4 = self.fc2(x3)
         output = F.log_softmax(x4, dim=1)
-        return output, x2, x3, x4
+        return output
 
 
 class PimConvNet(nn.Module):
     def __init__(self, batch_size, device: torch.device = torch.device("cpu")):
         super().__init__()
         self.device = device
-        self.conv1 = pc.PimConv2D((1, 28, 28), (5, 5), 10, device=device)
-        self.conv2 = pc.PimConv2D((10, 12, 12), (5, 5), 20, device=device) 
-        self.fc = pl.PimLinear(4*4*20, 10, device=device)
+        self.conv1 = pc.PimConv2D([1, 28, 28], [5, 5], 10, device=device)
+        self.conv2 = pc.PimConv2D([10, 12, 12], [5, 5], 20, device=device)
+        self.fc = pl.PimLinear(4*4*20, 10, batch_size, device=device)
         self.dequan = pl.DeQuanLayer(16)
 
     def forward(self, x):
@@ -147,7 +148,7 @@ def main():
                         help='input batch size for testing (default: 1000)')
     parser.add_argument('--epochs', type=int, default=200, metavar='N',
                         help='number of epochs to train (default: 14)')
-    parser.add_argument('--lr', type=float, default=0.1, metavar='LR',
+    parser.add_argument('--lr', type=float, default=0.05, metavar='LR',
                         help='learning rate (default: 1.0)')
     parser.add_argument('--gamma', type=float, default=0.7, metavar='M',
                         help='Learning rate step gamma (default: 0.7)')
@@ -157,7 +158,7 @@ def main():
                         help='quickly check a single pass')
     parser.add_argument('--seed', type=int, default=4, metavar='S',
                         help='random seed (default: 1)')
-    parser.add_argument('--log-interval', type=int, default=1, metavar='N',
+    parser.add_argument('--log-interval', type=int, default=100, metavar='N',
                         help='how many batches to wait before logging training status')
     parser.add_argument('--save-model', action='store_true', default=False,
                         help='For Saving the current Model')
@@ -196,7 +197,6 @@ def main():
             model = PimConvNet(args.batch_size, device=device).to(device)
         else:
             model = PimNet(args.batch_size, device=device).to(device)
-
         optimizer = po.PimSGD(model, lr=args.lr, momentum=0.9, run_mode=po.OptimMode.full_fix)
     else:
         model = Net(args.batch_size).to(device)

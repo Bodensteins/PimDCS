@@ -9,7 +9,7 @@ from torchvision import datasets, transforms
 import torchvision
 from torch.optim.lr_scheduler import StepLR
 import pimconv as pc
-from quantization import de_quantization, int_to_float
+from quantization import de_quantization, to_float
 import pim_optimizer as po
 
 from quantization import *

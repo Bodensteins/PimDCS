@@ -5,9 +5,9 @@ import math
 from torch.autograd import Function, grad
 from torch import Tensor
 from pimlinear import DeQuanFunction, PimLinearFunction, quanFunction
-from quantization import add_additional_col_of_one, change_bit_width_, parse_float_tensor_list, write_array_, normal_matmul_array, \
+from quantization import add_additional_col_of_one, set_bit_width_, parse_tensor_list_to_int, write_array_, normal_matmul_array, \
     remove_additional_col, normal_t_matmul_array, TensorType, creat_quantization_para, quantization_tensor, \
-    parse_quantization_para, de_quantization, quantization_tensor_less, float_to_int, add_additional_col_of_zero
+    parse_quantization_para, de_quantization, quantization_tensor_less, to_int, add_additional_col_of_zero
 
 
 class PimConv2D(torch.nn.Module):
@@ -102,6 +102,6 @@ class PimConv2D(torch.nn.Module):
         output = output.reshape(batch_size, -1, self.output_chs).transpose(1, 2)
         output = torch.nn.functional.fold(output, self.output_size, (1, 1))
 
-        qoutput, qoutput_config = quanFunction.apply(output, float_to_int(qoutput_config)[1])
+        qoutput, qoutput_config = quanFunction.apply(output, to_int(qoutput_config)[1])
 
         return qoutput, qoutput_config, output

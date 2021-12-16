@@ -9,9 +9,9 @@ alpha_bit_width = 12
 
 
 def print_info(int_tensor: Tensor, para: Tensor):
-    s, bit_width, tensor_type = parse_quantization_para(float_to_int(para))
+    s, bit_width, tensor_type = parse_quantization_para(to_int(para))
     print_quantization_info(s, bit_width, tensor_type)
-    print(float_to_int(int_tensor))
+    print(to_int(int_tensor))
     print(de_quantization([int_tensor, para]))
 
 

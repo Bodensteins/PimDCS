@@ -3,11 +3,10 @@ import torch
 import quantization
 from pimlinear import PimLinear
 from collections import defaultdict
-from quantization import add_alpha_tensor_, mul_num, de_quantization, parse_quantization_para, float_to_int, \
-    remove_additional_col, add_additional_col_of_zero, write_array_
-from torch.optim.optimizer import Optimizer
-from torch.optim.sgd import SGD
+from quantization import add_alpha_tensor_, mul_num, de_quantization, remove_additional_col, \
+    add_additional_col_of_zero, write_array_
 from enum import Enum
+from torch.optim.sgd import SGD
 
 
 class OptimMode(Enum):
@@ -18,7 +17,7 @@ class OptimMode(Enum):
 
 class PimSGD:
     def __init__(self, network, lr=0.1, momentum=0, dampening=0,
-                 weight_decay=0, nesterov=False, run_mode = OptimMode.full_fix):
+                 weight_decay=0, nesterov=False, run_mode=OptimMode.full_fix):
         if lr < 0.0:
             raise ValueError("Invalid learning rate: {}".format(lr))
         if momentum < 0.0:
@@ -31,8 +30,9 @@ class PimSGD:
                 "Nesterov momentum requires a momentum and zero dampening")
         self.runMode = run_mode
         self.state = defaultdict(dict)
-        self.defaults = dict(lr=lr, momentum=momentum, dampening=dampening,
-                             weight_decay=weight_decay, nesterov=nesterov)
+        self.defaults = dict(lr=lr, momentum=momentum, dampening=dampening, weight_decay=weight_decay,
+                             nesterov=nesterov)
+
         wtArrays = []
         wArrays = []
         wArrays_configs = []

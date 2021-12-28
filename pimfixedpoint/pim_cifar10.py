@@ -18,13 +18,13 @@ class PimVGGNet(nn.Module):
     def __init__(self, batch_size, device: torch.device = torch.device("cpu")):
         super().__init__()
         self.device = device
-        self.conv1 = pc.PimConv2D([3, 32, 32], [3, 3], 128, padding=1, device=device)
-        self.conv2 = pc.PimConv2D([128, 32, 32], [3, 3], 128, padding=1, device=device)
-        self.conv3 = pc.PimConv2D([128, 16, 16], [3, 3], 256, padding=1, device=device)
-        self.conv4 = pc.PimConv2D([256, 16, 16], [3, 3], 256, padding=1, device=device)
-        self.conv5 = pc.PimConv2D([256, 8, 8], [3, 3], 512, padding=1, device=device)
-        self.conv6 = pc.PimConv2D([512, 8, 8], [3, 3], 512, padding=1, device=device)
-        self.conv7 = pc.PimConv2D([512, 4, 4], [3, 3], 1024, padding=1, device=device)
+        self.conv1 = pc.PimConv2D([3, 32, 32], [3, 3], 128, batch_size, padding=1, device=device)
+        self.conv2 = pc.PimConv2D([128, 32, 32], [3, 3], 128, batch_size, padding=1, device=device)
+        self.conv3 = pc.PimConv2D([128, 16, 16], [3, 3], 256, batch_size, padding=1, device=device)
+        self.conv4 = pc.PimConv2D([256, 16, 16], [3, 3], 256, batch_size, padding=1, device=device)
+        self.conv5 = pc.PimConv2D([256, 8, 8], [3, 3], 512, batch_size, padding=1, device=device)
+        self.conv6 = pc.PimConv2D([512, 8, 8], [3, 3], 512, batch_size, padding=1, device=device)
+        self.conv7 = pc.PimConv2D([512, 4, 4], [3, 3], 1024, batch_size, padding=1, device=device)
         self.fc1 = pl.PimLinear(4096, 128, batch_size, device=device)
         self.relu = pl.PimRelu()
         self.fc2 = pl.PimLinear(128, 10, batch_size, device=device)
@@ -120,8 +120,6 @@ def main():
     parser = argparse.ArgumentParser(description='PyTorch cifar10 Example')
     parser.add_argument('--batch-size', type=int, default=32, metavar='N',
                         help='input batch size for training (default: 64)')
-    parser.add_argument('--test-batch-size', type=int, default=32, metavar='N',
-                        help='input batch size for testing (default: 1000)')
     parser.add_argument('--epochs', type=int, default=50, metavar='N',
                         help='number of epochs to train (default: 14)')
     parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
@@ -149,7 +147,7 @@ def main():
     device = torch.device("cuda:"+str(args.cuda_use_num) if use_cuda else "cpu")
 
     train_kwargs = {'batch_size': args.batch_size}
-    test_kwargs = {'batch_size': args.test_batch_size}
+    test_kwargs = {'batch_size': args.batch_size}
     if use_cuda:
         cuda_kwargs = {'num_workers': 1,
                        'pin_memory': True,
@@ -172,12 +170,12 @@ def main():
     trainset = torchvision.datasets.CIFAR10(
         root='./data', train=True, download=True, transform=transform_train)
     train_loader = torch.utils.data.DataLoader(
-        trainset, batch_size=128, shuffle=True, num_workers=2)
+        trainset, batch_size=args.batch_size, shuffle=True, num_workers=2)
 
     testset = torchvision.datasets.CIFAR10(
         root='./data', train=False, download=True, transform=transform_test)
     test_loader = torch.utils.data.DataLoader(
-        testset, batch_size=100, shuffle=False, num_workers=2)
+        testset, batch_size=args.batch_size, shuffle=False, num_workers=2)
 
     classes = ('plane', 'car', 'bird', 'cat', 'deer',
             'dog', 'frog', 'horse', 'ship', 'truck')

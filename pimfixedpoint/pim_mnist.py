@@ -112,7 +112,7 @@ def train(args, model, device, train_loader, optimizer, epoch):
         # tmp = torch.cat((model2.fc1.weight.data.t().clone(), model2.fc1.bias.data.clone().reshape(1, 128)), 0)
         # print(tmp - model.fc1.weight)
         if (batch_idx + 1) % args.log_interval == 0:
-            print('Train Epoch: {} [{}/{} ({:.2f}%)]\t Average Loss: {:.6f}'.format(
+            print('Train Epoch: {:3d} [{:5d}/{:5d} ({:.2f}%)]\t Average Loss: {:.6f}'.format(
                 epoch, done_data, len(train_loader.dataset), 100. * done_data / len(train_loader.dataset),
                 loss_log_interval / args.log_interval))
             loss_log_interval = 0
@@ -141,7 +141,7 @@ def test(model, device, test_loader):
 def main():
     # Training settings
     parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
-    parser.add_argument('--batch-size', type=int, default=64, metavar='N',
+    parser.add_argument('--train-batch-size', type=int, default=32, metavar='N',
                         help='input batch size for training (default: 64)')
     parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
                         help='input batch size for testing (default: 1000)')
@@ -172,7 +172,7 @@ def main():
 
     device = torch.device("cuda:1" if use_cuda else "cpu")
 
-    train_kwargs = {'batch_size': args.batch_size}
+    train_kwargs = {'batch_size': args.train_batch_size}
     test_kwargs = {'batch_size': args.test_batch_size}
     if use_cuda:
         cuda_kwargs = {'num_workers': 1,
@@ -193,9 +193,9 @@ def main():
     test_loader = torch.utils.data.DataLoader(dataset2, **test_kwargs)
     if args.pim:
         if args.pimconv:
-            model = PimConvNet(args.batch_size, device=device).to(device)
+            model = PimConvNet(args.train_batch_size, device=device).to(device)
         else:
-            model = PimNet(args.batch_size, device=device).to(device)
+            model = PimNet(args.train_batch_size, device=device).to(device)
         optimizer = po.PimSGD(model, lr=args.lr, momentum=0.9, run_mode=po.OptimMode.full_fix)
     else:
         model = Net(args.batch_size).to(device)

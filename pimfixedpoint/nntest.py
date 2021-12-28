@@ -2,7 +2,7 @@ from pimlinear import *
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim.sgd import SGD
-from quantization import float_to_int
+from quantization import to_int
 from pim_optimizer import PimSGD
 from quantization import de_quantization
 

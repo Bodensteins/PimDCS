@@ -104,10 +104,14 @@ class PimSGD:
                 #     self.state[wtArr]['momentum_buffer'] = buf
                 
                 if self.runMode == OptimMode.full_fix:
-                    add_alpha_tensor_([wtArr, wtArr_cfg], [d_wt, d_wt_cfg], -lr)
+                    delta_wt = mul_num([d_wt, d_wt_cfg], -lr)
+                    add_alpha_tensor_([wtArr, wtArr_cfg], delta_wt)
+                    # add_alpha_tensor_([wtArr, wtArr_cfg], [d_wt, d_wt_cfg], -lr)
+
                     d_w = add_additional_col_of_zero([remove_additional_col(d_wt).t(), d_wt_cfg])
-                    
-                    add_alpha_tensor_([wArr, wArr_cfg], [d_w, d_wt_cfg], -lr)
+                    delta_w = mul_num([d_w, d_wt_cfg], -lr)
+                    add_alpha_tensor_([wArr, wArr_cfg], delta_w)
+                    # add_alpha_tensor_([wArr, wArr_cfg], [d_w, d_wt_cfg], -lr)
                     # wtArr.grad.zero_()
                     wtArr.grad = None
                     # weight.grad = None

@@ -18,16 +18,16 @@ class PimVGGNet(nn.Module):
     def __init__(self, batch_size, device: torch.device = torch.device("cpu")):
         super().__init__()
         self.device = device
-        self.conv1 = pc.PimConv2D((3, 32, 32), (3, 3), 128, padding=1, device=device)
-        self.conv2 = pc.PimConv2D((128, 32, 32), (3, 3), 128, padding=1, device=device) 
-        self.conv3 = pc.PimConv2D((128, 16, 16), (3, 3), 256, padding=1, device=device) 
-        self.conv4 = pc.PimConv2D((256, 16, 16), (3, 3), 256, padding=1, device=device) 
-        self.conv5 = pc.PimConv2D((256, 8, 8), (3, 3), 512, padding=1, device=device) 
-        self.conv6 = pc.PimConv2D((512, 8, 8), (3, 3), 512, padding=1, device=device) 
-        self.conv7 = pc.PimConv2D((512, 4, 4), (3, 3), 1024, padding=1, device=device) 
-        self.fc1 = pl.PimLinear(4096, 128, device=device)
+        self.conv1 = pc.PimConv2D([3, 32, 32], [3, 3], 128, padding=1, device=device)
+        self.conv2 = pc.PimConv2D([128, 32, 32], [3, 3], 128, padding=1, device=device)
+        self.conv3 = pc.PimConv2D([128, 16, 16], [3, 3], 256, padding=1, device=device)
+        self.conv4 = pc.PimConv2D([256, 16, 16], [3, 3], 256, padding=1, device=device)
+        self.conv5 = pc.PimConv2D([256, 8, 8], [3, 3], 512, padding=1, device=device)
+        self.conv6 = pc.PimConv2D([512, 8, 8], [3, 3], 512, padding=1, device=device)
+        self.conv7 = pc.PimConv2D([512, 4, 4], [3, 3], 1024, padding=1, device=device)
+        self.fc1 = pl.PimLinear(4096, 128, batch_size, device=device)
         self.relu = pl.PimRelu()
-        self.fc2 = pl.PimLinear(128, 10, device=device)
+        self.fc2 = pl.PimLinear(128, 10, batch_size, device=device)
         self.dequan = pl.DeQuanLayer(16)
 
     def forward(self, x):

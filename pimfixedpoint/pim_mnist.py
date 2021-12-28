@@ -33,9 +33,9 @@ class PimConvNet(nn.Module):
     def __init__(self, batch_size, device: torch.device = torch.device("cpu")):
         super().__init__()
         self.device = device
-        self.conv1 = pc.PimConv2D([1, 28, 28], [5, 5], 10, device=device)
-        self.conv2 = pc.PimConv2D([10, 12, 12], [5, 5], 20, device=device)
-        self.fc = pl.PimLinear(4*4*20, 10, batch_size, device=device)
+        self.conv1 = pc.PimConv2D([1, 28, 28], [5, 5], 10, batch_size, device=device)
+        self.conv2 = pc.PimConv2D([10, 12, 12], [5, 5], 20, batch_size, device=device)
+        self.fc = pl.PimLinear(4 * 4 * 20, 10, batch_size, device=device)
         self.dequan = pl.DeQuanLayer(16)
 
     def forward(self, x):
@@ -65,15 +65,14 @@ class PimNet(nn.Module):
     def __init__(self, batch_size, device: torch.device = torch.device("cpu")):
         super().__init__()
         self.device = device
-        self.fc1 = pl.PimLinear(784, 128, batch_size, 16, 8, 16, device=device)
-        self.fc2 = pl.PimLinear(128, 10, batch_size, 16, 8, 16, device=device)
+        self.fc1 = pl.PimLinear(784, 128, batch_size, 16, 16, 16, device=device)
+        self.fc2 = pl.PimLinear(128, 10, batch_size, 16, 16, 16, device=device)
         self.relu = pl.PimRelu()
         self.dequan = pl.DeQuanLayer(16)
 
     def forward(self, x):
         x = torch.flatten(x, 1)
 
-        # ox = x.clone().detach().requires_grad_()
         x_p = pl.creat_quantization_para(bit_width=16, tensor_type=pl.TensorType.Normal, device=self.device)
         x_p.requires_grad_()
         x = pl.quantization_tensor(x_p, x)
@@ -164,7 +163,7 @@ def main():
                         help='For Saving the current Model')
     parser.add_argument('--pim', action='store_true', default=True,
                         help='For use pim')
-    parser.add_argument('--pimconv', action='store_true', default=False,
+    parser.add_argument('--pimconv', action='store_true', default=True,
                         help='For use pimconv')
     args = parser.parse_args()
     use_cuda = not args.no_cuda and torch.cuda.is_available()

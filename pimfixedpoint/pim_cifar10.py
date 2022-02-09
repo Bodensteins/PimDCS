@@ -93,7 +93,7 @@ def train(args, model, device, train_loader, optimizer, epoch):
         if (batch_idx + 1) % args.log_interval == 0:
             print('Train Epoch: {:3d} [{:5d}/{:5d} ({:.2f}%)]\t Average Loss: {:.6f}'.format(
                 epoch, done_data, len(train_loader.dataset), 100. * done_data / len(train_loader.dataset),
-                                                             loss_log_interval / args.log_interval))
+                loss_log_interval / args.log_interval))
             loss_log_interval = 0
             if args.dry_run:
                 break
@@ -126,7 +126,7 @@ def main():
                         help='input batch size for testing (default: 200)')
     parser.add_argument('--epochs', type=int, default=50, metavar='N',
                         help='number of epochs to train (default: 14)')
-    parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
+    parser.add_argument('--lr', type=float, default=0.1, metavar='LR',
                         help='learning rate (default: 1.0)')
     parser.add_argument('--gamma', type=float, default=0.7, metavar='M',
                         help='Learning rate step gamma (default: 0.7)')
@@ -136,11 +136,11 @@ def main():
                         help='quickly check a single pass')
     parser.add_argument('--seed', type=int, default=3, metavar='S',
                         help='random seed (default: 1)')
-    parser.add_argument('--log-interval', type=int, default=20, metavar='N',
+    parser.add_argument('--log-interval', type=int, default=1, metavar='N',
                         help='how many batches to wait before logging training status')
     parser.add_argument('--save-model', action='store_true', default=False,
                         help='For Saving the current Model')
-    parser.add_argument('--cuda_use_num', type=int, default=2, metavar='N',
+    parser.add_argument('--cuda_use_num', type=int, default=1, metavar='N',
                         help='use which cuda')
  
     args = parser.parse_args()

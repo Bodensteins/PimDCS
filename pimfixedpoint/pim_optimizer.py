@@ -104,6 +104,7 @@ class PimSGD:
                 #     self.state[wtArr]['momentum_buffer'] = buf
                 
                 if self.runMode == OptimMode.full_fix:
+                    print(f"d_wt shape: {d_wt.size()} d_wt cfg: {quantization.to_int(d_wt_cfg)}")
                     delta_wt = mul_num([d_wt, d_wt_cfg], -lr)
                     add_alpha_tensor_([wtArr, wtArr_cfg], delta_wt)
                     # add_alpha_tensor_([wtArr, wtArr_cfg], [d_wt, d_wt_cfg], -lr)

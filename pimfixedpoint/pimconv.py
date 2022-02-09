@@ -12,10 +12,11 @@ from torch.nn import Conv2d
 
 
 class PimConv2D(torch.nn.Module):
-    def __init__(self, input_shape: List, kernel_size: List, output_chs: int, batch_size: int, stride: int = 1, padding: int = 0,
-                 dilation: int = 1, inputBits: int = 16, weightBits: int = 16, gradOutputBits: int = 16,
-                 arrayMode: str = "RefTensor", quantizerMode: str = "", absMaxValueLeft = None, absMaxValueRight = None,
-                 hasBias: bool = True, device: torch.device = torch.device("cpu")):
+    def __init__(self, input_shape: List, kernel_size: List, output_chs: int, batch_size: int, stride: int = 1,
+                 padding: int = 0, dilation: int = 1, inputBits: int = 16, weightBits: int = 16,
+                 gradOutputBits: int = 16, arrayMode: str = "RefTensor", quantizerMode: str = "",
+                 absMaxValueLeft = None, absMaxValueRight = None, hasBias: bool = True,
+                 device: torch.device = torch.device("cpu")):
         # todo: don't have some para
         super().__init__()
         self.output_chs = output_chs
@@ -73,7 +74,7 @@ class PimConv2D(torch.nn.Module):
         self.weight_init()
     
     def weight_init(self):
-        # todo: cnn may have other distribution
+        # todo: cnn may have other different distribution
         temp_weight = torch.empty(self.m, self.n, device=self.device)
         torch.nn.init.kaiming_uniform_(temp_weight, math.sqrt(5))
 

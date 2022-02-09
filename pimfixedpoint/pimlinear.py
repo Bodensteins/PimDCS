@@ -39,7 +39,7 @@ class PimLinearFunction(Function):
         if input is not None:
             output = torch.matmul(input, weight)
             ctx.input = input
-            ctx.weight = weight
+            ctx.pim_weight = weight
             ctx.has_origin_input = True
 
         if qinputArr is not None:
@@ -52,7 +52,7 @@ class PimLinearFunction(Function):
         ctx.save_for_backward(qinputArr, qweight_t)
         ctx.qinputArr_config = qinputArr_config
         ctx.qweight_t_config = qweight_t_config
-        ctx.delta_qweight_t_config = delta_qweight_t_config
+        ctx.pim_delta_qweight_t_cfg = delta_qweight_t_config
 
         ctx.gradOutputBits = gradOutputBits
         ctx.hasBias = hasBias
@@ -64,7 +64,7 @@ class PimLinearFunction(Function):
         qinputArr, qweight_t = ctx.saved_tensors
         qinputArr_config = ctx.qinputArr_config
         qweight_t_config = ctx.qweight_t_config
-        delta_qweight_t_config = ctx.delta_qweight_t_config
+        delta_qweight_t_config = ctx.pim_delta_qweight_t_cfg
         # print(grad_output)
         hasBias = ctx.hasBias
         qgrad_output_bits = ctx.gradOutputBits
@@ -76,7 +76,7 @@ class PimLinearFunction(Function):
         grad_input = None
         d_w = None
         if ctx.has_origin_input:
-            grad_input = torch.matmul(grad_output, ctx.weight.t())
+            grad_input = torch.matmul(grad_output, ctx.pim_weight.t())
             d_w = torch.matmul(grad_output.t(), ctx.input).t()
 
         if hasBias:
@@ -116,21 +116,23 @@ class PimLinear(torch.nn.Module):
         self.quantizerMode = quantizerMode
         self.device = device
         self.inputBits, self.gradOutputBits = inputBits, gradOutputBits
-        self.wArr, self.wtArr, self.inputArr = None, None, None
+        self.pim_wArr, self.pim_wtArr, self.pim_inArr = None, None, None
 
         # this bit_width is not used in fact.
-        self.delta_qweight_t_config = creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Normal,
-                                                              device=device)
+        self.pim_delta_qweight_t_cfg = torch.nn.Parameter(
+            creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Normal, device=device))
 
         if arrayMode == "RefTensor":
-            self.inputArrConfig = creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Ref,
-                                                          device=device)
-            self.wArrConfig = creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Ref, device=device)
-            self.wtArrConfig = creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Ref, device=device)
+            self.pim_inArr_cfg = creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Ref,
+                                                         device=device)
+            self.pim_wArr_cfg = torch.nn.Parameter(
+                creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Ref, device=device))
+            self.pim_wtArr_cfg = torch.nn.Parameter(
+                creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Ref, device=device))
 
             neg_levels = pow_2_n(weightBits - 1)
-            self.inputArr = torch.empty([batch_size, m + 1], dtype=torch_float, device=device)
-            int_input_array = to_int(self.inputArr)
+            self.pim_inArr = torch.empty([batch_size, m + 1], dtype=torch_float, device=device)
+            int_input_array = to_int(self.pim_inArr)
             int_input_array[:, -1] = neg_levels
         else:
             raise Exception("We don't implement this array mode!", arrayMode)
@@ -146,26 +148,26 @@ class PimLinear(torch.nn.Module):
             bound = 1 / math.sqrt(fan_in)
             torch.nn.init.uniform_(temp_weight[-1], -bound, bound)
 
-        self.weight = torch.nn.Parameter(temp_weight.clone().detach().requires_grad_())
+        self.pim_weight = torch.nn.Parameter(temp_weight.clone().detach().requires_grad_())
         # self.delta_qweight_t_config = torch.nn.Parameter(self.delta_qweight_t_config)
-        self.wArr = torch.nn.Parameter(
-            quantization_tensor(self.wArrConfig, temp_weight, self.maxValueLeft, self.maxValueRight))
-        self.wtArr = torch.nn.Parameter(
-            quantization_tensor(self.wtArrConfig, temp_weight.t(), self.maxValueLeft, self.maxValueRight))
+        self.pim_wArr = torch.nn.Parameter(
+            quantization_tensor(self.pim_wArr_cfg, temp_weight, self.maxValueLeft, self.maxValueRight))
+        self.pim_wtArr = torch.nn.Parameter(
+            quantization_tensor(self.pim_wtArr_cfg, temp_weight.t(), self.maxValueLeft, self.maxValueRight))
 
     def forward(self, qinput: Tensor, qinput_config: Tensor, input: Tensor = None):
         if self.training:
-            qoutput, qoutput_config, _ = PimLinearFunction.apply(qinput, qinput_config, self.inputArr,
-                                                                 self.inputArrConfig, self.wArr, self.wArrConfig,
-                                                                 self.wtArr, self.wtArrConfig,
-                                                                 self.delta_qweight_t_config, self.inputBits,
-                                                                 self.gradOutputBits, self.hasBias, input, self.weight)
+            qoutput, qoutput_config, _ = PimLinearFunction.apply(qinput, qinput_config, self.pim_inArr,
+                                                                 self.pim_inArr_cfg, self.pim_wArr, self.pim_wArr_cfg,
+                                                                 self.pim_wtArr, self.pim_wtArr_cfg,
+                                                                 self.pim_delta_qweight_t_cfg, self.inputBits,
+                                                                 self.gradOutputBits, self.hasBias, input, self.pim_weight)
         else:
-            qoutput, qoutput_config, _ = PimLinearFunction.apply(qinput, qinput_config, None, self.inputArrConfig,
-                                                                 self.wArr, self.wArrConfig, self.wtArr,
-                                                                 self.wtArrConfig, self.delta_qweight_t_config,
+            qoutput, qoutput_config, _ = PimLinearFunction.apply(qinput, qinput_config, None, self.pim_inArr_cfg,
+                                                                 self.pim_wArr, self.pim_wArr_cfg, self.pim_wtArr,
+                                                                 self.pim_wtArr_cfg, self.pim_delta_qweight_t_cfg,
                                                                  self.inputBits, self.gradOutputBits, self.hasBias,
-                                                                 input, self.weight)
+                                                                 input, self.pim_weight)
 
         return qoutput, qoutput_config
 

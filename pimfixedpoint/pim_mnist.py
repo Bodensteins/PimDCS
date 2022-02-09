@@ -6,9 +6,9 @@ import torch.nn.functional as F
 import torch.optim as optim
 import pimlinear as pl
 from torchvision import datasets, transforms
+from torch.optim.lr_scheduler import StepLR
 import pimconv as pc
 import pim_optimizer as po
-
 from quantization import *
 
 
@@ -149,8 +149,10 @@ def main():
                         help='number of epochs to train (default: 14)')
     parser.add_argument('--lr', type=float, default=0.5, metavar='LR',
                         help='learning rate (default: 1.0)')
-    parser.add_argument('--gamma', type=float, default=0.7, metavar='M',
-                        help='Learning rate step gamma (default: 0.7)')
+    parser.add_argument('--lr-decay-step', type=int, default=30, metavar='M',
+                        help='Period of learning rate decay. (default: 30)')
+    parser.add_argument('--gamma', type=float, default=0.5, metavar='M',
+                        help='Learning rate step gamma (default: 0.5)')
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='disables CUDA training')
     parser.add_argument('--dry-run', action='store_true', default=False,
@@ -196,17 +198,18 @@ def main():
             model = PimConvNet(args.train_batch_size, device=device).to(device)
         else:
             model = PimNet(args.train_batch_size, device=device).to(device)
-        optimizer = po.PimSGD(model, lr=args.lr, momentum=0.9, run_mode=po.OptimMode.full_fix)
+        optimizer = po.PimSGD(model.named_parameters(), lr=args.lr, momentum=0.9, run_mode=po.OptimMode.full_fix)
     else:
         model = Net(args.batch_size).to(device)
         # optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
         optimizer = optim.SGD(model.parameters(), lr=args.lr)
 
-    # scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
+    scheduler = StepLR(optimizer, step_size=args.lr_decay_step, gamma=args.gamma)
     for epoch in range(1, args.epochs + 1):
         train(args, model, device, train_loader, optimizer, epoch)
         test(model, device, test_loader)
-    
+        scheduler.step()
+
     if args.save_model:
         torch.save(model.state_dict(), "mnist_fc.pt")
 

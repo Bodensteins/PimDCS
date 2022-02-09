@@ -53,15 +53,16 @@ class PimConv2D(torch.nn.Module):
         self.device = device
 
         # this bit_width is not used in fact.
-        self.delta_qweight_t_config = creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Normal,
-                                                              device=device)
+        self.delta_qweight_t_config = torch.nn.Parameter(
+            creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Normal, device=device))
+
         if arrayMode == "RefTensor":
             self.inputArrConfig = creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Ref,
                                                           device=device)
-            self.wArrConfig = creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Ref,
-                                                      device=device)
-            self.wtArrConfig = creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Ref,
-                                                       device=device)
+            self.wArrConfig = torch.nn.Parameter(
+                creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Ref, device=device))
+            self.wtArrConfig = torch.nn.Parameter(
+                creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Ref, device=device))
 
             neg_levels = pow_2_n(weightBits - 1)
             input_array_row = batch_size * self.output_size[0] * self.output_size[1]

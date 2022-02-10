@@ -101,16 +101,6 @@ def train(args, model, device, train_loader, optimizer, epoch):
         loss.backward()
         optimizer.step()
         done_data += len(data)
-        # t2diff = model.fc2.weight.data.detach()- \
-        #     de_quantization([model.fc2.wArr.detach(), model.fc2.wArrConfig.detach()])
-
-        # t1diff = model.fc1.weight.data.detach()- \
-        #     de_quantization([model.fc1.wArr.detach(), model.fc1.wArrConfig.detach()]) 
-        # print(t2diff.abs().max())#/t2diff.size(0)/t2diff.size(1))
-        # print(t1diff.abs().max())#/t1diff.size(0)/t1diff.size(1))
-
-        # tmp = torch.cat((model2.fc1.weight.data.t().clone(), model2.fc1.bias.data.clone().reshape(1, 128)), 0)
-        # print(tmp - model.fc1.weight)
         if (batch_idx + 1) % args.log_interval == 0:
             print('Train Epoch: {:3d} [{:5d}/{:5d} ({:.2f}%)]\t Average Loss: {:.6f}'.format(
                 epoch, done_data, len(train_loader.dataset), 100. * done_data / len(train_loader.dataset),
@@ -147,7 +137,7 @@ def main():
                         help='input batch size for testing (default: 1000)')
     parser.add_argument('--epochs', type=int, default=200, metavar='N',
                         help='number of epochs to train (default: 14)')
-    parser.add_argument('--lr', type=float, default=0.5, metavar='LR',
+    parser.add_argument('--lr', type=float, default=0.1, metavar='LR',
                         help='learning rate (default: 1.0)')
     parser.add_argument('--lr-decay-step', type=int, default=30, metavar='M',
                         help='Period of learning rate decay. (default: 30)')
@@ -177,9 +167,7 @@ def main():
     train_kwargs = {'batch_size': args.train_batch_size}
     test_kwargs = {'batch_size': args.test_batch_size}
     if use_cuda:
-        cuda_kwargs = {'num_workers': 1,
-                       'pin_memory': False,
-                       'shuffle': True}
+        cuda_kwargs = {'num_workers': 1, 'pin_memory': False, 'shuffle': True}
         train_kwargs.update(cuda_kwargs)
         test_kwargs.update(cuda_kwargs)
 
@@ -204,11 +192,11 @@ def main():
         # optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
         optimizer = optim.SGD(model.parameters(), lr=args.lr)
 
-    scheduler = StepLR(optimizer, step_size=args.lr_decay_step, gamma=args.gamma)
+    # scheduler = StepLR(optimizer, step_size=args.lr_decay_step, gamma=args.gamma)
     for epoch in range(1, args.epochs + 1):
         train(args, model, device, train_loader, optimizer, epoch)
         test(model, device, test_loader)
-        scheduler.step()
+        # scheduler.step()
 
     if args.save_model:
         torch.save(model.state_dict(), "mnist_fc.pt")

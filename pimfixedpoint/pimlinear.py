@@ -9,8 +9,6 @@ from quantization import add_additional_col_of_one, set_bit_width_, write_array_
     pow_2_n, torch_float
 
 
-# torch.set_printoptions(profile="full")
-
 class PimLinearFunction(Function):
     @staticmethod
     def forward(ctx,
@@ -88,9 +86,9 @@ class PimLinearFunction(Function):
         # print(f'qintputarr= {de_quantization([qinputArr, qinputArr_config])}')
         delta_qweight_t, _ = quantization_t_matmul([qgrad_output, qgrad_output_config], [qinputArr, qinputArr_config],
                                                    delta_qweight_t_config)
-        print(f'err shape: {qgrad_output.size()} err cfg: {to_int(qgrad_output_config)} '
-              f'input shape: {qinputArr.size()} input cfg: {to_int(qinputArr_config)} '
-              f'grad shape: {delta_qweight_t.size()} grad cfg: {to_int(delta_qweight_t_config)}')
+        # print(f'err shape: {qgrad_output.size()} err cfg: {to_int(qgrad_output_config)} '
+        #       f'input shape: {qinputArr.size()} input cfg: {to_int(qinputArr_config)} '
+        #       f'grad shape: {delta_qweight_t.size()} grad cfg: {to_int(delta_qweight_t_config)}')
 
         # print(f'delta= {de_quantization([delta_qweight_t, delta_qweight_t_config])}')
         delta_qweight_t = add_additional_col_of_zero([delta_qweight_t, delta_qweight_t_config])

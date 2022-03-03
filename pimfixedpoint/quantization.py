@@ -80,14 +80,17 @@ def round_rshift_(int_tensor, shift: int):
 
 
 def round_rshift(int_tensor, shift: int):
-    assert (shift > 0)
+    if shift <= 0 or shift > system_bit_width - 1:
+        raise Exception("Inappropriate shift value: ", shift)
     round_bit = int_tensor.bitwise_and(1 << (shift - 1))
     return int_tensor.add(round_bit).__rshift__(shift)
 
 
-# input: quantization parameters, should be int Tensor
-# return: quantization para. {s, bit_width, tensor_type(Normal or ref or PN)}
 def parse_quantization_para(quantization_para):
+    """"
+    input: quantization parameters, should be int Tensor
+    return: quantization para. {s, bit_width, tensor_type(Normal or ref or PN)}
+    """
     s = quantization_para[0].item()
     bit_width = quantization_para[1].item()
     tensor_type = TensorType(quantization_para[2].item())
@@ -398,9 +401,12 @@ def mul_num(float_tensor_list: list, alpha: float, alpha_bit_width: int = data_f
     int_tensor, quantization_para = parse_tensor_list_to_int(float_tensor_list)
     s, _, tensor_type = parse_quantization_para(quantization_para)
 
+    # temp_bits = get_effective_bit_width(float_tensor_list)
+
     alpha_s = get_fixed_point_position(abs(alpha), alpha_bit_width)
     alpha_resolution = pow(2, alpha_s)
     alpha_int = round(alpha / alpha_resolution)
+    # print(f"alpha_int: {alpha_int} alpha_s: {alpha_s} temp_bits: {temp_bits}")
 
     if tensor_type == TensorType.Normal:
         mul_num_int_tensor = int_tensor.mul(alpha_int)
@@ -461,20 +467,31 @@ def add_alpha_tensor_(source_tensor_list: list, add_tensor_list: list, alpha: fl
             raise Exception("We don't support this weight update strategy!", strategy)
     elif source_tensor_type == TensorType.Ref:
         if shift > 0:
-            assert (source_bit_width + shift < system_bit_width)  # one bit for sign bit
-            neg_levels = source_int_tensor[0, -1].item()
-            data_part = source_int_tensor[:, 0:-1]
-            data_part.sub_(neg_levels).__ilshift__(shift)
-            source_int_tensor.add_(mul_num_int_tensor)
-
+            # todo: modify here
+            # implementation 1
             if mode == RightShiftMode.Abandon:
-                data_part.__irshift__(shift)
+                source_int_tensor.add_(mul_num_int_tensor.__rshift__(shift))
             elif mode == RightShiftMode.Round:
-                round_rshift_(data_part, shift)
+                source_int_tensor.add_(round_rshift(mul_num_int_tensor, shift))
             else:
                 raise Exception("We don't support this right shift mode!", mode)
-
-            data_part.add_(neg_levels)
+            # implementation 2
+            # if source_bit_width + shift >= system_bit_width:
+            #     raise Exception("shift bits err! shift:", shift, source_s, mul_num_s)
+            # assert (source_bit_width + shift < system_bit_width)  # one bit for sign bit
+            # neg_levels = source_int_tensor[0, -1].item()
+            # data_part = source_int_tensor[:, 0:-1]
+            # data_part.sub_(neg_levels).__ilshift__(shift)
+            # source_int_tensor.add_(mul_num_int_tensor)
+            #
+            # if mode == RightShiftMode.Abandon:
+            #     data_part.__irshift__(shift)
+            # elif mode == RightShiftMode.Round:
+            #     round_rshift_(data_part, shift)
+            # else:
+            #     raise Exception("We don't support this right shift mode!", mode)
+            #
+            # data_part.add_(neg_levels)
         else:
             assert (mul_num_bit_width - shift < system_bit_width)  # one bit for sign bit
             mul_num_int_tensor.__ilshift__(-shift)

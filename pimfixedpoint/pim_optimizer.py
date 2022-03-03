@@ -93,6 +93,7 @@ class PimSGD(Optimizer):
                 d_wt = wtArr.grad
                 if d_wt is not None:
                     if self.runMode == OptimMode.full_fix:
+                        # print("d_wt:here")
                         delta_wt = mul_num([d_wt, d_wt_cfg], -lr)
                         add_alpha_tensor_([wtArr, wtArr_cfg], delta_wt)
                         d_w = add_additional_col_of_zero([remove_additional_col(d_wt).t(), d_wt_cfg])

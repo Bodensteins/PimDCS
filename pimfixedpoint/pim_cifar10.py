@@ -16,6 +16,56 @@ import torch.utils.data
 from quantization import *
 
 
+class VGGNet(nn.Module):
+    def __init__(self, batch_size, device: torch.device = torch.device("cpu")):
+        super().__init__()
+        self.device = device
+        self.conv1 = nn.Conv2d(3, 128, (3, 3), padding=1, device=device)
+        self.conv2 = nn.Conv2d(128, 128, (3, 3), padding=1, device=device)
+        self.conv3 = nn.Conv2d(128, 256, (3, 3), padding=1, device=device)
+        self.conv4 = nn.Conv2d(256, 256, (3, 3), padding=1, device=device)
+        self.conv5 = nn.Conv2d(256, 512, (3, 3), padding=1, device=device)
+        self.conv6 = nn.Conv2d(512, 512, (3, 3), padding=1, device=device)
+        self.conv7 = nn.Conv2d(512, 1024, (3, 3), padding=1, device=device)
+
+        self.fc1 = nn.Linear(4096, 128, device=device)
+        self.fc2 = nn.Linear(128, 10, device=device)
+
+    def forward(self, x):
+        # conv layer
+        x = self.conv1(x)
+        x = F.relu(x)
+        x = self.conv2(x)
+        x = F.relu(x)
+        x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
+
+        x = self.conv3(x)
+        x = F.relu(x)
+        x = self.conv4(x)
+        x = F.relu(x)
+        x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
+
+        x = self.conv5(x)
+        x = F.relu(x)
+        x = self.conv6(x)
+        x = F.relu(x)
+        x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
+
+        x = self.conv7(x)
+        x = F.relu(x)
+        x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
+
+        # fc layer
+        x = torch.flatten(x, 1)
+        x = self.fc1(x)
+        x = F.relu(x)
+        x = self.fc2(x)
+
+        output = F.log_softmax(x, dim=1)
+
+        return output
+
+
 class PimVGGNet(nn.Module):
     def __init__(self, batch_size, device: torch.device = torch.device("cpu")):
         super().__init__()
@@ -79,7 +129,7 @@ def train(args, model, device, train_loader, optimizer, epoch):
     done_data = 0
     for batch_idx, (data, target) in enumerate(train_loader):
         data, target = data.to(device), target.to(device)
-
+        # print(f'data: {data}')
         optimizer.zero_grad()
         output = model(data)
 
@@ -91,7 +141,7 @@ def train(args, model, device, train_loader, optimizer, epoch):
         done_data += len(data)
 
         if (batch_idx + 1) % args.log_interval == 0:
-            print('Train Epoch: {:3d} [{:5d}/{:5d} ({:.2f}%)]\t Average Loss: {:.6f}'.format(
+            print('Train Epoch: {:3d} [{:5d}/{:5d} ({:6.2f}%)] Average Loss: {:.6f}'.format(
                 epoch, done_data, len(train_loader.dataset), 100. * done_data / len(train_loader.dataset),
                 loss_log_interval / args.log_interval))
             loss_log_interval = 0
@@ -120,7 +170,7 @@ def test(model, device, test_loader):
 def main():
     # Training settings
     parser = argparse.ArgumentParser(description='PyTorch cifar10 Example')
-    parser.add_argument('--train-batch-size', type=int, default=32, metavar='N',
+    parser.add_argument('--train-batch-size', type=int, default=64, metavar='N',
                         help='input batch size for training (default: 64)')
     parser.add_argument('--test-batch-size', type=int, default=200, metavar='N',
                         help='input batch size for testing (default: 200)')
@@ -138,10 +188,12 @@ def main():
                         help='quickly check a single pass')
     parser.add_argument('--seed', type=int, default=3, metavar='S',
                         help='random seed (default: 1)')
-    parser.add_argument('--log-interval', type=int, default=1, metavar='N',
+    parser.add_argument('--log-interval', type=int, default=100, metavar='N',
                         help='how many batches to wait before logging training status')
     parser.add_argument('--save-model', action='store_true', default=False,
                         help='For Saving the current Model')
+    parser.add_argument('--pim', action='store_true', default=True,
+                        help='For use pim')
     parser.add_argument('--cuda_use_num', type=int, default=1, metavar='N',
                         help='use which cuda')
  
@@ -179,14 +231,19 @@ def main():
 
     classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
-    model = PimVGGNet(args.train_batch_size, device=device).to(device)
-    optimizer = po.PimSGD(model.named_parameters(), lr=args.lr, momentum=0.9, run_mode=po.OptimMode.full_fix)
+    if args.pim:
+        model = PimVGGNet(args.train_batch_size, device=device).to(device)
+        optimizer = po.PimSGD(model.named_parameters(), lr=args.lr, momentum=0.9, run_mode=po.OptimMode.full_fix)
+    else:
+        model = VGGNet(args.train_batch_size, device=device).to(device)
+        # optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
+        optimizer = optim.SGD(model.parameters(), lr=args.lr)
 
-    scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
+    # scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
     for epoch in range(1, args.epochs + 1):
         train(args, model, device, train_loader, optimizer, epoch)
         test(model, device, test_loader)
-        scheduler.step()
+        # scheduler.step()
 
     if args.save_model:
         torch.save(model.state_dict(), "cifar10_vgg.pt")

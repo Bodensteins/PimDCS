@@ -131,13 +131,13 @@ def test(model, device, test_loader):
 def main():
     # Training settings
     parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
-    parser.add_argument('--train-batch-size', type=int, default=32, metavar='N',
+    parser.add_argument('--train-batch-size', type=int, default=64, metavar='N',
                         help='input batch size for training (default: 64)')
     parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
                         help='input batch size for testing (default: 1000)')
     parser.add_argument('--epochs', type=int, default=200, metavar='N',
                         help='number of epochs to train (default: 14)')
-    parser.add_argument('--lr', type=float, default=0.1, metavar='LR',
+    parser.add_argument('--lr', type=float, default=0.001, metavar='LR',
                         help='learning rate (default: 1.0)')
     parser.add_argument('--lr-decay-step', type=int, default=30, metavar='M',
                         help='Period of learning rate decay. (default: 30)')
@@ -162,7 +162,7 @@ def main():
 
     torch.manual_seed(args.seed)
 
-    device = torch.device("cuda:1" if use_cuda else "cpu")
+    device = torch.device("cuda:0" if use_cuda else "cpu")
 
     train_kwargs = {'batch_size': args.train_batch_size}
     test_kwargs = {'batch_size': args.test_batch_size}
@@ -188,7 +188,7 @@ def main():
             model = PimNet(args.train_batch_size, device=device).to(device)
         optimizer = po.PimSGD(model.named_parameters(), lr=args.lr, momentum=0.9, run_mode=po.OptimMode.full_fix)
     else:
-        model = Net(args.batch_size).to(device)
+        model = Net(args.train_batch_size).to(device)
         # optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
         optimizer = optim.SGD(model.parameters(), lr=args.lr)
 

@@ -53,15 +53,15 @@ class PimConv2D(torch.nn.Module):
         self.device = device
 
         # this bit_width is not used in fact.
-        self.delta_qweight_t_config = torch.nn.Parameter(
+        self.pim_delta_qweight_t_cfg = torch.nn.Parameter(
             creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Normal, device=device))
 
         if arrayMode == "RefTensor":
-            self.inputArrConfig = creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Ref,
-                                                          device=device)
-            self.wArrConfig = torch.nn.Parameter(
+            self.pim_inArr_cfg = creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Ref,
+                                                         device=device)
+            self.pim_wArr_cfg = torch.nn.Parameter(
                 creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Ref, device=device))
-            self.wtArrConfig = torch.nn.Parameter(
+            self.pim_wtArr_cfg = torch.nn.Parameter(
                 creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Ref, device=device))
 
             neg_levels = pow_2_n(weightBits - 1)
@@ -76,17 +76,22 @@ class PimConv2D(torch.nn.Module):
     
     def weight_init(self):
         # todo: cnn may have other different distribution
-        temp_weight = torch.empty(self.m, self.n, device=self.device)
+        temp_weight = torch.empty([self.output_chs, self.input_chs, self.kernel_h, self.kernel_w], device=self.device)
         torch.nn.init.kaiming_uniform_(temp_weight, math.sqrt(5))
 
-        if self.hasBias:
-            fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(temp_weight[0:-1])
-            bound = 1 / math.sqrt(fan_in)
-            torch.nn.init.uniform_(temp_weight[-1], -bound, bound)
+        temp_weight = temp_weight.reshape(self.output_chs, -1).T
 
-        self.weight = torch.nn.Parameter(temp_weight.clone().detach().requires_grad_())
-        self.wArr = torch.nn.Parameter(quantization_tensor(self.wArrConfig, temp_weight, self.absMaxValueLeft, self.absMaxValueRight))
-        self.wtArr = torch.nn.Parameter(quantization_tensor(self.wtArrConfig, temp_weight.t(), self.absMaxValueLeft, self.absMaxValueRight))
+        if self.hasBias:
+            temp_bias = torch.empty(self.output_chs, device=self.device)
+            _, fan_in = torch.nn.init._calculate_fan_in_and_fan_out(temp_weight)  # our weight is different
+            bound = 1 / math.sqrt(fan_in)
+            torch.nn.init.uniform_(temp_bias, -bound, bound)
+            temp_bias = temp_bias.unsqueeze(0)
+            temp_weight = torch.cat((temp_weight, temp_bias), 0)
+
+        self.pim_weight = torch.nn.Parameter(temp_weight.clone().detach().requires_grad_())
+        self.pim_wArr = torch.nn.Parameter(quantization_tensor(self.pim_wArr_cfg, temp_weight, self.absMaxValueLeft, self.absMaxValueRight))
+        self.pim_wtArr = torch.nn.Parameter(quantization_tensor(self.pim_wtArr_cfg, temp_weight.t(), self.absMaxValueLeft, self.absMaxValueRight))
 
     def forward(self, qinput: Tensor, qinput_config: Tensor):
         # reshaple qinput to the matrix-shape
@@ -100,14 +105,14 @@ class PimConv2D(torch.nn.Module):
         # re-use pimlinerfunction to get the answer
         if self.training:
             qoutput, qoutput_config, _ = \
-            PimLinearFunction.apply(qinput, qinput_config, self.inputArr, self.inputArrConfig, self.wArr,
-                                    self.wArrConfig, self.wtArr, self.wtArrConfig, self.delta_qweight_t_config,
-                                    self.inputBits, self.gradOutputBits, self.hasBias, None, self.weight)
+            PimLinearFunction.apply(qinput, qinput_config, self.inputArr, self.pim_inArr_cfg, self.pim_wArr,
+                                    self.pim_wArr_cfg, self.pim_wtArr, self.pim_wtArr_cfg, self.pim_delta_qweight_t_cfg,
+                                    self.inputBits, self.gradOutputBits, self.hasBias, None, self.pim_weight)
         else:
             qoutput, qoutput_config, _ = \
-                PimLinearFunction.apply(qinput, qinput_config, None, self.inputArrConfig, self.wArr,
-                                        self.wArrConfig, self.wtArr, self.wtArrConfig, self.delta_qweight_t_config,
-                                        self.inputBits, self.gradOutputBits, self.hasBias, None, self.weight)
+                PimLinearFunction.apply(qinput, qinput_config, None, self.pim_inArr_cfg, self.pim_wArr,
+                                        self.pim_wArr_cfg, self.pim_wtArr, self.pim_wtArr_cfg, self.pim_delta_qweight_t_cfg,
+                                        self.inputBits, self.gradOutputBits, self.hasBias, None, self.pim_weight)
 
         # reshape the qoutput to the conv-shape
         # Here, for simpicity, we use dequan & fold & quan to simulate fixed-point fold

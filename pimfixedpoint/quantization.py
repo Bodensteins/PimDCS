@@ -58,9 +58,6 @@ def matmul_int_cuda(int_tensor1, int_tensor2):
 
 
 def get_fixed_point_position(max_abs: float, bit_width: int) -> int:
-    # if max_abs == 0:
-    #     print("warning: max abs is 0!")
-    #     return -bit_width
     return math.ceil(math.log2(max_abs / ((1 << (bit_width - 1)) - 1)))
 
 
@@ -83,7 +80,8 @@ def round_rshift_(int_tensor, shift: int):
 
 
 def round_rshift(int_tensor, shift: int):
-    assert (shift > 0)
+    if shift <= 0 or shift > system_bit_width - 1:
+        raise Exception("Inappropriate shift value: ", shift)
     round_bit = int_tensor.bitwise_and(1 << (shift - 1))
     return int_tensor.add(round_bit).__rshift__(shift)
 
@@ -470,28 +468,30 @@ def add_alpha_tensor_(source_tensor_list: list, add_tensor_list: list, alpha: fl
     elif source_tensor_type == TensorType.Ref:
         if shift > 0:
             # todo: modify here
-            # if mode == RightShiftMode.Abandon:
-            #     source_int_tensor.add_(mul_num_int_tensor.__rshift__(shift))
-            # elif mode == RightShiftMode.Round:
-            #     source_int_tensor.add_(round_rshift(mul_num_int_tensor, shift))
-            # else:
-            #     raise Exception("We don't support this right shift mode!", mode)
-            if source_bit_width + shift >= system_bit_width:
-                raise Exception("shift bits err! shift:", shift, source_s, mul_num_s)
-            assert (source_bit_width + shift < system_bit_width)  # one bit for sign bit
-            neg_levels = source_int_tensor[0, -1].item()
-            data_part = source_int_tensor[:, 0:-1]
-            data_part.sub_(neg_levels).__ilshift__(shift)
-            source_int_tensor.add_(mul_num_int_tensor)
-
+            # implementation 1
             if mode == RightShiftMode.Abandon:
-                data_part.__irshift__(shift)
+                source_int_tensor.add_(mul_num_int_tensor.__rshift__(shift))
             elif mode == RightShiftMode.Round:
-                round_rshift_(data_part, shift)
+                source_int_tensor.add_(round_rshift(mul_num_int_tensor, shift))
             else:
                 raise Exception("We don't support this right shift mode!", mode)
-
-            data_part.add_(neg_levels)
+            # implementation 2
+            # if source_bit_width + shift >= system_bit_width:
+            #     raise Exception("shift bits err! shift:", shift, source_s, mul_num_s)
+            # assert (source_bit_width + shift < system_bit_width)  # one bit for sign bit
+            # neg_levels = source_int_tensor[0, -1].item()
+            # data_part = source_int_tensor[:, 0:-1]
+            # data_part.sub_(neg_levels).__ilshift__(shift)
+            # source_int_tensor.add_(mul_num_int_tensor)
+            #
+            # if mode == RightShiftMode.Abandon:
+            #     data_part.__irshift__(shift)
+            # elif mode == RightShiftMode.Round:
+            #     round_rshift_(data_part, shift)
+            # else:
+            #     raise Exception("We don't support this right shift mode!", mode)
+            #
+            # data_part.add_(neg_levels)
         else:
             assert (mul_num_bit_width - shift < system_bit_width)  # one bit for sign bit
             mul_num_int_tensor.__ilshift__(-shift)

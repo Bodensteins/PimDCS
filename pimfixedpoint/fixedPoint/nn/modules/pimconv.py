@@ -3,12 +3,9 @@ import torch
 import math
 from torch import Tensor
 import torch.nn.functional
-from pimlinear import DeQuanFunction, PimLinearFunction, quanFunction
-from quantization import add_additional_col_of_one, set_bit_width_, parse_tensor_list_to_int, write_array_, \
-    quantization_matmul, remove_additional_col, quantization_t_matmul, TensorType, creat_quantization_para, \
-    quantization_tensor, parse_quantization_para, de_quantization, quantization_tensor_less, to_int, \
-    add_additional_col_of_zero, pow_2_n, torch_float
-from torch.nn import Conv2d
+from fixedPoint.nn.modules.pimlinear import PimLinearFunction
+from fixedPoint.nn.pimFunction import DeQuanFunction, QuanFunction
+from fixedPoint.fixedPointArithmetic import TensorType, creat_quantization_para, quantization_tensor, to_int, pow_2_n, torch_float
 
 
 class PimConv2D(torch.nn.Module):
@@ -75,7 +72,6 @@ class PimConv2D(torch.nn.Module):
         self.weight_init()
     
     def weight_init(self):
-        # todo: cnn may have other different distribution
         temp_weight = torch.empty([self.output_chs, self.input_chs, self.kernel_h, self.kernel_w], device=self.device)
         torch.nn.init.kaiming_uniform_(temp_weight, math.sqrt(5))
 
@@ -100,7 +96,7 @@ class PimConv2D(torch.nn.Module):
         input = DeQuanFunction.apply(qinput, qinput_config, self.inputBits, self.gradOutputBits, "") 
         input = torch.nn.functional.unfold(input, self.kernel_size, dilation=self.dilation, padding=self.padding, stride=self.stride)
         input = input.transpose(1, 2).reshape(-1, self.kernel_size_all)
-        qinput, qinput_config = quanFunction.apply(input, self.inputBits)
+        qinput, qinput_config = QuanFunction.apply(input, self.inputBits)
 
         # re-use pimlinerfunction to get the answer
         if self.training:
@@ -120,6 +116,6 @@ class PimConv2D(torch.nn.Module):
         output = output.reshape(batch_size, -1, self.output_chs).transpose(1, 2)
         output = torch.nn.functional.fold(output, self.output_size, (1, 1))
 
-        qoutput, qoutput_config = quanFunction.apply(output, to_int(qoutput_config)[1])
+        qoutput, qoutput_config = QuanFunction.apply(output, to_int(qoutput_config)[1])
 
         return qoutput, qoutput_config, output

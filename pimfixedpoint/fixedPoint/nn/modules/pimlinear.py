@@ -1,11 +1,10 @@
-from os import stat
 import torch
 import math
-from torch.autograd import Function, grad
+from torch.autograd import Function
 from torch import Tensor
-from quantization import add_additional_col_of_one, set_bit_width_, write_array_, quantization_matmul, \
+from fixedPoint.fixedPointArithmetic import add_additional_col_of_one, set_bit_width_, write_array_, quantization_matmul, \
     remove_additional_col, quantization_t_matmul, TensorType, creat_quantization_para, quantization_tensor, \
-    parse_quantization_para, de_quantization, quantization_tensor_less, to_int, add_additional_col_of_zero, \
+    to_int, add_additional_col_of_zero, \
     pow_2_n, torch_float
 
 
@@ -164,82 +163,6 @@ class PimLinear(torch.nn.Module):
                                                                  self.inputBits, self.gradOutputBits, self.hasBias,
                                                                  input, self.pim_weight)
 
-        return qoutput, qoutput_config
-
-
-class DeQuanFunction(Function):
-    @staticmethod
-    def forward(ctx, qinput: Tensor, qinput_config: Tensor, bit: int, backBit: int, quantizerMode: str = "dynamic"):
-        if quantizerMode == "dynamic":
-            _, ctx.backBit, _ = parse_quantization_para(to_int(qinput_config))
-        else:
-            ctx.backBit = backBit
-
-        if bit is not None:
-            set_bit_width_([qinput, qinput_config], bit)
-
-        return de_quantization([qinput, qinput_config])
-
-    @staticmethod
-    def backward(ctx, grad_output: Tensor):
-        qgrad_output_config = creat_quantization_para(bit_width=ctx.backBit, tensor_type=TensorType.Normal,
-                                                      device=grad_output.device)
-        # print(grad_output)
-        qgrad_output = quantization_tensor(qgrad_output_config, grad_output)
-
-        return qgrad_output, qgrad_output_config, None, None, None
-
-
-class DeQuanLayer(torch.nn.Module):
-    def __init__(self, bitWidth: int = 16, backBitWidth: int = 16, quantizerMode: str = "dynamic"):
-        super().__init__()
-        self.quantizerMode = quantizerMode
-        self.bit = bitWidth
-        self.backBit = backBitWidth
-
-    def forward(self, qinput: Tensor, qinput_config: Tensor):
-        return DeQuanFunction.apply(qinput, qinput_config, self.bit, self.backBit, self.quantizerMode)
-
-
-class quanFunction(Function):
-    @staticmethod
-    def forward(ctx, input, bit):
-        qoutput_config = creat_quantization_para(bit_width=bit, tensor_type=TensorType.Normal, device=input.device)
-        qoutput = quantization_tensor(qoutput_config, input)
-        return qoutput, qoutput_config
-
-    @staticmethod
-    def backward(ctx, qgrad_output, qgrad_output_config):
-        return de_quantization([qgrad_output, qgrad_output_config]), None
-
-
-class ReluFunction(Function):
-    @staticmethod
-    def forward(ctx, qinput: Tensor, qinput_config: Tensor, origin_input: Tensor = None):
-        neg_position = quantization_tensor_less([qinput, qinput_config], 0)
-        ctx.neg_position = neg_position
-        qinput[neg_position] = 0  # The zero in ieee754 is all zero as well.
-        if origin_input is not None:
-            origin_neg_position = origin_input < 0
-            origin_input[origin_neg_position] = 0
-            ctx.origin_neg_position = origin_neg_position
-        return qinput, qinput_config, origin_input
-
-    @staticmethod
-    def backward(ctx, qgrad_output: Tensor, qgrad_output_config: Tensor, grad_output: Tensor):
-        neg_position = ctx.neg_position
-        qgrad_output[neg_position] = 0
-        if grad_output is not None:
-            grad_output[ctx.origin_neg_position] = 0
-        return qgrad_output, qgrad_output_config, grad_output
-
-
-class PimRelu(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, qinput: Tensor, qinput_config: Tensor, origin_input: Tensor = None):
-        qoutput, qoutput_config, _ = ReluFunction.apply(qinput, qinput_config, origin_input)
         return qoutput, qoutput_config
 
 

@@ -26,9 +26,8 @@ class WeightUpdateStrategy(Enum):
 abandon_bit_with = None
 
 system_bit_width = 64
-
-data_flow_bit_width = system_bit_width >> 1
-half_data_flow_bit_width = data_flow_bit_width >> 1
+data_flow_bit_width = 32
+half_data_flow_bit_width = 16
 # data flow bit width must be half of system bit width to avoid overflow
 if system_bit_width <= 32:
     torch_int = torch.int32
@@ -162,21 +161,23 @@ def quantization_tensor(quantization_para: Tensor, tensor: Tensor, user_set_max_
         tensor[tensor > max_abs_value] = max_abs_value
         tensor[tensor < -max_abs_value] = -max_abs_value
 
+    s = get_fixed_point_position(max_abs_value, bit_width)
+    quantization_para[0] = s
+    resolution = pow(2, s)
+
     if tensor_type == TensorType.Normal:
-        s = get_fixed_point_position(max_abs_value, bit_width)
-        quantization_para[0] = s
-        resolution = pow(2, s)
         int_tensor = tensor.div(resolution).round().to(torch_int)
     elif tensor_type == TensorType.Ref:
-        s = get_fixed_point_position(max_abs_value, bit_width)
-        quantization_para[0] = s
-        resolution = pow(2, s)
         int_tensor = torch.empty([tensor.size()[0], tensor.size()[1] + 1], dtype=torch_int)
         neg_levels = pow_2_n(bit_width - 1)
         int_tensor[:, -1] = neg_levels
         int_tensor[:, 0:-1] = tensor.div(resolution).round().to(torch_int).add(neg_levels)
     elif tensor_type == TensorType.PN:
-        raise Exception("We don't implement this tensor_type!", tensor_type)
+        int_tensor = torch.empty([2, tensor.size()[0], tensor.size()[1]], dtype=torch_int)
+        # P:int_tensor[0] N:int_tensor[1]
+        tensor_abs = tensor.abs()
+        int_tensor[0] = tensor.add(tensor_abs).div(2)
+        int_tensor[1] = tensor.sub(tensor_abs).div(2)
     else:
         raise Exception("Invalid tensor_type!", tensor_type)
 
@@ -187,19 +188,45 @@ def de_quantization(float_tensor_list: list) -> Tensor:
     int_tensor, quantization_para = parse_tensor_list_to_int(float_tensor_list)
     s, bit_width, tensor_type = parse_quantization_para(quantization_para)
 
+    resolution = pow(2, s)
     if tensor_type == TensorType.Normal:
-        resolution = pow(2, s)
-
         return int_tensor.to(torch_float).mul(resolution)
     elif tensor_type == TensorType.Ref:
-        resolution = pow(2, s)
         neg_levels = int_tensor[0, -1].item()
 
         return int_tensor[:, 0:-1].sub(neg_levels).to(torch_float).mul(resolution)
     elif tensor_type == TensorType.PN:
-        raise Exception("We don't implement this tensor_type!", tensor_type)
+        return int_tensor[0].sub(int_tensor[1]).mul(resolution)
     else:
         raise Exception("Invalid tensor_type!", tensor_type)
+
+
+def get_element_wise_effective_bit_width(int_tensor, tensor_type):
+    assert (int_tensor.dtype == torch_int)
+    if tensor_type is TensorType.Ref:
+        bias = int_tensor[0, -1].item()
+        int_tensor = int_tensor.sub(bias)
+        int_tensor = int_tensor[:, 0:-1]
+
+    bit_width_dict = {}
+    for element in int_tensor.flatten():
+        element = element.item()
+        while element != 0 and element % 2 == 0:
+            element >>= 1
+
+        if element < 0:
+            bit_width = math.ceil(math.log2(-element))
+        else:
+            bit_width = math.ceil(math.log2(element + 1))
+        if bit_width == 16:
+            print(f"element: {element}")
+        bit_width += 1
+        if bit_width in bit_width_dict:
+            bit_width_dict[bit_width] = bit_width_dict[bit_width] + 1
+        else:
+            bit_width_dict[bit_width] = 1
+
+    return bit_width_dict
 
 
 def get_effective_bit_width(float_tensor_list: list):

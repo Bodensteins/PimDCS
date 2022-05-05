@@ -1,10 +1,9 @@
-from pimlinear import *
+from fixedPoint.nn.modules.pimlinear import *
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim.sgd import SGD
-from quantization import to_int
-from pim_optimizer import PimSGD
-from quantization import de_quantization
+from fixedPoint.optim.pim_optimizer import PimSGD
+from fixedPoint.fixedPointArithmetic import de_quantization
 
 class PimNet(nn.Module):
     def __init__(self):

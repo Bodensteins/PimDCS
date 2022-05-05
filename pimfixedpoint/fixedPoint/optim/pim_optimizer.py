@@ -2,12 +2,13 @@
 import types
 
 import torch
-import quantization
-from quantization import add_alpha_tensor_, mul_num, de_quantization, remove_additional_col, \
+from fixedPoint import fixedPointArithmetic
+from fixedPoint.fixedPointArithmetic import add_alpha_tensor_, mul_num, de_quantization, remove_additional_col, \
     add_additional_col_of_zero, write_array_
 from enum import Enum
 from torch.optim.optimizer import Optimizer
 import torch.optim._functional as F
+
 
 class OptimMode(Enum):
     full_fix = 0

@@ -1,11 +1,9 @@
 # -*- coding: utf-8 -*-
-import torch
 
-from pimlinear import *
-from pim_optimizer import *
+from fixedPoint.nn.modules.pimlinear import *
+from fixedPoint.optim.pim_optimizer import *
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.optim.sgd import SGD
 
 
 class PimNet(nn.Module):

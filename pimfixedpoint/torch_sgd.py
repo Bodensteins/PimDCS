@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim.sgd import SGD
 
+
 class TorchNet(nn.Module):
   def __init__(self):
     super(TorchNet, self).__init__()

@@ -1,8 +1,10 @@
+import torch
 import torch.nn as nn
 from torch.autograd import Function
 from torch import Tensor
 from fixedPoint.fixedPointArithmetic import set_bit_width_, TensorType, creat_quantization_para, quantization_tensor, \
-    parse_quantization_para, de_quantization, quantization_tensor_less, to_int
+    parse_quantization_para, de_quantization, quantization_tensor_less, to_int, parse_tensor_list_to_int, torch_int, \
+    to_float
 
 
 class DeQuanFunction(Function):
@@ -88,3 +90,30 @@ class PimRelu(nn.Module):
 
     def forward(self, qinput: Tensor, qinput_config: Tensor, origin_input: Tensor = None):
         return ReluFunction.apply(qinput, qinput_config, origin_input)
+
+
+class FPDropoutFunction(Function):
+    #  todo: check it
+    @staticmethod
+    def forward(ctx, fp_input, fp_input_cfg, dropout_ratio, training):
+        if training:
+            ctx.mask = torch.rand_like(fp_input) > ctx.dropout_ratio
+            return fp_input.mul(ctx.mask), fp_input_cfg   # The zero in ieee754 is all zero as well.
+        else:
+            fp_input, _ = parse_tensor_list_to_int([fp_input, fp_input_cfg])
+            fp_input = fp_input.mul(ctx.dropout_ratio).to(dtype=torch_int)
+
+            return to_float(fp_input), fp_input_cfg
+
+    @staticmethod
+    def backward(ctx, fp_grad_output, fp_grad_output_cfg):
+        return fp_grad_output.mul(ctx.mask), fp_grad_output_cfg
+
+
+class FPDropout(nn.Module):
+    def __init__(self, dropout_ratio=0.5):
+        super(FPDropout, self).__init__()
+        self.dropout_ratio = dropout_ratio
+
+    def forward(self, fp_input, fp_input_cfg):
+        return FPDropoutFunction.apply(fp_input, fp_input_cfg, self.dropout_ratio, self.training)

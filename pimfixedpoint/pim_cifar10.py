@@ -7,28 +7,27 @@ import torch.optim as optim
 from torchvision import transforms
 import torchvision
 
-import trainCommon
 from fixedPoint.optim import pim_optimizer as po
 import torch.utils.data
 
 from fixedPoint.fixedPointArithmetic import *
 from trainCommon import create_datasets, train_model, draw_loss_figure, test_model, \
     train_full_data, create_full_train_loader
-from networkModel import VGG, PimVGG, ConvCifar10, VGG16, VGG8B
+from networkModel import vgg11, vgg13, PimVGG
 
 
 def main():
     # Training settings
     parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
-    parser.add_argument('--train-batch-size', type=int, default=64, metavar='N',
+    parser.add_argument('--train-batch-size', type=int, default=128, metavar='N',
                         help='input batch size for training (default: 64)')
     parser.add_argument('--test-batch-size', type=int, default=200, metavar='N',
                         help='input batch size for testing (default: 1000)')
-    parser.add_argument('--epochs', type=int, default=200, metavar='N',
+    parser.add_argument('--epochs', type=int, default=300, metavar='N',
                         help='number of epochs to train (default: 14)')
-    parser.add_argument('--lr', type=float, default=0.1, metavar='LR',
+    parser.add_argument('--lr', type=float, default=0.05, metavar='LR',
                         help='learning rate (default: 1.0)')
-    parser.add_argument('--scheduler', action='store_true', default=True,
+    parser.add_argument('--scheduler', action='store_true', default=False,
                         help='use scheduler or not')
     parser.add_argument('--lr-decay-step', type=int, default=30, metavar='STEP',
                         help='Period of learning rate decay. (default: 30)')
@@ -50,8 +49,8 @@ def main():
                         help='train the model')
     parser.add_argument('--pim', action='store_true', default=False,
                         help='For use pim')
-    parser.add_argument('--net', type=int, default=3, metavar='NET',
-                        help='use which model (0:VGG8 1:Conv 2:VGG16 3:VGG8B)')
+    parser.add_argument('--net', type=int, default=0, metavar='NET',
+                        help='use which model (0:VGG 1:? 2:? 3:VGG8B 4:VGG11B)')
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='disables CUDA training')
     parser.add_argument('--cuda_use_num', type=int, default=1, metavar='CUDA',
@@ -116,24 +115,8 @@ def main():
             sys.exit()
     else:
         if args.net == 0:
-            model = VGG().to(device)
-            # optimizer = optim.Adadelta(model.parameters())  # 62.40%
-            # optimizer = optim.Adam(model.parameters())  # 72.62%
-            # optimizer = optim.Adagrad(model.parameters())  # 52.75%
-            # optimizer = optim.SGD(model.parameters(), lr=0.01)  # 29.36%
-            optimizer = optim.SGD(model.parameters(), lr=args.lr)  # 61.04%
-            # optimizer = optim.SGD(model.parameters(), lr=0.2)  # 66.81%
-        elif args.net == 1:
-            model = ConvCifar10().to(device)
-            optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
-        elif args.net == 2:
-            model = VGG16().to(device)
-            optimizer = optim.Adam(model.parameters())
-            # optimizer = optim.SGD(model.parameters(), lr=args.lr)
-        elif args.net == 3:
-            model = VGG8B().to(device)
-            # optimizer = optim.Adam(model.parameters())
-            optimizer = optim.SGD(model.parameters(), lr=args.lr)
+            model = vgg13(batch_norm=True).to(device)
+            optimizer = optim.SGD(model.parameters(), lr=args.lr, weight_decay=5e-4)
         else:
             print("undefined net!")
             sys.exit()
@@ -150,19 +133,20 @@ def main():
             print(e)
 
     if args.scheduler:
-        scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda epoch: 0.5 ** (epoch / 20))
+        scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda epoch: 0.5 ** (epoch / 30))
     else:
         scheduler = None
 
     if args.train:
         criterion = nn.CrossEntropyLoss()
-        lr = trainCommon.get_optimal_learning_rate(model, device, full_train_loader, test_loader, criterion)
-        optimizer = optim.SGD(model.parameters(), lr=lr)
+        # lr = trainCommon.get_optimal_learning_rate(model, device, full_train_loader, test_loader, criterion)
+        # lr = args.lr
+        # optimizer = optim.SGD(model.parameters(), lr=lr)
         # train_loss, valid_loss = train_model(model, device, train_loader, valid_loader, criterion, optimizer,
         #                                      args.epochs, filename=model_file, score_type='loss',
         #                                      scheduler=scheduler)
         train_loss, valid_loss = train_model(model, device, full_train_loader, test_loader, criterion, optimizer,
-                                             args.epochs, filename=model_file, score_type='accuracy',
+                                             args.epochs, filename=model_file, score_type='accuracy', patience=100,
                                              scheduler=scheduler)
         draw_loss_figure(train_loss, valid_loss, args.figure_dir + '/' + model_name + '_')
 

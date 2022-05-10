@@ -3,6 +3,7 @@ from matplotlib import pyplot as plt
 from torch import Generator, optim
 from torch.utils.data import DataLoader, random_split
 from fixedPoint.nn.earlystopping import EarlyStopping
+# from sklearn.model_selection import KFold
 
 
 def create_datasets(train_data, test_data, train_kwargs, test_kwargs, alpha=0.2, seed=0,
@@ -246,8 +247,8 @@ def show_data_img(labels_map, data, figure_size=(32, 32), cols=3, rows=3, random
 
 
 # only for sgd
-def get_optimal_learning_rate(model, device, train_loader, valid_loader, criterion, filename='temp.pt',
-                              initial_lr=0.0009765625, epoch=5, n=10):
+def get_optimal_learning_rate(model, device, train_loader, valid_loader, criterion, filename='model/temp.pt',
+                              initial_lr=0.0009765625, epoch=5, n=10, score_type='loss'):
     lr = initial_lr
     global_valid_loss_min = float('inf')
     lr_optimal = None
@@ -257,7 +258,7 @@ def get_optimal_learning_rate(model, device, train_loader, valid_loader, criteri
         optimizer = optim.SGD(model.parameters(), lr=lr)
         print(f"now lr is: {lr}, we try train {epoch} epochs")
         _, valid_loss = train_model(model, device, train_loader, valid_loader, criterion, optimizer,
-                                    epoch, patience=epoch+1, filename=str(lr) + '_' + filename, verbose=False)
+                                    epoch, patience=epoch+1, filename=filename + '_' + str(lr), verbose=False)
         local_valid_loss_min = min(valid_loss)
         if local_valid_loss_min < global_valid_loss_min:
             lr_optimal = lr
@@ -271,6 +272,114 @@ def get_optimal_learning_rate(model, device, train_loader, valid_loader, criteri
 
 
 def net_reset_parameters(model):
-    for layer in model.modules():
+    # for layer in model.modules():
+    for layer in model.children():
         if hasattr(layer, 'reset_parameters'):
             layer.reset_parameters()
+
+
+# def k_fold_cross_validation(model, optimizer, train_dataset, num_epochs, criterion, k_folds=5):
+#     # For fold results
+#     results = {}
+#
+#     # Define the K-fold Cross Validator
+#     k_fold_cross_validator = KFold(n_splits=k_folds, shuffle=True)
+#
+#     # K-fold Cross Validation model evaluation
+#     for fold, (train_ids, valid_ids) in enumerate(k_fold_cross_validator.split(train_dataset)):
+#
+#         # Print
+#         print(f'FOLD {fold}')
+#         print('--------------------------------')
+#
+#         # Sample elements randomly from a given list of ids, no replacement.
+#         train_sub_sampler = torch.utils.data.SubsetRandomSampler(train_ids)
+#         valid_sub_sampler = torch.utils.data.SubsetRandomSampler(valid_ids)
+#
+#         # Define data loaders for training and testing data in this fold
+#         train_loader = torch.utils.data.DataLoader(
+#             train_dataset,
+#             batch_size=10, sampler=train_sub_sampler)
+#         valid_loader = torch.utils.data.DataLoader(
+#             train_dataset,
+#             batch_size=10, sampler=valid_sub_sampler)
+#
+#         # Run the training loop for defined number of epochs
+#         for epoch in range(0, num_epochs):
+#
+#             # Print epoch
+#             print(f'Starting epoch {epoch + 1}')
+#
+#             # Set current loss value
+#             current_loss = 0.0
+#
+#             # Iterate over the DataLoader for training data
+#             for i, data in enumerate(train_loader, 0):
+#
+#                 # Get inputs
+#                 inputs, targets = data
+#
+#                 # Zero the gradients
+#                 optimizer.zero_grad()
+#
+#                 # Perform forward pass
+#                 outputs = model(inputs)
+#
+#                 # Compute loss
+#                 loss = criterion(outputs, targets)
+#
+#                 # Perform backward pass
+#                 loss.backward()
+#
+#                 # Perform optimization
+#                 optimizer.step()
+#
+#                 # Print statistics
+#                 current_loss += loss.item()
+#                 if i % 500 == 499:
+#                     print('Loss after mini-batch %5d: %.3f' %
+#                           (i + 1, current_loss / 500))
+#                     current_loss = 0.0
+#
+#         # Process is complete.
+#         print('Training process has finished. Saving trained model.')
+#
+#         # Print about testing
+#         print('Starting testing')
+#
+#         # Saving the model
+#         save_path = f'./model-fold-{fold}.pth'
+#         torch.save(model.state_dict(), save_path)
+#
+#         # Evaluation for this fold
+#         correct, total = 0, 0
+#         with torch.no_grad():
+#
+#             # Iterate over the test data and generate predictions
+#             for i, data in enumerate(valid_loader, 0):
+#                 # Get inputs
+#                 inputs, targets = data
+#
+#                 # Generate outputs
+#                 outputs = model(inputs)
+#
+#                 # Set total and correct
+#                 _, predicted = torch.max(outputs.data, 1)
+#                 total += targets.size(0)
+#                 correct += (predicted == targets).sum().item()
+#
+#             # Print accuracy
+#             print('Accuracy for fold %d: %d %%' % (fold, 100.0 * correct / total))
+#             print('--------------------------------')
+#             results[fold] = 100.0 * (correct / total)
+#
+#         net_reset_parameters(model)
+#
+#     # Print fold results
+#     print(f'K-FOLD CROSS VALIDATION RESULTS FOR {k_folds} FOLDS')
+#     print('--------------------------------')
+#     sum = 0.0
+#     for key, value in results.items():
+#         print(f'Fold {key}: {value} %')
+#         sum += value
+#     print(f'Average: {sum / len(results.items())} %')

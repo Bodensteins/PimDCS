@@ -100,52 +100,52 @@ class PimConvMnist(nn.Module):
         return x
 
 
-class VGG(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.conv1 = nn.Conv2d(3, 128, (3, 3), padding=1)
-        self.conv2 = nn.Conv2d(128, 128, (3, 3), padding=1)
-        self.conv3 = nn.Conv2d(128, 256, (3, 3), padding=1)
-        self.conv4 = nn.Conv2d(256, 256, (3, 3), padding=1)
-        self.conv5 = nn.Conv2d(256, 512, (3, 3), padding=1)
-        self.conv6 = nn.Conv2d(512, 512, (3, 3), padding=1)
-        self.conv7 = nn.Conv2d(512, 1024, (3, 3), padding=1)
-
-        self.fc1 = nn.Linear(4096, 128)
-        self.fc2 = nn.Linear(128, 10)
-
-    def forward(self, x):
-        # conv layer
-        x = self.conv1(x)
-        x = F.relu(x)
-        x = self.conv2(x)
-        x = F.relu(x)
-        x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
-
-        x = self.conv3(x)
-        x = F.relu(x)
-        x = self.conv4(x)
-        x = F.relu(x)
-        x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
-
-        x = self.conv5(x)
-        x = F.relu(x)
-        x = self.conv6(x)
-        x = F.relu(x)
-        x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
-
-        x = self.conv7(x)
-        x = F.relu(x)
-        x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
-
-        # fc layer
-        x = torch.flatten(x, 1)
-        x = self.fc1(x)
-        x = F.relu(x)
-        x = self.fc2(x)
-        # output = F.log_softmax(x, dim=1) # this is merged in training
-
-        return x
+# class OldVGG(nn.Module):
+#     def __init__(self):
+#         super().__init__()
+#         self.conv1 = nn.Conv2d(3, 128, (3, 3), padding=1)
+#         self.conv2 = nn.Conv2d(128, 128, (3, 3), padding=1)
+#         self.conv3 = nn.Conv2d(128, 256, (3, 3), padding=1)
+#         self.conv4 = nn.Conv2d(256, 256, (3, 3), padding=1)
+#         self.conv5 = nn.Conv2d(256, 512, (3, 3), padding=1)
+#         self.conv6 = nn.Conv2d(512, 512, (3, 3), padding=1)
+#         self.conv7 = nn.Conv2d(512, 1024, (3, 3), padding=1)
+#
+#         self.fc1 = nn.Linear(4096, 128)
+#         self.fc2 = nn.Linear(128, 10)
+#
+#     def forward(self, x):
+#         # conv layer
+#         x = self.conv1(x)
+#         x = F.relu(x)
+#         x = self.conv2(x)
+#         x = F.relu(x)
+#         x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
+#
+#         x = self.conv3(x)
+#         x = F.relu(x)
+#         x = self.conv4(x)
+#         x = F.relu(x)
+#         x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
+#
+#         x = self.conv5(x)
+#         x = F.relu(x)
+#         x = self.conv6(x)
+#         x = F.relu(x)
+#         x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
+#
+#         x = self.conv7(x)
+#         x = F.relu(x)
+#         x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
+#
+#         # fc layer
+#         x = torch.flatten(x, 1)
+#         x = self.fc1(x)
+#         x = F.relu(x)
+#         x = self.fc2(x)
+#         # output = F.log_softmax(x, dim=1) # this is merged in training
+#
+#         return x
 
 
 class PimVGG(nn.Module):
@@ -214,169 +214,333 @@ class PimVGG(nn.Module):
         x = self.dequan(x, x_f)
 
         return x
+#
+#
+# class VGG8B(nn.Module):
+#     def __init__(self):
+#         super(VGG8B, self).__init__()
+#         self.conv1 = nn.Conv2d(3, 128, (3, 3), padding=1)
+#         self.conv2 = nn.Conv2d(128, 256, (3, 3), padding=1)
+#
+#         self.conv3 = nn.Conv2d(256, 256, (3, 3), padding=1)
+#         self.conv4 = nn.Conv2d(256, 512, (3, 3), padding=1)
+#
+#         self.conv5 = nn.Conv2d(512, 512, (3, 3), padding=1)
+#
+#         self.conv6 = nn.Conv2d(512, 512, (3, 3), padding=1)
+#
+#         self.flatten = nn.Flatten()
+#
+#         self.fc1 = nn.Linear(2048, 1024)
+#         self.drop1 = nn.Dropout(p=0.2)
+#         self.fc2 = nn.Linear(1024, 10)
+#         self.drop2 = nn.Dropout(p=0.2)
+#
+#     def forward(self, x):
+#         # conv layer
+#         x = self.conv1(x)
+#         x = F.relu(x)
+#         x = self.conv2(x)
+#         x = F.relu(x)
+#         x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
+#
+#         x = self.conv3(x)
+#         x = F.relu(x)
+#         x = self.conv4(x)
+#         x = F.relu(x)
+#         x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
+#
+#         x = self.conv5(x)
+#         x = F.relu(x)
+#         x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
+#
+#         x = self.conv6(x)
+#         x = F.relu(x)
+#         x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
+#
+#         # fc layer
+#         x = self.flatten(x)
+#
+#         x = self.fc1(x)
+#         x = F.relu(x)
+#         x = self.drop1(x)
+#         x = self.fc2(x)
+#         x = self.drop2(x)
+#
+#         return x
+#
+#
+# class VGG11B(nn.Module):
+#     def __init__(self):
+#         super(VGG11B, self).__init__()
+#         self.conv1 = nn.Conv2d(3, 128, (3, 3), padding=1)
+#         self.conv2 = nn.Conv2d(128, 128, (3, 3), padding=1)
+#         self.conv3 = nn.Conv2d(128, 128, (3, 3), padding=1)
+#         self.conv4 = nn.Conv2d(128, 256, (3, 3), padding=1)
+#
+#         self.conv5 = nn.Conv2d(256, 256, (3, 3), padding=1)
+#         self.conv6 = nn.Conv2d(256, 512, (3, 3), padding=1)
+#
+#         self.conv7 = nn.Conv2d(512, 512, (3, 3), padding=1)
+#         self.conv8 = nn.Conv2d(512, 512, (3, 3), padding=1)
+#
+#         self.conv9 = nn.Conv2d(512, 512, (3, 3), padding=1)
+#
+#         self.flatten = nn.Flatten()
+#
+#         self.fc1 = nn.Linear(2048, 1024)
+#         self.fc2 = nn.Linear(1024, 10)
+#
+#     def forward(self, x):
+#         # conv layer
+#         x = self.conv1(x)
+#         x = F.relu(x)
+#         x = self.conv2(x)
+#         x = F.relu(x)
+#         x = self.conv3(x)
+#         x = F.relu(x)
+#         x = self.conv4(x)
+#         x = F.relu(x)
+#         x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
+#
+#         x = self.conv5(x)
+#         x = F.relu(x)
+#         x = self.conv6(x)
+#         x = F.relu(x)
+#         x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
+#
+#         x = self.conv7(x)
+#         x = F.relu(x)
+#         x = self.conv8(x)
+#         x = F.relu(x)
+#         x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
+#
+#         x = self.conv9(x)
+#         x = F.relu(x)
+#         x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
+#
+#         # fc layer
+#         x = self.flatten(x)
+#
+#         x = self.fc1(x)
+#         x = F.relu(x)
+#         x = self.fc2(x)
+#
+#         return x
 
 
-class VGG16(nn.Module):
-    def __init__(self):
-        super(VGG16, self).__init__()
-        self.conv1 = nn.Conv2d(3, 64, (3, 3), padding=1)
-        self.conv2 = nn.Conv2d(64, 64, (3, 3), padding=1)
-
-        self.conv3 = nn.Conv2d(64, 128, (3, 3), padding=1)
-        self.conv4 = nn.Conv2d(128, 128, (3, 3), padding=1)
-
-        self.conv5 = nn.Conv2d(128, 256, (3, 3), padding=1)
-        self.conv6 = nn.Conv2d(256, 256, (3, 3), padding=1)
-        self.conv7 = nn.Conv2d(256, 256, (3, 3), padding=1)
-
-        self.conv8 = nn.Conv2d(256, 512, (3, 3), padding=1)
-        self.conv9 = nn.Conv2d(512, 512, (3, 3), padding=1)
-        self.conv10 = nn.Conv2d(512, 512, (3, 3), padding=1)
-
-        self.conv11 = nn.Conv2d(512, 512, (3, 3), padding=1)
-        self.conv12 = nn.Conv2d(512, 512, (3, 3), padding=1)
-        self.conv13 = nn.Conv2d(512, 512, (3, 3), padding=1)
-
-        self.fc1 = nn.Linear(2048, 512)
-        self.fc2 = nn.Linear(512, 512)
-        self.fc3 = nn.Linear(512, 10)
+class VGG(nn.Module):
+    """
+    VGG model
+    """
+    def __init__(self, features):
+        super(VGG, self).__init__()
+        self.features = features
+        self.classifier = nn.Sequential(
+            nn.Flatten(),
+            nn.Dropout(),
+            nn.Linear(512, 512),
+            nn.ReLU(),
+            nn.Dropout(),
+            nn.Linear(512, 512),
+            nn.ReLU(),
+            nn.Linear(512, 10),
+        )
 
     def forward(self, x):
-        # conv layer
-        x = self.conv1(x)
-        x = F.relu(x)
-        x = self.conv2(x)
+        x = self.features(x)
+        x = self.classifier(x)
+        return x
+
+
+def make_layers(cfg, batch_norm=False):
+    layers = []
+    in_channels = 3
+    for v in cfg:
+        if v == 'M':
+            layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
+        else:
+            conv2d = nn.Conv2d(in_channels, v, (3, 3), padding=1)
+            if batch_norm:
+                layers += [conv2d, nn.BatchNorm2d(v), nn.ReLU()]
+            else:
+                layers += [conv2d, nn.ReLU()]
+            in_channels = v
+    return nn.Sequential(*layers)
+
+
+VGG_cfg = {
+    'A': [64, 'M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
+    'B': [64, 64, 'M', 128, 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
+    'D': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M'],
+    'E': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M',
+          512, 512, 512, 512, 'M'],
+}
+
+
+def vgg11(batch_norm=False):
+    """VGG 11-layer model (configuration "A")"""
+    return VGG(make_layers(VGG_cfg['A'], batch_norm=batch_norm))
+
+
+def vgg13(batch_norm=False):
+    """VGG 13-layer model (configuration "B")"""
+    return VGG(make_layers(VGG_cfg['B'], batch_norm=batch_norm))
+
+
+def vgg16(batch_norm=False):
+    """VGG 16-layer model (configuration "D")"""
+    return VGG(make_layers(VGG_cfg['D'], batch_norm=batch_norm))
+
+
+def vgg19(batch_norm=False):
+    """VGG 19-layer model (configuration "E")"""
+    return VGG(make_layers(VGG_cfg['E'], batch_norm=batch_norm))
+
+
+class FixedPointVGG13(nn.Module):
+    def __init__(self, batch_size, device: torch.device = torch.device("cpu")):
+        super(FixedPointVGG13, self).__init__()
+        self.device = device
+
+        self.quan1 = fpF.QuanLayer(fp.half_data_flow_bit_width)
+        self.conv1 = fpnn.PimConv2D([3, 32, 32], [3, 3], 64, batch_size, padding=1, device=device)
+        self.relu1 = fpF.PimRelu()
+        self.conv2 = fpnn.PimConv2D([64, 32, 32], [3, 3], 64, batch_size, padding=1, device=device)
+
+        self.quan2 = fpF.QuanLayer(fp.half_data_flow_bit_width)
+        self.conv3 = fpnn.PimConv2D([64, 16, 16], [3, 3], 128, batch_size, padding=1, device=device)
+        self.relu2 = fpF.PimRelu()
+        self.conv4 = fpnn.PimConv2D([128, 16, 16], [3, 3], 128, batch_size, padding=1, device=device)
+
+        self.quan3 = fpF.QuanLayer(fp.half_data_flow_bit_width)
+        self.conv5 = fpnn.PimConv2D([128, 8, 8], [3, 3], 256, batch_size, padding=1, device=device)
+        self.relu3 = fpF.PimRelu()
+        self.conv6 = fpnn.PimConv2D([256, 8, 8], [3, 3], 256, batch_size, padding=1, device=device)
+
+        self.quan4 = fpF.QuanLayer(fp.half_data_flow_bit_width)
+        self.conv7 = fpnn.PimConv2D([256, 4, 4], [3, 3], 512, batch_size, padding=1, device=device)
+        self.relu4 = fpF.PimRelu()
+        self.conv8 = fpnn.PimConv2D([512, 4, 4], [3, 3], 512, batch_size, padding=1, device=device)
+
+        self.quan5 = fpF.QuanLayer(fp.half_data_flow_bit_width)
+        self.conv9 = fpnn.PimConv2D([512, 2, 2], [3, 3], 512, batch_size, padding=1, device=device)
+        self.relu5 = fpF.PimRelu()
+        self.conv10 = fpnn.PimConv2D([512, 2, 2], [3, 3], 512, batch_size, padding=1, device=device)
+
+        self.flatten = nn.Flatten()
+        self.quan6 = fpF.QuanLayer(fp.half_data_flow_bit_width)
+        self.fc1 = fpnn.PimLinear(512, 512, batch_size, device=device)
+        self.relu6 = fpF.PimRelu()
+        self.fc2 = fpnn.PimLinear(512, 512, batch_size, device=device)
+        self.relu7 = fpF.PimRelu()
+        self.fc3 = fpnn.PimLinear(512, 10, batch_size, device=device)
+        self.dequan = fpF.DeQuanLayer(fp.half_data_flow_bit_width)
+
+    def forward(self, x):
+        x, x_f = self.quan1(x)
+        x, x_f, _ = self.conv1(x, x_f)
+        x, x_f, _ = self.relu1(x, x_f)
+        _, _, x = self.conv2(x, x_f)
         x = F.relu(x)
         x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
 
-        x = self.conv3(x)
-        x = F.relu(x)
-        x = self.conv4(x)
-        x = F.relu(x)
-        x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
-
-        x = self.conv5(x)
-        x = F.relu(x)
-        x = self.conv6(x)
-        x = F.relu(x)
-        x = self.conv7(x)
+        x, x_f = self.quan2(x)
+        x, x_f, _ = self.conv3(x, x_f)
+        x, x_f, _ = self.relu2(x, x_f)
+        _, _, x = self.conv4(x, x_f)
         x = F.relu(x)
         x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
 
-        x = self.conv8(x)
-        x = F.relu(x)
-        x = self.conv9(x)
-        x = F.relu(x)
-        x = self.conv10(x)
+        x, x_f = self.quan3(x)
+        x, x_f, _ = self.conv5(x, x_f)
+        x, x_f, _ = self.relu3(x, x_f)
+        _, _, x = self.conv6(x, x_f)
         x = F.relu(x)
         x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
 
-        x = self.conv11(x)
+        x, x_f = self.quan4(x)
+        x, x_f, _ = self.conv7(x, x_f)
+        x, x_f, _ = self.relu4(x, x_f)
+        _, _, x = self.conv8(x, x_f)
         x = F.relu(x)
-        x = self.conv12(x)
+        x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
+
+        x, x_f = self.quan5(x)
+        x, x_f, _ = self.conv9(x, x_f)
+        x, x_f, _ = self.relu5(x, x_f)
+        _, _, x = self.conv10(x, x_f)
         x = F.relu(x)
-        x = self.conv13(x)
-        x = F.relu(x)
-        # x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
+        x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
 
         # fc layer
         x = torch.flatten(x, 1)
-
-        x = self.fc1(x)
-        x = F.relu(x)
-        x = self.fc2(x)
-        x = F.relu(x)
-        x = self.fc3(x)
-
-        return x
-
-
-class ConvCifar10(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.conv1 = nn.Conv2d(3, 15, (3, 3))
-        self.conv2 = nn.Conv2d(15, 75, (4, 4))
-        self.conv3 = nn.Conv2d(75, 375, (3, 3))
-        self.flatten = nn.Flatten()
-        self.fc1 = nn.Linear(2 * 2 * 375, 400)
-        self.fc2 = nn.Linear(400, 120)
-        self.fc3 = nn.Linear(120, 84)
-        self.fc4 = nn.Linear(84, 10)
-
-    def forward(self, x):
-        x = self.conv1(x)
-        x = F.relu(x)
-        x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
-
-        x = self.conv2(x)
-        x = F.relu(x)
-        x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
-
-        x = self.conv3(x)
-        x = F.relu(x)
-        x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
-
-        x = self.flatten(x)
-
-        x = self.fc1(x)
-        x = F.relu(x)
-
-        x = self.fc2(x)
-        x = F.relu(x)
-
-        x = self.fc3(x)
-        x = F.relu(x)
-
-        x = self.fc4(x)
+        x, x_f = self.quan6(x)
+        x, x_f = self.fc1(x, x_f)
+        x, x_f, _ = self.relu6(x, x_f)
+        x, x_f = self.fc2(x, x_f)
+        x, x_f, _ = self.relu7(x, x_f)
+        x, x_f = self.fc3(x, x_f)
+        x = self.dequan(x, x_f)
 
         return x
 
-
-class VGG8B(nn.Module):
-    def __init__(self):
-        super(VGG8B, self).__init__()
-        self.conv1 = nn.Conv2d(3, 128, (3, 3), padding=1)
-        self.conv2 = nn.Conv2d(128, 256, (3, 3), padding=1)
-
-        self.conv3 = nn.Conv2d(256, 256, (3, 3), padding=1)
-        self.conv4 = nn.Conv2d(256, 512, (3, 3), padding=1)
-
-        self.conv5 = nn.Conv2d(512, 512, (3, 3), padding=1)
-
-        self.conv6 = nn.Conv2d(512, 512, (3, 3), padding=1)
-
-        self.flatten = nn.Flatten()
-
-        self.fc1 = nn.Linear(2048, 1024)
-        self.fc2 = nn.Linear(1024, 10)
-
-    def forward(self, x):
-        # conv layer
-        x = self.conv1(x)
-        x = F.relu(x)
-        x = self.conv2(x)
-        x = F.relu(x)
-        x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
-
-        x = self.conv3(x)
-        x = F.relu(x)
-        x = self.conv4(x)
-        x = F.relu(x)
-        x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
-
-        x = self.conv5(x)
-        x = F.relu(x)
-        x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
-
-        x = self.conv6(x)
-        x = F.relu(x)
-        x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
-
-        # fc layer
-        x = self.flatten(x)
-
-        x = self.fc1(x)
-        x = F.relu(x)
-        x = self.fc2(x)
-
-        return x
+# class FixPointVGG(nn.Module):
+#     """
+#     VGG model
+#     """
+#     def __init__(self, features, batch_size, device: torch.device = torch.device("cpu")):
+#         super(FixPointVGG, self).__init__()
+#         self.device = device
+#         self.features = features
+#         self.classifier = nn.Sequential(
+#             nn.Flatten(),
+#             nn.Dropout(),  # Todo: need to modify
+#             fpnn.PimLinear(512, 512, batch_size=batch_size, device=device),
+#             fpF.PimRelu(),
+#             nn.Dropout(),
+#             fpnn.PimLinear(512, 512, batch_size=batch_size, device=device),
+#             fpF.PimRelu(),
+#             fpnn.PimLinear(512, 10, batch_size=batch_size, device=device),
+#         )
+#
+#     def forward(self, x):
+#         x = self.features(x)
+#         x = self.classifier(x)
+#         return x
+#
+#
+# def fp_make_layers(cfg, batch_norm=False):
+#     layers = []
+#     in_channels = 3
+#     for v in cfg:
+#         if v == 'M':
+#             layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
+#         else:
+#             conv2d = nn.Conv2d(in_channels, v, (3, 3), padding=1)
+#             if batch_norm:
+#                 layers += [conv2d, nn.BatchNorm2d(v), nn.ReLU()]
+#             else:
+#                 layers += [conv2d, nn.ReLU()]
+#             in_channels = v
+#     return nn.Sequential(*layers)
+#
+#
+# def fp_vgg11(batch_size, device, batch_norm=False):
+#     """VGG 11-layer model (configuration "A")"""
+#     return FixPointVGG(fp_make_layers(VGG_cfg['A'], batch_norm=batch_norm), batch_size=batch_size, device=device)
+#
+#
+# def fp_vgg13(batch_size, device, batch_norm=False):
+#     """VGG 13-layer model (configuration "B")"""
+#     return FixPointVGG(fp_make_layers(VGG_cfg['B'], batch_norm=batch_norm), batch_size=batch_size, device=device)
+#
+#
+# def fp_vgg16(batch_size, device, batch_norm=False):
+#     """VGG 16-layer model (configuration "D")"""
+#     return FixPointVGG(fp_make_layers(VGG_cfg['D'], batch_norm=batch_norm), batch_size=batch_size, device=device)
+#
+#
+# def fp_vgg19(batch_size, device, batch_norm=False):
+#     """VGG 19-layer model (configuration "E")"""
+#     return FixPointVGG(fp_make_layers(VGG_cfg['E'], batch_norm=batch_norm), batch_size=batch_size, device=device)

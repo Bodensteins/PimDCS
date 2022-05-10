@@ -116,7 +116,7 @@ def main():
     else:
         if args.net == 0:
             model = vgg13(batch_norm=True).to(device)
-            optimizer = optim.SGD(model.parameters(), lr=args.lr, weight_decay=5e-4)
+            optimizer = optim.SGD(model.parameters(), lr=args.lr, weight_decay=5e-4, momentum=0.9)
         else:
             print("undefined net!")
             sys.exit()

@@ -108,8 +108,8 @@ class FPDropoutFunction(Function):
 
     @staticmethod
     def backward(ctx, fp_grad_output, fp_grad_output_cfg):
-        mask = ctx.saved_tensors
-        return fp_grad_output.mul(mask), fp_grad_output_cfg
+        mask, = ctx.saved_tensors
+        return fp_grad_output.mul(mask), fp_grad_output_cfg, None, None
 
 
 class FPDropout(nn.Module):

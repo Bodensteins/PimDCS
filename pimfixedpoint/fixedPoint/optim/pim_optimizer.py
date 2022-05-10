@@ -2,7 +2,7 @@
 import types
 
 import torch
-from fixedPoint import fixedPointArithmetic
+from fixedPoint import fixedPointArithmetic as quantization
 from fixedPoint.fixedPointArithmetic import add_alpha_tensor_, mul_num, de_quantization, remove_additional_col, \
     add_additional_col_of_zero, write_array_
 from enum import Enum

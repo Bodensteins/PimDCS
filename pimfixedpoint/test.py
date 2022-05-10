@@ -1,31 +1,65 @@
-from fixedPoint.fixedPointArithmetic import *
+import torch
+from torch import nn
+import fixedPoint.nn.pimFunction as fpF
+import fixedPoint.nn.modules as fpnn
 
 
-def get_element_wise_effective_bit_width(int_tensor):
-    # assert (int_tensor.dtype == torch_int)
-    bit_width_dict = {}
-    for element in int_tensor.fattern():
-        element = element.item()
-        while element != 0 and element % 2 == 0:
-            element /= 2
+class TestDropout(nn.Module):
+    def __init__(self, dropout_ratio):
+        super(TestDropout, self).__init__()
+        self.quan = fpF.QuanLayer(16)
+        self.fc = fpnn.PimLinear(10, 10, 1)
+        self.relu = fpF.PimRelu()
+        self.dropout = fpF.FPDropout(dropout_ratio=dropout_ratio)
+        self.dequan = fpF.DeQuanLayer(16)
 
-        if element < 0:
-            bit_width = math.ceil(math.log2(-element))
-        else:
-            bit_width = math.ceil(math.log2(element + 1))
-        bit_width += 1
-        if bit_width in bit_width_dict:
-            bit_width_dict[bit_width] = bit_width_dict[bit_width] + 1
-        else:
-            bit_width_dict[bit_width] = 1
-
-    return bit_width_dict
+    def forward(self, input_x):
+        y, cfg = self.quan(input_x)
+        y, cfg = self.fc(y, cfg)
+        y, cfg, _ = self.relu(y, cfg)
+        y, cfg = self.dropout(y, cfg)
+        y = self.dequan(y, cfg)
+        return y
 
 
-int_tensor_1 = torch.randn([6, 8]).mul(100).int()
-print(int_tensor_1)
-bit_width_tensor = get_element_wise_effective_bit_width(int_tensor_1)
-print(bit_width_tensor)
+x = torch.randn([1, 10])
+target = torch.randint(0, 10, [1])
+print(x)
+
+model = TestDropout(0.3)
+model.train()
+# model.eval()
+x = model(x)
+print(x)
+criterion = nn.CrossEntropyLoss()
+loss = criterion(x, target)
+loss.backward()
+
+# def get_element_wise_effective_bit_width(int_tensor):
+#     # assert (int_tensor.dtype == torch_int)
+#     bit_width_dict = {}
+#     for element in int_tensor.fattern():
+#         element = element.item()
+#         while element != 0 and element % 2 == 0:
+#             element /= 2
+#
+#         if element < 0:
+#             bit_width = math.ceil(math.log2(-element))
+#         else:
+#             bit_width = math.ceil(math.log2(element + 1))
+#         bit_width += 1
+#         if bit_width in bit_width_dict:
+#             bit_width_dict[bit_width] = bit_width_dict[bit_width] + 1
+#         else:
+#             bit_width_dict[bit_width] = 1
+#
+#     return bit_width_dict
+#
+#
+# int_tensor_1 = torch.randn([6, 8]).mul(100).int()
+# print(int_tensor_1)
+# bit_width_tensor = get_element_wise_effective_bit_width(int_tensor_1)
+# print(bit_width_tensor)
 
 # row_size = 4
 # col_Size = 4

@@ -67,20 +67,21 @@ class ReluFunction(Function):
     @staticmethod
     def forward(ctx, qinput: Tensor, qinput_config: Tensor, origin_input: Tensor = None):
         neg_position = quantization_tensor_less([qinput, qinput_config], 0)
-        ctx.neg_position = neg_position
         qinput[neg_position] = 0  # The zero in ieee754 is all zero as well.
         if origin_input is not None:
             origin_neg_position = origin_input < 0
             origin_input[origin_neg_position] = 0
-            ctx.origin_neg_position = origin_neg_position
+        else:
+            origin_neg_position = None
+        ctx.save_for_backward(neg_position, origin_neg_position)
         return qinput, qinput_config, origin_input
 
     @staticmethod
     def backward(ctx, qgrad_output: Tensor, qgrad_output_config: Tensor, grad_output: Tensor):
-        neg_position = ctx.neg_position
+        neg_position, origin_neg_position = ctx.saved_tensors
         qgrad_output[neg_position] = 0
         if grad_output is not None:
-            grad_output[ctx.origin_neg_position] = 0
+            grad_output[origin_neg_position] = 0
         return qgrad_output, qgrad_output_config, grad_output
 
 
@@ -93,21 +94,22 @@ class PimRelu(nn.Module):
 
 
 class FPDropoutFunction(Function):
-    #  todo: check it
     @staticmethod
     def forward(ctx, fp_input, fp_input_cfg, dropout_ratio, training):
         if training:
-            ctx.mask = torch.rand_like(fp_input) > ctx.dropout_ratio
-            return fp_input.mul(ctx.mask), fp_input_cfg   # The zero in ieee754 is all zero as well.
+            mask = torch.rand_like(fp_input) > dropout_ratio
+            ctx.save_for_backward(mask)  # tensor should be saved in save for backward
+            return fp_input.mul(mask), fp_input_cfg  # The zero in ieee754 is all zero as well.
         else:
             fp_input, _ = parse_tensor_list_to_int([fp_input, fp_input_cfg])
-            fp_input = fp_input.mul(ctx.dropout_ratio).to(dtype=torch_int)
+            fp_input = fp_input.mul(dropout_ratio).to(dtype=torch_int)
 
             return to_float(fp_input), fp_input_cfg
 
     @staticmethod
     def backward(ctx, fp_grad_output, fp_grad_output_cfg):
-        return fp_grad_output.mul(ctx.mask), fp_grad_output_cfg
+        mask = ctx.saved_tensors
+        return fp_grad_output.mul(mask), fp_grad_output_cfg
 
 
 class FPDropout(nn.Module):

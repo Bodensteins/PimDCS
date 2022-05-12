@@ -9,7 +9,7 @@ import torch.optim as optim
 from torchvision import datasets, transforms
 from fixedPoint.optim import pim_optimizer as po
 from trainCommon import create_datasets, train_model, test_model, draw_loss_figure
-from networkModel import PimFcMnist, PimConvMnist, FcMnist, ConvMnist
+from networkModel import PimFcMnist, FixedPointSimpleConvNet, FcMnist, ConvMnist, PimConvMnist
 
 
 def main():
@@ -19,11 +19,11 @@ def main():
                         help='input batch size for training (default: 64)')
     parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
                         help='input batch size for testing (default: 1000)')
-    parser.add_argument('--epochs', type=int, default=5, metavar='N',
+    parser.add_argument('--epochs', type=int, default=50, metavar='N',
                         help='number of epochs to train (default: 14)')
-    parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
+    parser.add_argument('--lr', type=float, default=0.0125, metavar='LR',
                         help='learning rate (default: 1.0)')
-    parser.add_argument('--lr-decay-step', type=int, default=30, metavar='STEP',
+    parser.add_argument('--lr-decay-step', type=int, default=5, metavar='STEP',
                         help='Period of learning rate decay. (default: 30)')
     parser.add_argument('--gamma', type=float, default=0.5, metavar='GAMMA',
                         help='Learning rate step gamma (default: 0.5)')
@@ -37,13 +37,13 @@ def main():
                         help='dir of save figure')
     parser.add_argument('--model-file', default='checkpoint.pt', metavar='MF',
                         help='filename of load/save model')
-    parser.add_argument('--load-model', action='store_true', default=True,
+    parser.add_argument('--load-model', action='store_true', default=False,
                         help='For Saving the current Model')
     parser.add_argument('--train', action='store_true', default=True,
                         help='train the model')
-    parser.add_argument('--pim', action='store_true', default=False,
+    parser.add_argument('--pim', action='store_true', default=True,
                         help='For use pim')
-    parser.add_argument('--net', type=int, default=1, metavar='NET',
+    parser.add_argument('--net', type=int, default=0, metavar='NET',
                         help='use which model (0:conv 1:fc)')
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='disables CUDA training')
@@ -79,6 +79,8 @@ def main():
     if args.pim:
         if args.net == 0:
             model = PimConvMnist(args.train_batch_size, device=device).to(device)
+            # model = FixedPointSimpleConvNet(args.train_batch_size, device=device).to(device)
+            # model.double()
         elif args.net == 1:
             model = PimFcMnist(args.train_batch_size, device=device).to(device)
         else:
@@ -108,14 +110,11 @@ def main():
 
     criterion = nn.CrossEntropyLoss()
 
-    # scheduler = StepLR(optimizer, step_size=args.lr_decay_step, gamma=args.gamma)
-    # for epoch in range(1, args.epochs + 1):
-    #     train(args, model, device, train_loader, optimizer, epoch)
-    #     test(model, device, test_loader)
-    #     scheduler.step()
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=args.lr_decay_step, gamma=args.gamma)
+
     if args.train:
         train_loss, valid_loss = train_model(model, device, train_loader, valid_loader, criterion, optimizer,
-                                             args.epochs, filename=model_file)
+                                             args.epochs, filename=model_file, scheduler=scheduler)
         draw_loss_figure(train_loss, valid_loss, args.figure_dir + '/' + model_name + '_')
 
     criterion = nn.CrossEntropyLoss(reduction='sum')

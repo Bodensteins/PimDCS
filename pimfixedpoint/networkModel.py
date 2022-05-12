@@ -71,262 +71,118 @@ class PimConvMnist(nn.Module):
     def __init__(self, batch_size, device: torch.device = torch.device("cpu")):
         super().__init__()
         self.device = device
-        self.quan1 = fpF.QuanLayer(fp.half_data_flow_bit_width)
-        self.conv1 = fpnn.PimConv2D([1, 28, 28], [5, 5], 10, batch_size, device=device)
-        self.quan2 = fpF.QuanLayer(fp.half_data_flow_bit_width)
-        self.conv2 = fpnn.PimConv2D([10, 12, 12], [5, 5], 20, batch_size, device=device)
-        self.fc = fpnn.PimLinear(4 * 4 * 20, 10, batch_size, device=device)
-        self.flatten = nn.Flatten()
-        self.quan3 = fpF.QuanLayer(fp.half_data_flow_bit_width)
-        self.dequan = fpF.DeQuanLayer(fp.half_data_flow_bit_width)
+        self.conv = fpF.MulInputSequential(fpnn.PimConv2D([1, 28, 28], [5, 5], 10, batch_size, device=device),
+                                           nn.ReLU(),
+                                           nn.MaxPool2d(kernel_size=(2, 2), stride=2),
+                                           fpnn.PimConv2D([10, 12, 12], [5, 5], 20, batch_size, device=device),
+                                           nn.ReLU(),
+                                           nn.MaxPool2d(kernel_size=(2, 2), stride=2),
+                                           nn.Flatten(),
+                                           fpF.QuanLayer(fp.half_data_flow_bit_width),
+                                           fpF.FPDropout(dropout_ratio=0.2),
+                                           fpnn.PimLinear(4 * 4 * 20, 10, batch_size, device=device),
+                                           fpF.DeQuanLayer(fp.half_data_flow_bit_width))
 
     def forward(self, x):
-        x, x_f = self.quan1(x)
-        _, _, x = self.conv1(x, x_f)
-        x = F.relu(x)
-        x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
-
-        x, x_f = self.quan2(x)
-        _, _, x = self.conv2(x, x_f)
-        x = F.relu(x)
-        x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
-
-        x = self.flatten(x)
-        x, x_f = self.quan3(x)
-
-        x, x_f = self.fc(x, x_f)
-        x = self.dequan(x, x_f)
+        x = self.conv(x)
 
         return x
 
 
-# class OldVGG(nn.Module):
-#     def __init__(self):
-#         super().__init__()
-#         self.conv1 = nn.Conv2d(3, 128, (3, 3), padding=1)
-#         self.conv2 = nn.Conv2d(128, 128, (3, 3), padding=1)
-#         self.conv3 = nn.Conv2d(128, 256, (3, 3), padding=1)
-#         self.conv4 = nn.Conv2d(256, 256, (3, 3), padding=1)
-#         self.conv5 = nn.Conv2d(256, 512, (3, 3), padding=1)
-#         self.conv6 = nn.Conv2d(512, 512, (3, 3), padding=1)
-#         self.conv7 = nn.Conv2d(512, 1024, (3, 3), padding=1)
-#
-#         self.fc1 = nn.Linear(4096, 128)
-#         self.fc2 = nn.Linear(128, 10)
-#
-#     def forward(self, x):
-#         # conv layer
-#         x = self.conv1(x)
-#         x = F.relu(x)
-#         x = self.conv2(x)
-#         x = F.relu(x)
-#         x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
-#
-#         x = self.conv3(x)
-#         x = F.relu(x)
-#         x = self.conv4(x)
-#         x = F.relu(x)
-#         x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
-#
-#         x = self.conv5(x)
-#         x = F.relu(x)
-#         x = self.conv6(x)
-#         x = F.relu(x)
-#         x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
-#
-#         x = self.conv7(x)
-#         x = F.relu(x)
-#         x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
-#
-#         # fc layer
-#         x = torch.flatten(x, 1)
-#         x = self.fc1(x)
-#         x = F.relu(x)
-#         x = self.fc2(x)
-#         # output = F.log_softmax(x, dim=1) # this is merged in training
-#
-#         return x
-
-
-class PimVGG(nn.Module):
+class FixedPointSimpleConvNet(nn.Module):
     def __init__(self, batch_size, device: torch.device = torch.device("cpu")):
         super().__init__()
         self.device = device
 
-        self.quan1 = fpF.QuanLayer(fp.half_data_flow_bit_width)
-        self.conv1 = fpnn.PimConv2D([3, 32, 32], [3, 3], 128, batch_size, padding=1, device=device)
-        self.relu1 = fpF.PimRelu()
-        self.conv2 = fpnn.PimConv2D([128, 32, 32], [3, 3], 128, batch_size, padding=1, device=device)
-
-        self.quan2 = fpF.QuanLayer(fp.half_data_flow_bit_width)
-        self.conv3 = fpnn.PimConv2D([128, 16, 16], [3, 3], 256, batch_size, padding=1, device=device)
-        self.relu2 = fpF.PimRelu()
-        self.conv4 = fpnn.PimConv2D([256, 16, 16], [3, 3], 256, batch_size, padding=1, device=device)
-
-        self.quan3 = fpF.QuanLayer(fp.half_data_flow_bit_width)
-        self.conv5 = fpnn.PimConv2D([256, 8, 8], [3, 3], 512, batch_size, padding=1, device=device)
-        self.relu3 = fpF.PimRelu()
-        self.conv6 = fpnn.PimConv2D([512, 8, 8], [3, 3], 512, batch_size, padding=1, device=device)
-
-        self.quan4 = fpF.QuanLayer(fp.half_data_flow_bit_width)
-        self.conv7 = fpnn.PimConv2D([512, 4, 4], [3, 3], 1024, batch_size, padding=1, device=device)
-
-        self.flatten = nn.Flatten()
-        self.quan5 = fpF.QuanLayer(fp.half_data_flow_bit_width)
-        self.fc1 = fpnn.PimLinear(4096, 128, batch_size, device=device)
-        self.relu4 = fpF.PimRelu()
-        self.fc2 = fpnn.PimLinear(128, 10, batch_size, device=device)
-        self.dequan = fpF.DeQuanLayer(fp.half_data_flow_bit_width)
+        self.conv = fpF.MulInputSequential(fpnn.PimConv2D([1, 28, 28], [5, 5], 30, batch_size, device=device),
+                                           nn.ReLU(),
+                                           nn.MaxPool2d(kernel_size=2, stride=2),
+                                           nn.Flatten(),
+                                           fpF.QuanLayer(fp.half_data_flow_bit_width),
+                                           fpnn.PimLinear(12 * 12 * 30, 100, batch_size, device=device),
+                                           fpF.PimRelu(),
+                                           fpnn.PimLinear(100, 10, batch_size, device=device),
+                                           fpF.DeQuanLayer(fp.half_data_flow_bit_width)
+                                           )
 
     def forward(self, x):
-        x, x_f = self.quan1(x)
-        x, x_f, _ = self.conv1(x, x_f)
-        x, x_f, _ = self.relu1(x, x_f)
-        _, _, x = self.conv2(x, x_f)
-        x = F.relu(x)
-        x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
-
-        x, x_f = self.quan2(x)
-        x, x_f, _ = self.conv3(x, x_f)
-        x, x_f, _ = self.relu2(x, x_f)
-        _, _, x = self.conv4(x, x_f)
-        x = F.relu(x)
-        x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
-
-        x, x_f = self.quan3(x)
-        x, x_f, _ = self.conv5(x, x_f)
-        x, x_f, _ = self.relu3(x, x_f)
-        _, _, x = self.conv6(x, x_f)
-        x = F.relu(x)
-        x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
-
-        x, x_f = self.quan4(x)
-        _, _, x = self.conv7(x, x_f)
-        x = F.relu(x)
-        x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
-
-        # fc layer
-        x = torch.flatten(x, 1)
-        x, x_f = self.quan5(x)
-        x, x_f = self.fc1(x, x_f)
-        x, x_f, _ = self.relu4(x, x_f)
-        x, x_f = self.fc2(x, x_f)
-        x = self.dequan(x, x_f)
+        x = self.conv(x)
 
         return x
-#
-#
-# class VGG8B(nn.Module):
-#     def __init__(self):
-#         super(VGG8B, self).__init__()
-#         self.conv1 = nn.Conv2d(3, 128, (3, 3), padding=1)
-#         self.conv2 = nn.Conv2d(128, 256, (3, 3), padding=1)
-#
-#         self.conv3 = nn.Conv2d(256, 256, (3, 3), padding=1)
-#         self.conv4 = nn.Conv2d(256, 512, (3, 3), padding=1)
-#
-#         self.conv5 = nn.Conv2d(512, 512, (3, 3), padding=1)
-#
-#         self.conv6 = nn.Conv2d(512, 512, (3, 3), padding=1)
-#
-#         self.flatten = nn.Flatten()
-#
-#         self.fc1 = nn.Linear(2048, 1024)
-#         self.drop1 = nn.Dropout(p=0.2)
-#         self.fc2 = nn.Linear(1024, 10)
-#         self.drop2 = nn.Dropout(p=0.2)
-#
-#     def forward(self, x):
-#         # conv layer
-#         x = self.conv1(x)
-#         x = F.relu(x)
-#         x = self.conv2(x)
-#         x = F.relu(x)
-#         x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
-#
-#         x = self.conv3(x)
-#         x = F.relu(x)
-#         x = self.conv4(x)
-#         x = F.relu(x)
-#         x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
-#
-#         x = self.conv5(x)
-#         x = F.relu(x)
-#         x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
-#
-#         x = self.conv6(x)
-#         x = F.relu(x)
-#         x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
-#
-#         # fc layer
-#         x = self.flatten(x)
-#
-#         x = self.fc1(x)
-#         x = F.relu(x)
-#         x = self.drop1(x)
-#         x = self.fc2(x)
-#         x = self.drop2(x)
-#
-#         return x
-#
-#
-# class VGG11B(nn.Module):
-#     def __init__(self):
-#         super(VGG11B, self).__init__()
-#         self.conv1 = nn.Conv2d(3, 128, (3, 3), padding=1)
-#         self.conv2 = nn.Conv2d(128, 128, (3, 3), padding=1)
-#         self.conv3 = nn.Conv2d(128, 128, (3, 3), padding=1)
-#         self.conv4 = nn.Conv2d(128, 256, (3, 3), padding=1)
-#
-#         self.conv5 = nn.Conv2d(256, 256, (3, 3), padding=1)
-#         self.conv6 = nn.Conv2d(256, 512, (3, 3), padding=1)
-#
-#         self.conv7 = nn.Conv2d(512, 512, (3, 3), padding=1)
-#         self.conv8 = nn.Conv2d(512, 512, (3, 3), padding=1)
-#
-#         self.conv9 = nn.Conv2d(512, 512, (3, 3), padding=1)
-#
-#         self.flatten = nn.Flatten()
-#
-#         self.fc1 = nn.Linear(2048, 1024)
-#         self.fc2 = nn.Linear(1024, 10)
-#
-#     def forward(self, x):
-#         # conv layer
-#         x = self.conv1(x)
-#         x = F.relu(x)
-#         x = self.conv2(x)
-#         x = F.relu(x)
-#         x = self.conv3(x)
-#         x = F.relu(x)
-#         x = self.conv4(x)
-#         x = F.relu(x)
-#         x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
-#
-#         x = self.conv5(x)
-#         x = F.relu(x)
-#         x = self.conv6(x)
-#         x = F.relu(x)
-#         x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
-#
-#         x = self.conv7(x)
-#         x = F.relu(x)
-#         x = self.conv8(x)
-#         x = F.relu(x)
-#         x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
-#
-#         x = self.conv9(x)
-#         x = F.relu(x)
-#         x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
-#
-#         # fc layer
-#         x = self.flatten(x)
-#
-#         x = self.fc1(x)
-#         x = F.relu(x)
-#         x = self.fc2(x)
-#
-#         return x
+
+
+class VGG8B(nn.Module):
+    def __init__(self):
+        super(FixedPointVGG8B, self).__init__()
+
+        self.conv = nn.Sequential(nn.Conv2d(3, 128, (3, 3), padding=1),
+                                  nn.ReLU(),
+                                  nn.Conv2d(128, 256, (3, 3), padding=1),
+                                  nn.ReLU(),
+                                  nn.MaxPool2d(kernel_size=(2, 2), stride=2),
+                                  nn.Conv2d(256, 256, (3, 3), padding=1),
+                                  nn.ReLU(),
+                                  nn.Conv2d(256, 512, (3, 3), padding=1),
+                                  nn.ReLU(),
+                                  nn.MaxPool2d(kernel_size=(2, 2), stride=2),
+                                  nn.Conv2d(512, 512, (3, 3), padding=1),
+                                  nn.ReLU(),
+                                  nn.MaxPool2d(kernel_size=(2, 2), stride=2),
+                                  nn.Conv2d(512, 512, (3, 3), padding=1),
+                                  nn.ReLU(),
+                                  nn.MaxPool2d(kernel_size=(2, 2), stride=2),
+                                  nn.Flatten(),
+                                  nn.Linear(2048, 1024),
+                                  nn.ReLU(),
+                                  nn.Dropout(p=0.2),
+                                  nn.Linear(1024, 10),
+                                  nn.Dropout(p=0.2)
+                                  )
+
+    def forward(self, x):
+        # conv layer
+        x = self.conv(x)
+
+        return x
+
+
+class FixedPointVGG8B(nn.Module):
+    def __init__(self, batch_size, device: torch.device = torch.device("cpu")):
+        super(FixedPointVGG8B, self).__init__()
+        self.device = device
+
+        self.conv = \
+            fpF.MulInputSequential(fpnn.PimConv2D([3, 32, 32], [3, 3], 128, batch_size, padding=1, device=device),
+                                   nn.ReLU(),
+                                   fpnn.PimConv2D([128, 32, 32], [3, 3], 256, batch_size, padding=1, device=device),
+                                   nn.ReLU(),
+                                   nn.MaxPool2d(kernel_size=(2, 2), stride=2),
+                                   fpnn.PimConv2D([256, 16, 16], [3, 3], 256, batch_size, padding=1, device=device),
+                                   nn.ReLU(),
+                                   fpnn.PimConv2D([256, 16, 16], [3, 3], 512, batch_size, padding=1, device=device),
+                                   nn.ReLU(),
+                                   nn.MaxPool2d(kernel_size=(2, 2), stride=2),
+                                   fpnn.PimConv2D([512, 8, 8], [3, 3], 512, batch_size, padding=1, device=device),
+                                   nn.ReLU(),
+                                   nn.MaxPool2d(kernel_size=(2, 2), stride=2),
+                                   fpnn.PimConv2D([512, 4, 4], [3, 3], 512, batch_size, padding=1, device=device),
+                                   nn.ReLU(),
+                                   nn.MaxPool2d(kernel_size=(2, 2), stride=2),
+                                   nn.Flatten(),
+                                   fpF.QuanLayer(fp.half_data_flow_bit_width),
+                                   fpnn.PimLinear(2048, 1024, batch_size=batch_size, device=device),
+                                   fpF.PimRelu(),
+                                   fpF.FPDropout(dropout_ratio=0.2),
+                                   fpnn.PimLinear(1024, 10, batch_size=batch_size, device=device),
+                                   fpF.FPDropout(dropout_ratio=0.2),
+                                   fpF.DeQuanLayer(fp.half_data_flow_bit_width)
+                                   )
+
+    def forward(self, x):
+        # conv layer
+        x = self.conv(x)
+
+        return x
 
 
 class VGG(nn.Module):
@@ -403,83 +259,82 @@ class FixedPointVGG13(nn.Module):
         super(FixedPointVGG13, self).__init__()
         self.device = device
 
-        self.quan1 = fpF.QuanLayer(fp.half_data_flow_bit_width)
         self.conv1 = fpnn.PimConv2D([3, 32, 32], [3, 3], 64, batch_size, padding=1, device=device)
-        self.relu1 = fpF.PimRelu()
+        self.bn1 = nn.BatchNorm2d(64)
         self.conv2 = fpnn.PimConv2D([64, 32, 32], [3, 3], 64, batch_size, padding=1, device=device)
+        self.bn2 = nn.BatchNorm2d(64)
 
-        self.quan2 = fpF.QuanLayer(fp.half_data_flow_bit_width)
         self.conv3 = fpnn.PimConv2D([64, 16, 16], [3, 3], 128, batch_size, padding=1, device=device)
-        self.relu2 = fpF.PimRelu()
+        self.bn3 = nn.BatchNorm2d(128)
         self.conv4 = fpnn.PimConv2D([128, 16, 16], [3, 3], 128, batch_size, padding=1, device=device)
+        self.bn4 = nn.BatchNorm2d(128)
 
-        self.quan3 = fpF.QuanLayer(fp.half_data_flow_bit_width)
         self.conv5 = fpnn.PimConv2D([128, 8, 8], [3, 3], 256, batch_size, padding=1, device=device)
-        self.relu3 = fpF.PimRelu()
+        self.bn5 = nn.BatchNorm2d(256)
         self.conv6 = fpnn.PimConv2D([256, 8, 8], [3, 3], 256, batch_size, padding=1, device=device)
+        self.bn6 = nn.BatchNorm2d(256)
 
-        self.quan4 = fpF.QuanLayer(fp.half_data_flow_bit_width)
         self.conv7 = fpnn.PimConv2D([256, 4, 4], [3, 3], 512, batch_size, padding=1, device=device)
-        self.relu4 = fpF.PimRelu()
+        self.bn7 = nn.BatchNorm2d(512)
         self.conv8 = fpnn.PimConv2D([512, 4, 4], [3, 3], 512, batch_size, padding=1, device=device)
+        self.bn8 = nn.BatchNorm2d(512)
 
-        self.quan5 = fpF.QuanLayer(fp.half_data_flow_bit_width)
         self.conv9 = fpnn.PimConv2D([512, 2, 2], [3, 3], 512, batch_size, padding=1, device=device)
-        self.relu5 = fpF.PimRelu()
+        self.bn9 = nn.BatchNorm2d(512)
         self.conv10 = fpnn.PimConv2D([512, 2, 2], [3, 3], 512, batch_size, padding=1, device=device)
+        self.bn10 = nn.BatchNorm2d(512)
 
         self.flatten = nn.Flatten()
-        self.quan6 = fpF.QuanLayer(fp.half_data_flow_bit_width)
+        self.quan = fpF.QuanLayer(fp.half_data_flow_bit_width)
+        self.dropout1 = fpF.FPDropout()
         self.fc1 = fpnn.PimLinear(512, 512, batch_size, device=device)
-        self.relu6 = fpF.PimRelu()
+        self.relu1 = fpF.PimRelu()
+        self.dropout2 = fpF.FPDropout()
         self.fc2 = fpnn.PimLinear(512, 512, batch_size, device=device)
-        self.relu7 = fpF.PimRelu()
+        self.relu2 = fpF.PimRelu()
         self.fc3 = fpnn.PimLinear(512, 10, batch_size, device=device)
         self.dequan = fpF.DeQuanLayer(fp.half_data_flow_bit_width)
 
     def forward(self, x):
-        x, x_f = self.quan1(x)
-        x, x_f, _ = self.conv1(x, x_f)
-        x, x_f, _ = self.relu1(x, x_f)
-        _, _, x = self.conv2(x, x_f)
+        x = self.conv1(x)
+        x = F.relu(x)
+        x = self.conv2(x)
         x = F.relu(x)
         x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
 
-        x, x_f = self.quan2(x)
-        x, x_f, _ = self.conv3(x, x_f)
-        x, x_f, _ = self.relu2(x, x_f)
-        _, _, x = self.conv4(x, x_f)
+        x = self.conv3(x)
+        x = F.relu(x)
+        x = self.conv4(x)
         x = F.relu(x)
         x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
 
-        x, x_f = self.quan3(x)
-        x, x_f, _ = self.conv5(x, x_f)
-        x, x_f, _ = self.relu3(x, x_f)
-        _, _, x = self.conv6(x, x_f)
+        x = self.conv5(x)
+        x = F.relu(x)
+        x = self.conv6(x)
         x = F.relu(x)
         x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
 
-        x, x_f = self.quan4(x)
-        x, x_f, _ = self.conv7(x, x_f)
-        x, x_f, _ = self.relu4(x, x_f)
-        _, _, x = self.conv8(x, x_f)
+        x = self.conv7(x)
+        x = F.relu(x)
+        x = self.conv8(x)
         x = F.relu(x)
         x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
 
-        x, x_f = self.quan5(x)
-        x, x_f, _ = self.conv9(x, x_f)
-        x, x_f, _ = self.relu5(x, x_f)
-        _, _, x = self.conv10(x, x_f)
+        x = self.conv9(x)
+        x = F.relu(x)
+        x = self.conv10(x)
         x = F.relu(x)
         x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
 
         # fc layer
         x = torch.flatten(x, 1)
-        x, x_f = self.quan6(x)
+        x, x_f = self.quan(x)
+        x, x_f = self.dropout1(x, x_f)
         x, x_f = self.fc1(x, x_f)
-        x, x_f, _ = self.relu6(x, x_f)
+        x, x_f = self.relu1(x, x_f)
+        x, x_f = self.dropout2(x, x_f)
         x, x_f = self.fc2(x, x_f)
-        x, x_f, _ = self.relu7(x, x_f)
+        x, x_f = self.relu2(x, x_f)
         x, x_f = self.fc3(x, x_f)
         x = self.dequan(x, x_f)
 

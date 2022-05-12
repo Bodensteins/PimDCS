@@ -65,32 +65,55 @@ class QuanLayer(nn.Module):
 
 class ReluFunction(Function):
     @staticmethod
-    def forward(ctx, qinput: Tensor, qinput_config: Tensor, origin_input: Tensor = None):
+    def forward(ctx, qinput: Tensor, qinput_config: Tensor):
         neg_position = quantization_tensor_less([qinput, qinput_config], 0)
         qinput[neg_position] = 0  # The zero in ieee754 is all zero as well.
-        if origin_input is not None:
-            origin_neg_position = origin_input < 0
-            origin_input[origin_neg_position] = 0
-        else:
-            origin_neg_position = None
-        ctx.save_for_backward(neg_position, origin_neg_position)
-        return qinput, qinput_config, origin_input
+        ctx.save_for_backward(neg_position)
+        return qinput, qinput_config
 
     @staticmethod
-    def backward(ctx, qgrad_output: Tensor, qgrad_output_config: Tensor, grad_output: Tensor):
-        neg_position, origin_neg_position = ctx.saved_tensors
+    def backward(ctx, qgrad_output: Tensor, qgrad_output_config: Tensor):
+        neg_position, = ctx.saved_tensors
         qgrad_output[neg_position] = 0
-        if grad_output is not None:
-            grad_output[origin_neg_position] = 0
-        return qgrad_output, qgrad_output_config, grad_output
+
+        return qgrad_output, qgrad_output_config
 
 
 class PimRelu(nn.Module):
     def __init__(self):
         super().__init__()
 
-    def forward(self, qinput: Tensor, qinput_config: Tensor, origin_input: Tensor = None):
-        return ReluFunction.apply(qinput, qinput_config, origin_input)
+    def forward(self, qinput: Tensor, qinput_config: Tensor):
+        return ReluFunction.apply(qinput, qinput_config)
+
+# class ReluFunction(Function):
+#     @staticmethod
+#     def forward(ctx, qinput: Tensor, qinput_config: Tensor, origin_input: Tensor = None):
+#         neg_position = quantization_tensor_less([qinput, qinput_config], 0)
+#         qinput[neg_position] = 0  # The zero in ieee754 is all zero as well.
+#         if origin_input is not None:
+#             origin_neg_position = origin_input < 0
+#             origin_input[origin_neg_position] = 0
+#         else:
+#             origin_neg_position = None
+#         ctx.save_for_backward(neg_position, origin_neg_position)
+#         return qinput, qinput_config, origin_input
+#
+#     @staticmethod
+#     def backward(ctx, qgrad_output: Tensor, qgrad_output_config: Tensor, grad_output: Tensor):
+#         neg_position, origin_neg_position = ctx.saved_tensors
+#         qgrad_output[neg_position] = 0
+#         if grad_output is not None:
+#             grad_output[origin_neg_position] = 0
+#         return qgrad_output, qgrad_output_config, grad_output
+#
+#
+# class PimRelu(nn.Module):
+#     def __init__(self):
+#         super().__init__()
+#
+#     def forward(self, qinput: Tensor, qinput_config: Tensor, origin_input: Tensor = None):
+#         return ReluFunction.apply(qinput, qinput_config, origin_input)
 
 
 class FPDropoutFunction(Function):
@@ -119,3 +142,13 @@ class FPDropout(nn.Module):
 
     def forward(self, fp_input, fp_input_cfg):
         return FPDropoutFunction.apply(fp_input, fp_input_cfg, self.dropout_ratio, self.training)
+
+
+class MulInputSequential(nn.Sequential):
+    def forward(self, *inputs):
+        for module in self._modules.values():
+            if type(inputs) == tuple:
+                inputs = module(*inputs)
+            else:
+                inputs = module(inputs)
+        return inputs

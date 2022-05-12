@@ -2,7 +2,7 @@
 import types
 
 import torch
-from fixedPoint import fixedPointArithmetic as quantization
+from fixedPoint import fixedPointArithmetic as fpA
 from fixedPoint.fixedPointArithmetic import add_alpha_tensor_, mul_num, de_quantization, remove_additional_col, \
     add_additional_col_of_zero, write_array_
 from enum import Enum
@@ -104,22 +104,22 @@ class PimSGD(Optimizer):
                     elif self.runMode == OptimMode.float_weight:
                         weight_grad = de_quantization(mul_num([remove_additional_col(d_wt).t(), d_wt_cfg], -lr))
                         weight.add_(weight_grad)
-                        temp = quantization.creat_quantization_para(bit_width=16,
-                                                                    tensor_type=quantization.TensorType.Normal,
-                                                                    device=d_wt.device)
-                        x = quantization.quantization_tensor(temp, weight)
+                        temp = fpA.creat_quantization_para(bit_width=16,
+                                                           tensor_type=fpA.TensorType.Normal,
+                                                           device=d_wt.device)
+                        x = fpA.quantization_tensor(temp, weight)
                         write_array_([wArr, wArr_cfg], [x, temp])
-                        x = quantization.quantization_tensor(temp, weight.t())
+                        x = fpA.quantization_tensor(temp, weight.t())
                         write_array_([wtArr, wtArr_cfg], [x, temp])
                         wtArr.grad = None
                         weight.grad = None
                     elif self.runMode == OptimMode.full_float:
                         weight.add_(weight.grad * (-lr))
-                        temp = quantization.creat_quantization_para(bit_width=16,
-                                                                    tensor_type=quantization.TensorType.Normal)
-                        x = quantization.quantization_tensor(temp, weight)
+                        temp = fpA.creat_quantization_para(bit_width=16,
+                                                           tensor_type=fpA.TensorType.Normal)
+                        x = fpA.quantization_tensor(temp, weight)
                         write_array_([wArr, wArr_cfg], [x, temp])
-                        x = quantization.quantization_tensor(temp, weight.t())
+                        x = fpA.quantization_tensor(temp, weight.t())
                         write_array_([wtArr, wtArr_cfg], [x, temp])
                         wtArr.grad = None
                         weight.grad = None

@@ -47,9 +47,9 @@ class TorchNet(nn.Module):
 input = torch.randn([1, 10])
 grad = torch.ones([1, 10])
 input_nor = NormalTensor()
-input_nor.quantization(input, input.abs().max(), 8)
+input_nor.fpA(input, input.abs().max(), 8)
 grad_nor = NormalTensor()
-grad_nor.quantization(grad, grad.abs().max(), 8)
+grad_nor.fpA(grad, grad.abs().max(), 8)
 
 if isinstance(input_nor, torch.Tensor):
   print("yes")

@@ -13,7 +13,7 @@ import torch.utils.data
 from fixedPoint.fixedPointArithmetic import *
 from trainCommon import create_datasets, train_model, draw_loss_figure, test_model, \
     train_full_data, create_full_train_loader
-from networkModel import vgg11, vgg13, PimVGG
+from networkModel import vgg13, FixedPointVGG13, FixedPointVGG8B, VGG8B
 
 
 def main():
@@ -25,11 +25,11 @@ def main():
                         help='input batch size for testing (default: 1000)')
     parser.add_argument('--epochs', type=int, default=300, metavar='N',
                         help='number of epochs to train (default: 14)')
-    parser.add_argument('--lr', type=float, default=0.05, metavar='LR',
+    parser.add_argument('--lr', type=float, default=0.1, metavar='LR',
                         help='learning rate (default: 1.0)')
-    parser.add_argument('--scheduler', action='store_true', default=False,
+    parser.add_argument('--scheduler', action='store_true', default=True,
                         help='use scheduler or not')
-    parser.add_argument('--lr-decay-step', type=int, default=30, metavar='STEP',
+    parser.add_argument('--lr-decay-step', type=int, default=20, metavar='STEP',
                         help='Period of learning rate decay. (default: 30)')
     parser.add_argument('--gamma', type=float, default=0.5, metavar='GAMMA',
                         help='Learning rate step gamma (default: 0.5)')
@@ -47,10 +47,10 @@ def main():
                         help='filename of load model')
     parser.add_argument('--train', action='store_true', default=True,
                         help='train the model')
-    parser.add_argument('--pim', action='store_true', default=False,
+    parser.add_argument('--pim', action='store_true', default=True,
                         help='For use pim')
-    parser.add_argument('--net', type=int, default=0, metavar='NET',
-                        help='use which model (0:VGG 1:? 2:? 3:VGG8B 4:VGG11B)')
+    parser.add_argument('--net', type=int, default=1, metavar='NET',
+                        help='use which NN model (0:VGG 1:VGG8b)')
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='disables CUDA training')
     parser.add_argument('--cuda_use_num', type=int, default=1, metavar='CUDA',
@@ -108,7 +108,10 @@ def main():
     # }
     if args.pim:
         if args.net == 0:
-            model = PimVGG(args.train_batch_size, device=device).to(device)
+            model = FixedPointVGG13(args.train_batch_size, device=device).to(device)
+            optimizer = po.PimSGD(model.named_parameters(), lr=args.lr)
+        elif args.net == 1:
+            model = FixedPointVGG8B(args.train_batch_size, device=device).to(device)
             optimizer = po.PimSGD(model.named_parameters(), lr=args.lr)
         else:
             print("undefined net!")
@@ -117,6 +120,9 @@ def main():
         if args.net == 0:
             model = vgg13(batch_norm=True).to(device)
             optimizer = optim.SGD(model.parameters(), lr=args.lr, weight_decay=5e-4, momentum=0.9)
+        elif args.net == 1:
+            model = VGG8B().to(device)
+            optimizer = optim.SGD(model.parameters(), lr=args.lr)
         else:
             print("undefined net!")
             sys.exit()
@@ -133,7 +139,8 @@ def main():
             print(e)
 
     if args.scheduler:
-        scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda epoch: 0.5 ** (epoch / 30))
+        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=args.lr_decay_step, gamma=args.gamma)
+        # lr become gamma of it every lr_decay_step
     else:
         scheduler = None
 
@@ -146,7 +153,7 @@ def main():
         #                                      args.epochs, filename=model_file, score_type='loss',
         #                                      scheduler=scheduler)
         train_loss, valid_loss = train_model(model, device, full_train_loader, test_loader, criterion, optimizer,
-                                             args.epochs, filename=model_file, score_type='accuracy', patience=100,
+                                             args.epochs, filename=model_file, score_type='accuracy', patience=60,
                                              scheduler=scheduler)
         draw_loss_figure(train_loss, valid_loss, args.figure_dir + '/' + model_name + '_')
 

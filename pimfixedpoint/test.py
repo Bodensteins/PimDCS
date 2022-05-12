@@ -25,6 +25,8 @@ data_tensor = quantization_tensor(data_para, data_float_tensor)
 
 print(f'source:\n{data_float_tensor}')
 print_info(data_tensor, data_para)
+set_bit_width_([data_tensor, data_para], 7)
+print_info(data_tensor, data_para)
 
 # array_para = creat_quantization_para(bit_width=array_bit_width, tensor_type=TensorType.Normal)
 # array_float_tensor = torch.randn([row_size, col_Size], dtype=torch.float)

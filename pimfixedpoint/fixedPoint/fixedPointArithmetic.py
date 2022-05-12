@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import torch
 from torch import Tensor
 import math
@@ -179,7 +177,7 @@ def quantization_tensor(quantization_para: Tensor, tensor: Tensor) -> Tensor:
     if tensor_type == TensorType.Normal or tensor_type == TensorType.PN:
         int_tensor = tensor.div(resolution).round().to(torch_int)
     else:
-        raise Exception("Unknown tensor type : " + str(tensor_type.value))
+        raise Exception("Unknown tensor type: " + str(tensor_type.value))
 
     return to_float(int_tensor)
 
@@ -192,7 +190,7 @@ def de_quantization(float_tensor_list: list) -> Tensor:
     if tensor_type == TensorType.Normal or tensor_type == TensorType.PN:
         return int_tensor.to(torch_float).mul(resolution)
     else:
-        raise Exception("Invalid tensor_type!", tensor_type)
+        raise Exception("Unknown tensor type: " + str(tensor_type.value))
 
 
 # def get_element_wise_effective_bit_width(int_tensor, tensor_type):
@@ -222,26 +220,32 @@ def de_quantization(float_tensor_list: list) -> Tensor:
 #
 #     return bit_width_dict
 
-# todo: modify here
+
 def get_effective_bit_width(float_tensor_list: list):
     int_tensor, quantization_para = parse_tensor_list_to_int(float_tensor_list)
     _, tensor_bit_width, tensor_type = parse_quantization_para(quantization_para)
 
-    if tensor_type == TensorType.Ref:
-        neg_levels = int_tensor[0, -1].item()
-        int_tensor = int_tensor[:, 0:-1].sub(neg_levels)
+    bit_width = 1
 
-    max_int = int_tensor.max().item()
-    min_int = int_tensor.min().item()
-    bit_width = 2
+    if tensor_type == TensorType.Normal:
+        max_int = int_tensor.max().item()
+        min_int = int_tensor.min().item()
+        pos_bit_width = 0
+        neg_bit_width = 0
 
-    if max_int <= 0:
-        if min_int != 0:
-            bit_width = get_neg_bit_width(min_int)
-    elif min_int >= 0:
-        bit_width = get_pos_bit_width(max_int)
+        if max_int > 0:
+            pos_bit_width = get_pos_bit_width(max_int)
+        if min_int < 0:
+            neg_bit_width = get_neg_bit_width(min_int)
+
+        bit_width = max(pos_bit_width, neg_bit_width, bit_width)
+    elif tensor_type == TensorType.PN:
+        max_abs_int = int_tensor.abs().max().item()
+        max_abs_bit_width = math.ceil(math.log2(max_abs_int + 1))
+
+        bit_width = max(bit_width, max_abs_bit_width)
     else:
-        bit_width = max(get_pos_bit_width(max_int), get_neg_bit_width(min_int))
+        raise Exception("Unknown tensor type: " + str(tensor_type.value))
 
     return bit_width
 
@@ -252,12 +256,8 @@ def set_bit_width_(float_tensor_list: list, new_bit_width: int, mode: RightShift
     int_tensor, quantization_para = parse_tensor_list_to_int(float_tensor_list)
     s, _, tensor_type = parse_quantization_para(quantization_para)
 
-    neg_levels = 0
-
-    if tensor_type == TensorType.Ref:
-        neg_levels = int_tensor[0, -1].item()
-        int_tensor = int_tensor[:, 0:-1]
-        int_tensor.sub_(neg_levels)
+    if new_bit_width < 1:
+        raise Exception("Illegal new bit width: " + str(new_bit_width))
 
     if new_bit_width < effective_bit_width:
         quantization_para[0] = s + effective_bit_width - new_bit_width
@@ -269,9 +269,6 @@ def set_bit_width_(float_tensor_list: list, new_bit_width: int, mode: RightShift
         else:
             raise Exception("We don't support this right shift mode!", mode)
 
-    if tensor_type == TensorType.Ref:
-        int_tensor.add_(neg_levels)
-
     quantization_para[1] = new_bit_width
 
 
@@ -279,7 +276,8 @@ def add_additional_col_of_one(float_tensor_list: list) -> Tensor:
     int_tensor, quantization_para = parse_tensor_list_to_int(float_tensor_list)
     s, bit_width, tensor_type = parse_quantization_para(quantization_para)
 
-    assert (tensor_type == TensorType.Normal)
+    if tensor_type != TensorType.Normal:
+        raise Exception("Illegal tensor type: " + str(tensor_type.value))
 
     resolution = pow(2, s)
     max_value = (pow_2_n(bit_width) - 1) * resolution
@@ -297,10 +295,12 @@ def add_additional_col_of_one(float_tensor_list: list) -> Tensor:
 
 
 def add_additional_col_of_zero(float_tensor_list: list) -> Tensor:
+    # todo: may be deleted
     int_tensor, quantization_para = parse_tensor_list_to_int(float_tensor_list)
     _, _, tensor_type = parse_quantization_para(quantization_para)
 
-    assert (tensor_type == TensorType.Normal)
+    if tensor_type != TensorType.Normal:
+        raise Exception("Illegal tensor type: " + str(tensor_type.value))
 
     full_zero_col = torch.full([int_tensor.size()[0], 1], 0, dtype=torch_int, device=int_tensor.device)
     int_tensor = torch.cat((int_tensor, full_zero_col), 1)
@@ -309,10 +309,12 @@ def add_additional_col_of_zero(float_tensor_list: list) -> Tensor:
 
 
 def remove_additional_col(tensor):
+    # todo: may be deleted
     return tensor[:, 0:-1]
 
 
-def write_array_(array_tensor_list: list, data_tensor_list: list, mode: RightShiftMode = RightShiftMode.Abandon):
+# todo: modify here
+def write_tensor_(array_tensor_list: list, data_tensor_list: list, mode: RightShiftMode = RightShiftMode.Abandon):
     data_bit_width = get_effective_bit_width(data_tensor_list)
     array_int_tensor, array_quantization_para = parse_tensor_list_to_int(array_tensor_list)
     _, array_bit_width, array_tensor_type = parse_quantization_para(array_quantization_para)

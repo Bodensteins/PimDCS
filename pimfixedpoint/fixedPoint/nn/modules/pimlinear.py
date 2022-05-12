@@ -2,7 +2,7 @@ import torch
 import math
 from torch.autograd import Function
 from torch import Tensor
-from fixedPoint.fixedPointArithmetic import add_additional_col_of_one, set_bit_width_, write_array_, quantization_matmul, \
+from fixedPoint.fixedPointArithmetic import add_additional_col_of_one, set_bit_width_, write_tensor_, quantization_matmul, \
     remove_additional_col, quantization_t_matmul, TensorType, creat_quantization_para, quantization_tensor, \
     to_int, add_additional_col_of_zero, \
     pow_2_n, torch_float
@@ -40,7 +40,7 @@ class PimLinearFunction(Function):
             ctx.has_origin_input = True
 
         if qinputArr is not None:
-            write_array_([qinputArr, qinputArr_config], [qinput, qinput_config])
+            write_tensor_([qinputArr, qinputArr_config], [qinput, qinput_config])
 
         set_bit_width_([qinput, qinput_config], inputBits)
 

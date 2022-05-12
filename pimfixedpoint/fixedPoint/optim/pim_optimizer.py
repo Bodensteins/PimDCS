@@ -4,7 +4,7 @@ import types
 import torch
 from fixedPoint import fixedPointArithmetic as fpA
 from fixedPoint.fixedPointArithmetic import add_alpha_tensor_, mul_num, de_quantization, remove_additional_col, \
-    add_additional_col_of_zero, write_array_
+    add_additional_col_of_zero, write_tensor_
 from enum import Enum
 from torch.optim.optimizer import Optimizer
 import torch.optim._functional as F
@@ -108,9 +108,9 @@ class PimSGD(Optimizer):
                                                            tensor_type=fpA.TensorType.Normal,
                                                            device=d_wt.device)
                         x = fpA.quantization_tensor(temp, weight)
-                        write_array_([wArr, wArr_cfg], [x, temp])
+                        write_tensor_([wArr, wArr_cfg], [x, temp])
                         x = fpA.quantization_tensor(temp, weight.t())
-                        write_array_([wtArr, wtArr_cfg], [x, temp])
+                        write_tensor_([wtArr, wtArr_cfg], [x, temp])
                         wtArr.grad = None
                         weight.grad = None
                     elif self.runMode == OptimMode.full_float:
@@ -118,9 +118,9 @@ class PimSGD(Optimizer):
                         temp = fpA.creat_quantization_para(bit_width=16,
                                                            tensor_type=fpA.TensorType.Normal)
                         x = fpA.quantization_tensor(temp, weight)
-                        write_array_([wArr, wArr_cfg], [x, temp])
+                        write_tensor_([wArr, wArr_cfg], [x, temp])
                         x = fpA.quantization_tensor(temp, weight.t())
-                        write_array_([wtArr, wtArr_cfg], [x, temp])
+                        write_tensor_([wtArr, wtArr_cfg], [x, temp])
                         wtArr.grad = None
                         weight.grad = None
             else:

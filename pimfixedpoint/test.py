@@ -1,88 +1,31 @@
 import torch
-from torch import nn
+from torch import nn, Tensor
 import fixedPoint.nn.pimFunction as fpF
 import fixedPoint.nn.modules as fpnn
+from fixedPoint.fixedPointArithmetic import *
 
 
-class TestDropout(nn.Module):
-    def __init__(self, dropout_ratio):
-        super(TestDropout, self).__init__()
-        self.quan = fpF.QuanLayer(16)
-        self.fc = fpnn.PimLinear(10, 10, 1)
-        self.relu = fpF.PimRelu()
-        self.dropout = fpF.FPDropout(dropout_ratio=dropout_ratio)
-        self.dequan = fpF.DeQuanLayer(16)
-
-    def forward(self, input_x):
-        y, cfg = self.quan(input_x)
-        y, cfg = self.fc(y, cfg)
-        y, cfg, _ = self.relu(y, cfg)
-        y, cfg = self.dropout(y, cfg)
-        y = self.dequan(y, cfg)
-        return y
+row_size = 4
+col_Size = 4
+data_bit_width = 10
+array_bit_width = 9
+alpha = 2.3
+alpha_bit_width = 12
 
 
-x = torch.randn([1, 10])
-target = torch.randint(0, 10, [1])
-print(x)
+def print_info(int_tensor: Tensor, para: Tensor):
+    print_quantization_info(para)
+    print(to_int(int_tensor))
+    print(de_quantization([int_tensor, para]))
 
-model = TestDropout(0.3)
-model.train()
-# model.eval()
-x = model(x)
-print(x)
-criterion = nn.CrossEntropyLoss()
-loss = criterion(x, target)
-loss.backward()
 
-# def get_element_wise_effective_bit_width(int_tensor):
-#     # assert (int_tensor.dtype == torch_int)
-#     bit_width_dict = {}
-#     for element in int_tensor.fattern():
-#         element = element.item()
-#         while element != 0 and element % 2 == 0:
-#             element /= 2
-#
-#         if element < 0:
-#             bit_width = math.ceil(math.log2(-element))
-#         else:
-#             bit_width = math.ceil(math.log2(element + 1))
-#         bit_width += 1
-#         if bit_width in bit_width_dict:
-#             bit_width_dict[bit_width] = bit_width_dict[bit_width] + 1
-#         else:
-#             bit_width_dict[bit_width] = 1
-#
-#     return bit_width_dict
-#
-#
-# int_tensor_1 = torch.randn([6, 8]).mul(100).int()
-# print(int_tensor_1)
-# bit_width_tensor = get_element_wise_effective_bit_width(int_tensor_1)
-# print(bit_width_tensor)
+data_para = creat_quantization_para(bit_width=data_bit_width, tensor_type=TensorType.PN)
+data_float_tensor = torch.randn([row_size, col_Size], dtype=torch.float)
+data_tensor = quantization_tensor(data_para, data_float_tensor)
 
-# row_size = 4
-# col_Size = 4
-# data_bit_width = 10
-# array_bit_width = 9
-# alpha = 2.3
-# alpha_bit_width = 12
-#
-#
-# def print_info(int_tensor: Tensor, para: Tensor):
-#     s, bit_width, tensor_type = parse_quantization_para(to_int(para))
-#     print_quantization_info(s, bit_width, tensor_type)
-#     print(to_int(int_tensor))
-#     print(de_quantization([int_tensor, para]))
-#
-#
-# data_para = creat_quantization_para(bit_width=data_bit_width, tensor_type=TensorType.Ref)
-# data_float_tensor = torch.randn([row_size, col_Size], dtype=torch.float)
-# data_tensor = quantization_tensor(data_para, data_float_tensor, data_float_tensor.abs().max())
-#
-# print('\nsource:')
-# print_info(data_tensor, data_para)
-#
+print(f'source:\n{data_float_tensor}')
+print_info(data_tensor, data_para)
+
 # array_para = creat_quantization_para(bit_width=array_bit_width, tensor_type=TensorType.Normal)
 # array_float_tensor = torch.randn([row_size, col_Size], dtype=torch.float)
 # array_tensor = quantization_tensor(array_para, array_float_tensor, array_float_tensor.abs().max())

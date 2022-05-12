@@ -8,9 +8,10 @@ from enum import Enum
 
 
 class TensorType(Enum):
-    Normal = 0
-    Ref = 1
-    PN = 2
+    Normal = 0  # two's complement representation: n+1 bits range: -2^n ~ 2^n-1
+#    Ref = 1
+    PN = 2  # pos neg representation: n bits range: -(2^n-1) ~ 2^n-1
+    # SM = 3  # sign magnitude representation: n+1 bits range: -(2^n-1) ~ 2^n-1
 
 
 class RightShiftMode(Enum):
@@ -45,8 +46,14 @@ def to_int(tensor):
     return tensor.detach().view(dtype=torch_int)
 
 
-# int_tensor matmul int_tensor is not supported in pytorch now(2021/11/6)
 def matmul_int_cuda(int_tensor1, int_tensor2):
+    """matmul of tensor in cuda, int_tensor matmul int_tensor is not supported in pytorch now(2021/11/6).
+
+        :param int_tensor1: a int tensor.
+        :param int_tensor2: another int tensor.
+
+        :return torch.matmul(int_tensor1, int_tensor2), return type:torch_int.
+    """
     assert (int_tensor1.is_cuda and int_tensor2.is_cuda)
 
     float_tensor1 = int_tensor1.to(dtype=torch_float)
@@ -56,8 +63,13 @@ def matmul_int_cuda(int_tensor1, int_tensor2):
     return mul_result.to(dtype=torch_int)
 
 
-def get_fixed_point_position(max_abs: float, bit_width: int) -> int:
-    return math.ceil(math.log2(max_abs / ((1 << (bit_width - 1)) - 1)))
+def get_fixed_point_position(max_abs: float, bit_width: int, tensor_type=TensorType.Normal) -> int:
+    if tensor_type == TensorType.Normal:
+        return math.ceil(math.log2(max_abs / ((1 << (bit_width - 1)) - 1)))
+    elif tensor_type == TensorType.PN:
+        return math.ceil(math.log2(max_abs / ((1 << bit_width) - 1)))
+    else:
+        raise Exception("Unknown tensor type : " + str(tensor_type.value))
 
 
 def pow_2_n(n: int) -> int:
@@ -73,14 +85,17 @@ def get_neg_bit_width(neg_int: int):
 
 
 def round_rshift_(int_tensor, shift: int):
-    assert (shift > 0)
+    # todo: IEEE754 sticky bit round
+    if shift <= 0 or shift > system_bit_width - 1:
+        raise Exception("Inappropriate shift value: " + str(shift))
     round_bit = int_tensor.bitwise_and(1 << (shift - 1))
     int_tensor.add_(round_bit).__irshift__(shift)
 
 
 def round_rshift(int_tensor, shift: int):
+    # todo: IEEE754 sticky bit round
     if shift <= 0 or shift > system_bit_width - 1:
-        raise Exception("Inappropriate shift value: ", shift)
+        raise Exception("Inappropriate shift value: " + str(shift))
     round_bit = int_tensor.bitwise_and(1 << (shift - 1))
     return int_tensor.add(round_bit).__rshift__(shift)
 
@@ -90,6 +105,7 @@ def parse_quantization_para(quantization_para):
     input: quantization parameters, should be int Tensor
     return: quantization para. {s, bit_width, tensor_type(Normal or ref or PN)}
     """
+    quantization_para = to_int(quantization_para)
     s = quantization_para[0].item()
     bit_width = quantization_para[1].item()
     tensor_type = TensorType(quantization_para[2].item())
@@ -97,10 +113,19 @@ def parse_quantization_para(quantization_para):
     return s, bit_width, tensor_type
 
 
-def print_quantization_info(s: int, bit_width: int, tensor_type: TensorType):
+def print_quantization_info(quantization_para):
+    s, bit_width, tensor_type = parse_quantization_para(quantization_para)
     resolution = pow(2, s)
-    neg_levels = pow_2_n(bit_width - 1)
-    pos_levels = neg_levels - 1
+
+    if tensor_type == TensorType.PN:
+        neg_levels = (1 << bit_width) - 1
+        pos_levels = neg_levels
+    elif tensor_type == TensorType.Normal:
+        neg_levels = 1 << (bit_width - 1)
+        pos_levels = neg_levels - 1
+    else:
+        raise Exception("Unknown tensor type : " + str(tensor_type.value))
+
     max_value = pos_levels * resolution
     min_value = -neg_levels * resolution
 
@@ -133,53 +158,28 @@ def creat_quantization_para(s: int = None, bit_width: int = None, tensor_type: T
     return to_float(quantization_para)
 
 
-def quantization_tensor(quantization_para: Tensor, tensor: Tensor, user_set_max_left: float = None,
-                        user_set_max_right: float = None) -> Tensor:
+def quantization_tensor(quantization_para: Tensor, tensor: Tensor) -> Tensor:
     """
     float-int type: int type, but shown as float
     int-float type: float type, but shown as int
     :param quantization_para: parameters for quantization, which is a float-int type tensor.
     This tensor has 3 values. [0]: s [1]: bit_width [2]: tensor_type
     :param tensor: Float type tensor, that is the real number for you to quantize
-    :param user_set_max_left: float, the max abs value used for quantization
-    :param user_set_max_right: float, the max abs value used for quantization
     :return: The float-int type tensor. the quantization of input tensor.
     """
     quantization_para = to_int(quantization_para)
     _, bit_width, tensor_type = parse_quantization_para(quantization_para)  # s is unknown
 
     max_abs_value = tensor.abs().max().item()
-    ori_max = max_abs_value
-    if user_set_max_right is not None:
-        max_abs_value = min(max_abs_value, user_set_max_right)
-    if user_set_max_left is not None:
-        max_abs_value = max(max_abs_value, user_set_max_left)
 
-    # special deal, if max_abs_value is not the maximum of the tensor.
-    if ori_max > max_abs_value:
-        tensor = tensor.detach().clone()
-        tensor[tensor > max_abs_value] = max_abs_value
-        tensor[tensor < -max_abs_value] = -max_abs_value
-
-    s = get_fixed_point_position(max_abs_value, bit_width)
+    s = get_fixed_point_position(max_abs_value, bit_width, tensor_type)
     quantization_para[0] = s
     resolution = pow(2, s)
 
-    if tensor_type == TensorType.Normal:
+    if tensor_type == TensorType.Normal or tensor_type == TensorType.PN:
         int_tensor = tensor.div(resolution).round().to(torch_int)
-    elif tensor_type == TensorType.Ref:
-        int_tensor = torch.empty([tensor.size()[0], tensor.size()[1] + 1], dtype=torch_int)
-        neg_levels = pow_2_n(bit_width - 1)
-        int_tensor[:, -1] = neg_levels
-        int_tensor[:, 0:-1] = tensor.div(resolution).round().to(torch_int).add(neg_levels)
-    elif tensor_type == TensorType.PN:
-        int_tensor = torch.empty([2, tensor.size()[0], tensor.size()[1]], dtype=torch_int)
-        # P:int_tensor[0] N:int_tensor[1]
-        tensor_abs = tensor.abs()
-        int_tensor[0] = tensor.add(tensor_abs).div(2)
-        int_tensor[1] = tensor.sub(tensor_abs).div(2)
     else:
-        raise Exception("Invalid tensor_type!", tensor_type)
+        raise Exception("Unknown tensor type : " + str(tensor_type.value))
 
     return to_float(int_tensor)
 
@@ -189,46 +189,40 @@ def de_quantization(float_tensor_list: list) -> Tensor:
     s, bit_width, tensor_type = parse_quantization_para(quantization_para)
 
     resolution = pow(2, s)
-    if tensor_type == TensorType.Normal:
+    if tensor_type == TensorType.Normal or tensor_type == TensorType.PN:
         return int_tensor.to(torch_float).mul(resolution)
-    elif tensor_type == TensorType.Ref:
-        neg_levels = int_tensor[0, -1].item()
-
-        return int_tensor[:, 0:-1].sub(neg_levels).to(torch_float).mul(resolution)
-    elif tensor_type == TensorType.PN:
-        return int_tensor[0].sub(int_tensor[1]).mul(resolution)
     else:
         raise Exception("Invalid tensor_type!", tensor_type)
 
 
-def get_element_wise_effective_bit_width(int_tensor, tensor_type):
-    assert (int_tensor.dtype == torch_int)
-    if tensor_type is TensorType.Ref:
-        bias = int_tensor[0, -1].item()
-        int_tensor = int_tensor.sub(bias)
-        int_tensor = int_tensor[:, 0:-1]
+# def get_element_wise_effective_bit_width(int_tensor, tensor_type):
+#     assert (int_tensor.dtype == torch_int)
+#     if tensor_type is TensorType.Ref:
+#         bias = int_tensor[0, -1].item()
+#         int_tensor = int_tensor.sub(bias)
+#         int_tensor = int_tensor[:, 0:-1]
+#
+#     bit_width_dict = {}
+#     for element in int_tensor.flatten():
+#         element = element.item()
+#         while element != 0 and element % 2 == 0:
+#             element >>= 1
+#
+#         if element < 0:
+#             bit_width = math.ceil(math.log2(-element))
+#         else:
+#             bit_width = math.ceil(math.log2(element + 1))
+#         if bit_width == 16:
+#             print(f"element: {element}")
+#         bit_width += 1
+#         if bit_width in bit_width_dict:
+#             bit_width_dict[bit_width] = bit_width_dict[bit_width] + 1
+#         else:
+#             bit_width_dict[bit_width] = 1
+#
+#     return bit_width_dict
 
-    bit_width_dict = {}
-    for element in int_tensor.flatten():
-        element = element.item()
-        while element != 0 and element % 2 == 0:
-            element >>= 1
-
-        if element < 0:
-            bit_width = math.ceil(math.log2(-element))
-        else:
-            bit_width = math.ceil(math.log2(element + 1))
-        if bit_width == 16:
-            print(f"element: {element}")
-        bit_width += 1
-        if bit_width in bit_width_dict:
-            bit_width_dict[bit_width] = bit_width_dict[bit_width] + 1
-        else:
-            bit_width_dict[bit_width] = 1
-
-    return bit_width_dict
-
-
+# todo: modify here
 def get_effective_bit_width(float_tensor_list: list):
     int_tensor, quantization_para = parse_tensor_list_to_int(float_tensor_list)
     _, tensor_bit_width, tensor_type = parse_quantization_para(quantization_para)

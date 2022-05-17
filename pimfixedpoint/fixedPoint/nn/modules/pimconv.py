@@ -12,8 +12,7 @@ class PimConv2D(torch.nn.Module):
     def __init__(self, input_shape: List, kernel_size: List, output_chs: int, batch_size: int, stride: int = 1,
                  padding: int = 0, dilation: int = 1, inputBits: int = 16, weightBits: int = 16,
                  gradOutputBits: int = 16, static_tensor_mode: str = "NormalTensor", quantizerMode: str = "",
-                 hasBias: bool = True,
-                 device: torch.device = torch.device("cpu")):
+                 hasBias: bool = True, device: torch.device = torch.device("cpu")):
         # todo: don't have some para
         super().__init__()
         self.output_chs = output_chs

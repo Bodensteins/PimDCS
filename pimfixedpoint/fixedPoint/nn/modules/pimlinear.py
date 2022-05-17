@@ -4,6 +4,7 @@ from torch.autograd import Function
 from torch import Tensor
 from fixedPoint.fixedPointArithmetic import add_additional_col_of_one, set_bit_width_, write_tensor_, fixed_point_matmul, \
     fixed_point_t_matmul, TensorType, creat_quantization_para, quantization_tensor, torch_float
+import pdb
 
 
 class PimLinearFunction(Function):
@@ -32,6 +33,7 @@ class PimLinearFunction(Function):
         ctx.has_origin_input = False
         output = None
         if input is not None:
+            # todo: modify here, may have bugs
             output = torch.matmul(input, weight)
             ctx.input = input
             ctx.pim_weight = weight
@@ -44,10 +46,11 @@ class PimLinearFunction(Function):
 
         qoutput, qoutput_config = fixed_point_matmul([qinput, qinput_config], [qweight, qweight_config])
 
-        ctx.save_for_backward(qinputArr, qweight_t)
-        ctx.qinputArr_config = qinputArr_config
-        ctx.qweight_t_config = qweight_t_config
-        ctx.pim_delta_qweight_t_cfg = delta_qweight_t_config
+        ctx.save_for_backward(qinputArr, qinputArr_config, qweight_t, qweight_t_config, delta_qweight_t_config)
+        # ctx.save_for_backward(qinputArr, qweight_t)
+        # ctx.qinputArr_config = qinputArr_config
+        # ctx.qweight_t_config = qweight_t_config
+        # ctx.pim_delta_qweight_t_cfg = delta_qweight_t_config
 
         ctx.gradOutputBits = gradOutputBits
         ctx.hasBias = hasBias
@@ -56,10 +59,8 @@ class PimLinearFunction(Function):
 
     @staticmethod
     def backward(ctx, qgrad_output, qgrad_output_config, grad_output):
-        qinputArr, qweight_t = ctx.saved_tensors
-        qinputArr_config = ctx.qinputArr_config
-        qweight_t_config = ctx.qweight_t_config
-        delta_qweight_t_config = ctx.pim_delta_qweight_t_cfg
+        pdb.set_trace()
+        qinputArr, qinputArr_config, qweight_t, qweight_t_config, delta_qweight_t_config = ctx.saved_tensors
         hasBias = ctx.hasBias
         qgrad_output_bits = ctx.gradOutputBits
         set_bit_width_([qgrad_output, qgrad_output_config], qgrad_output_bits)
@@ -75,7 +76,6 @@ class PimLinearFunction(Function):
 
         if hasBias:
             qgrad_input = qgrad_input[:, 0:-1]
-            # qgrad_input = remove_additional_col(qgrad_input)
             if ctx.has_origin_input:
                 grad_input = grad_input[:, 0:-1]
 

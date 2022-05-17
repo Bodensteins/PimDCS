@@ -5,7 +5,7 @@ from torch import Tensor
 from fixedPoint.fixedPointArithmetic import set_bit_width_, TensorType, creat_quantization_para, quantization_tensor, \
     parse_quantization_para, de_quantization, fixed_point_less, to_int, parse_tensor_list_to_int, torch_int, \
     to_float
-
+import pdb
 
 class DeQuanFunction(Function):
     @staticmethod
@@ -22,6 +22,7 @@ class DeQuanFunction(Function):
 
     @staticmethod
     def backward(ctx, grad_output: Tensor):
+        pdb.set_trace()
         qgrad_output_config = creat_quantization_para(bit_width=ctx.backBit, tensor_type=TensorType.Normal,
                                                       device=grad_output.device)
         # print(grad_output)
@@ -51,6 +52,7 @@ class QuanFunction(Function):
 
     @staticmethod
     def backward(ctx, fp_grad_output, fp_grad_output_config):
+        pdb.set_trace()
         return de_quantization([fp_grad_output, fp_grad_output_config]), None
 
 
@@ -73,6 +75,7 @@ class ReluFunction(Function):
 
     @staticmethod
     def backward(ctx, qgrad_output: Tensor, qgrad_output_config: Tensor):
+        pdb.set_trace()
         neg_position, = ctx.saved_tensors
         qgrad_output[neg_position] = 0
 
@@ -102,6 +105,7 @@ class FPDropoutFunction(Function):
 
     @staticmethod
     def backward(ctx, fp_grad_output, fp_grad_output_cfg):
+        pdb.set_trace()
         mask, = ctx.saved_tensors
         return fp_grad_output.mul(mask), fp_grad_output_cfg, None, None
 

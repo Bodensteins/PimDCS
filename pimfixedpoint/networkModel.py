@@ -47,22 +47,19 @@ class PimFcMnist(nn.Module):
 class ConvMnist(nn.Module):
     def __init__(self):
         super().__init__()
-        self.conv1 = nn.Conv2d(1, 10, (5, 5))
-        self.conv2 = nn.Conv2d(10, 20, (5, 5))
-        self.fc = nn.Linear(4 * 4 * 20, 10)
-        self.flatten = nn.Flatten()
+        self.conv = nn.Sequential(nn.Conv2d(1, 10, (5, 5)),
+                                  nn.ReLU(),
+                                  nn.MaxPool2d(kernel_size=(2, 2), stride=2),
+                                  nn.Conv2d(10, 20, (5, 5)),
+                                  nn.ReLU(),
+                                  nn.MaxPool2d(kernel_size=(2, 2), stride=2),
+                                  nn.Flatten(),
+                                  nn.Dropout(p=0.2),
+                                  nn.Linear(4 * 4 * 20, 10)
+                                  )
 
     def forward(self, x):
-        x = self.conv1(x)
-        x = F.relu(x)
-        x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
-
-        x = self.conv2(x)
-        x = F.relu(x)
-        x = F.max_pool2d(x, kernel_size=(2, 2), stride=2)
-
-        x = self.flatten(x)
-        x = self.fc(x)
+        x = self.conv(x)
 
         return x
 
@@ -339,63 +336,3 @@ class FixedPointVGG13(nn.Module):
         x = self.dequan(x, x_f)
 
         return x
-
-# class FixPointVGG(nn.Module):
-#     """
-#     VGG model
-#     """
-#     def __init__(self, features, batch_size, device: torch.device = torch.device("cpu")):
-#         super(FixPointVGG, self).__init__()
-#         self.device = device
-#         self.features = features
-#         self.classifier = nn.Sequential(
-#             nn.Flatten(),
-#             nn.Dropout(),  # Todo: need to modify
-#             fpnn.PimLinear(512, 512, batch_size=batch_size, device=device),
-#             fpF.PimRelu(),
-#             nn.Dropout(),
-#             fpnn.PimLinear(512, 512, batch_size=batch_size, device=device),
-#             fpF.PimRelu(),
-#             fpnn.PimLinear(512, 10, batch_size=batch_size, device=device),
-#         )
-#
-#     def forward(self, x):
-#         x = self.features(x)
-#         x = self.classifier(x)
-#         return x
-#
-#
-# def fp_make_layers(cfg, batch_norm=False):
-#     layers = []
-#     in_channels = 3
-#     for v in cfg:
-#         if v == 'M':
-#             layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
-#         else:
-#             conv2d = nn.Conv2d(in_channels, v, (3, 3), padding=1)
-#             if batch_norm:
-#                 layers += [conv2d, nn.BatchNorm2d(v), nn.ReLU()]
-#             else:
-#                 layers += [conv2d, nn.ReLU()]
-#             in_channels = v
-#     return nn.Sequential(*layers)
-#
-#
-# def fp_vgg11(batch_size, device, batch_norm=False):
-#     """VGG 11-layer model (configuration "A")"""
-#     return FixPointVGG(fp_make_layers(VGG_cfg['A'], batch_norm=batch_norm), batch_size=batch_size, device=device)
-#
-#
-# def fp_vgg13(batch_size, device, batch_norm=False):
-#     """VGG 13-layer model (configuration "B")"""
-#     return FixPointVGG(fp_make_layers(VGG_cfg['B'], batch_norm=batch_norm), batch_size=batch_size, device=device)
-#
-#
-# def fp_vgg16(batch_size, device, batch_norm=False):
-#     """VGG 16-layer model (configuration "D")"""
-#     return FixPointVGG(fp_make_layers(VGG_cfg['D'], batch_norm=batch_norm), batch_size=batch_size, device=device)
-#
-#
-# def fp_vgg19(batch_size, device, batch_norm=False):
-#     """VGG 19-layer model (configuration "E")"""
-#     return FixPointVGG(fp_make_layers(VGG_cfg['E'], batch_norm=batch_norm), batch_size=batch_size, device=device)

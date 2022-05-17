@@ -11,8 +11,8 @@ from fixedPoint.fixedPointArithmetic import TensorType, creat_quantization_para,
 class PimConv2D(torch.nn.Module):
     def __init__(self, input_shape: List, kernel_size: List, output_chs: int, batch_size: int, stride: int = 1,
                  padding: int = 0, dilation: int = 1, inputBits: int = 16, weightBits: int = 16,
-                 gradOutputBits: int = 16, arrayMode: str = "RefTensor", quantizerMode: str = "",
-                 absMaxValueLeft=None, absMaxValueRight=None, hasBias: bool = True,
+                 gradOutputBits: int = 16, static_tensor_mode: str = "NormalTensor", quantizerMode: str = "",
+                 hasBias: bool = True,
                  device: torch.device = torch.device("cpu")):
         # todo: don't have some para
         super().__init__()
@@ -45,7 +45,7 @@ class PimConv2D(torch.nn.Module):
             self.m += 1
 
         self.inputBits, self.weightBits, self.gradOutputBits = inputBits, weightBits, gradOutputBits
-        self.quantizerMode, self.absMaxValueLeft, self.absMaxValueRight = quantizerMode, absMaxValueLeft, absMaxValueRight
+        self.quantizerMode = quantizerMode
 
         self.device = device
 
@@ -53,21 +53,18 @@ class PimConv2D(torch.nn.Module):
         self.pim_delta_qweight_t_cfg = torch.nn.Parameter(
             creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Normal, device=device))
 
-        if arrayMode == "RefTensor":
-            self.pim_inArr_cfg = creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Ref,
+        if static_tensor_mode == "NormalTensor":
+            self.pim_inArr_cfg = creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Normal,
                                                          device=device)
             self.pim_wArr_cfg = torch.nn.Parameter(
-                creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Ref, device=device))
+                creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Normal, device=device))
             self.pim_wtArr_cfg = torch.nn.Parameter(
-                creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Ref, device=device))
+                creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Normal, device=device))
 
-            neg_levels = pow_2_n(weightBits - 1)
             input_array_row = batch_size * self.output_size[0] * self.output_size[1]
-            self.inputArr = torch.empty([input_array_row, self.m + 1], dtype=torch_float, device=device)
-            int_input_array = to_int(self.inputArr)
-            int_input_array[:, -1] = neg_levels
+            self.inputArr = torch.empty([input_array_row, self.m], dtype=torch_float, device=device)
         else:
-            raise Exception("We don't implement this array mode!", arrayMode)
+            raise Exception("We don't implement this tensor mode!", static_tensor_mode)
 
         self.weight_init()
 
@@ -87,9 +84,9 @@ class PimConv2D(torch.nn.Module):
 
         self.pim_weight = torch.nn.Parameter(temp_weight.clone().detach().requires_grad_())
         self.pim_wArr = torch.nn.Parameter(
-            quantization_tensor(self.pim_wArr_cfg, temp_weight, self.absMaxValueLeft, self.absMaxValueRight))
+            quantization_tensor(self.pim_wArr_cfg, temp_weight))
         self.pim_wtArr = torch.nn.Parameter(
-            quantization_tensor(self.pim_wtArr_cfg, temp_weight.t(), self.absMaxValueLeft, self.absMaxValueRight))
+            quantization_tensor(self.pim_wtArr_cfg, temp_weight.t()))
 
     def forward(self, _input: Tensor):
         # reshaple qinput to the matrix-shape

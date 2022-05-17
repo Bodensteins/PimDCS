@@ -3,8 +3,7 @@ import types
 
 import torch
 from fixedPoint import fixedPointArithmetic as fpA
-from fixedPoint.fixedPointArithmetic import add_alpha_tensor_, mul_num, de_quantization, remove_additional_col, \
-    add_additional_col_of_zero, write_tensor_
+from fixedPoint.fixedPointArithmetic import add_alpha_tensor_, mul_num, de_quantization, write_tensor_
 from enum import Enum
 from torch.optim.optimizer import Optimizer
 import torch.optim._functional as F
@@ -20,7 +19,8 @@ class PimSGD(Optimizer):
     def __init__(self, named_parameters, lr=0.1, momentum=0, dampening=0,
                  weight_decay=0, nesterov=False, run_mode=OptimMode.full_fix):
         if not isinstance(named_parameters, types.GeneratorType) or named_parameters.__name__ != "named_parameters":
-            raise TypeError("PimSGD expected generator that return by named_parameters(), but got %s" % type(named_parameters).__name__)
+            raise TypeError("PimSGD expected generator that return by named_parameters(), but got %s" % type(
+                named_parameters).__name__)
         if lr < 0.0:
             raise ValueError("Invalid learning rate: {}".format(lr))
         if momentum < 0.0:
@@ -72,7 +72,6 @@ class PimSGD(Optimizer):
 
         super(PimSGD, self).__init__(params, defaults)
 
-
     @torch.no_grad()
     def step(self, closure=None):
         loss = None
@@ -97,12 +96,12 @@ class PimSGD(Optimizer):
                         # print("d_wt:here")
                         delta_wt = mul_num([d_wt, d_wt_cfg], -lr)
                         add_alpha_tensor_([wtArr, wtArr_cfg], delta_wt)
-                        d_w = add_additional_col_of_zero([remove_additional_col(d_wt).t(), d_wt_cfg])
-                        delta_w = mul_num([d_w, d_wt_cfg], -lr)
+                        # d_w = add_additional_col_of_zero([remove_additional_col(d_wt).t(), d_wt_cfg])
+                        delta_w = mul_num([d_wt.t(), d_wt_cfg], -lr)
                         add_alpha_tensor_([wArr, wArr_cfg], delta_w)
                         wtArr.grad = None
                     elif self.runMode == OptimMode.float_weight:
-                        weight_grad = de_quantization(mul_num([remove_additional_col(d_wt).t(), d_wt_cfg], -lr))
+                        weight_grad = de_quantization(mul_num([d_wt.t(), d_wt_cfg], -lr))
                         weight.add_(weight_grad)
                         temp = fpA.creat_quantization_para(bit_width=16,
                                                            tensor_type=fpA.TensorType.Normal,

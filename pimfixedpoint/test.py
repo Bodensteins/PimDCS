@@ -5,10 +5,10 @@ import fixedPoint.nn.modules as fpnn
 from fixedPoint.fixedPointArithmetic import *
 
 
-row_size = 4
+row_size = 6
 col_Size = 4
-data_bit_width = 10
-array_bit_width = 9
+data_bit_width = 9
+static_bit_width = 10
 alpha = 2.3
 alpha_bit_width = 12
 
@@ -19,14 +19,26 @@ def print_info(int_tensor: Tensor, para: Tensor):
     print(de_quantization([int_tensor, para]))
 
 
-data_para = creat_quantization_para(bit_width=data_bit_width, tensor_type=TensorType.PN)
+data_para = creat_quantization_para(bit_width=data_bit_width, tensor_type=TensorType.Normal)
 data_float_tensor = torch.randn([row_size, col_Size], dtype=torch.float)
 data_tensor = quantization_tensor(data_para, data_float_tensor)
 
-print(f'source:\n{data_float_tensor}')
+# print(f'normal:\n{data_float_tensor}')
 print_info(data_tensor, data_para)
-set_bit_width_([data_tensor, data_para], 7)
-print_info(data_tensor, data_para)
+
+static_para = creat_quantization_para(bit_width=static_bit_width, tensor_type=TensorType.Normal)
+static_float_tensor = torch.randn([row_size, col_Size], dtype=torch.float)
+static_tensor = quantization_tensor(static_para, static_float_tensor)
+
+# print(f'source:\n{static_float_tensor}')
+print_info(static_tensor, static_para)
+
+float_res = torch.add(static_float_tensor, data_float_tensor, alpha=0.01)
+print(f'float res: \n{float_res}')
+
+add_alpha_tensor_([static_tensor, static_para], [data_tensor, data_para], alpha=0.01)
+print_info(static_tensor, static_para)
+print(f'max delta: {float_res.sub(de_quantization([static_tensor, static_para])).abs().max()}')
 
 # array_para = creat_quantization_para(bit_width=array_bit_width, tensor_type=TensorType.Normal)
 # array_float_tensor = torch.randn([row_size, col_Size], dtype=torch.float)

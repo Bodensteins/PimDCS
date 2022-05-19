@@ -3,12 +3,13 @@ import torch
 import math
 from torch import Tensor
 import torch.nn.functional
-from fixedPoint.nn.modules.pimlinear import PimLinearFunction
-from fixedPoint.nn.pimFunction import DeQuanFunction, QuanFunction
-from fixedPoint.fixedPointArithmetic import TensorType, creat_quantization_para, quantization_tensor, to_int, pow_2_n, torch_float
+from .. import functional as fpF
+from ..fixedPointArithmetic import creat_quantization_para, quantization_tensor
+from torch.nn import Module
+from .. import TensorType, torch_float
 
 
-class PimConv2D(torch.nn.Module):
+class Conv2D(Module):
     def __init__(self, input_shape: List, kernel_size: List, output_chs: int, batch_size: int, stride: int = 1,
                  padding: int = 0, dilation: int = 1, inputBits: int = 16, weightBits: int = 16,
                  gradOutputBits: int = 16, static_tensor_mode: str = "NormalTensor", quantizerMode: str = "",
@@ -95,25 +96,25 @@ class PimConv2D(torch.nn.Module):
         _input = torch.nn.functional.unfold(_input, self.kernel_size, dilation=self.dilation, padding=self.padding,
                                               stride=self.stride)
         _input = _input.transpose(1, 2).reshape(-1, self.kernel_size_all)
-        fp_input, qinput_config = QuanFunction.apply(_input, self.inputBits)
+        fp_input, qinput_config = fpF.quan.apply(_input, self.inputBits)
 
         # re-use pimlinerfunction to get the answer
         if self.training:
             qoutput, qoutput_config, _ = \
-                PimLinearFunction.apply(fp_input, qinput_config, self.inputArr, self.pim_inArr_cfg, self.pim_wArr,
+                fpF.linear.apply(fp_input, qinput_config, self.inputArr, self.pim_inArr_cfg, self.pim_wArr,
                                         self.pim_wArr_cfg, self.pim_wtArr, self.pim_wtArr_cfg,
                                         self.pim_delta_qweight_t_cfg,
                                         self.inputBits, self.gradOutputBits, self.hasBias, None, self.pim_weight)
         else:
             qoutput, qoutput_config, _ = \
-                PimLinearFunction.apply(fp_input, qinput_config, None, self.pim_inArr_cfg, self.pim_wArr,
+                fpF.linear.apply(fp_input, qinput_config, None, self.pim_inArr_cfg, self.pim_wArr,
                                         self.pim_wArr_cfg, self.pim_wtArr, self.pim_wtArr_cfg,
                                         self.pim_delta_qweight_t_cfg,
                                         self.inputBits, self.gradOutputBits, self.hasBias, None, self.pim_weight)
 
         # reshape the qoutput to the conv-shape
         # Here, for simpicity, we use dequan & fold & quan to simulate fixed-point fold
-        output = DeQuanFunction.apply(qoutput, qoutput_config, None, None)
+        output = fpF.dequan.apply(qoutput, qoutput_config, None, None)
         output = output.reshape(batch_size, -1, self.output_chs).transpose(1, 2)
         output = torch.nn.functional.fold(output, self.output_size, (1, 1))
 

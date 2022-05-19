@@ -1,8 +1,4 @@
-import torch
-from torch import nn, Tensor
-import fixedPoint.nn.pimFunction as fpF
-import fixedPoint.nn.modules as fpnn
-from fixedPoint.fixedPointArithmetic import *
+from fixedPoint.nn.fixedPointArithmetic import *
 
 
 row_size = 6

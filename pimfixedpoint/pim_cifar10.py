@@ -10,9 +10,9 @@ import torchvision
 from fixedPoint.optim import pim_optimizer as po
 import torch.utils.data
 
-from fixedPoint.fixedPointArithmetic import *
+from fixedPoint.nn.fixedPointArithmetic import *
 from trainCommon import create_datasets, train_model, draw_loss_figure, test_model, \
-    train_full_data, create_full_train_loader
+    create_full_train_loader
 from networkModel import vgg13, FixedPointVGG13, FixedPointVGG8B, VGG8B
 
 
@@ -126,6 +126,8 @@ def main():
         else:
             print("undefined net!")
             sys.exit()
+
+    print(model)
 
     model_name = type(model).__name__
 

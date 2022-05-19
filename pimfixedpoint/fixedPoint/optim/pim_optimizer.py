@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
 import types
-
 import torch
-from fixedPoint import fixedPointArithmetic as fpA
-from fixedPoint.fixedPointArithmetic import add_alpha_tensor_, mul_num, de_quantization, write_tensor_
+from ..nn import fixedPointArithmetic as fpA
 from enum import Enum
 from torch.optim.optimizer import Optimizer
 import torch.optim._functional as F
@@ -94,22 +92,23 @@ class PimSGD(Optimizer):
                 if d_wt is not None:
                     if self.runMode == OptimMode.full_fix:
                         # print("d_wt:here")
-                        delta_wt = mul_num([d_wt, d_wt_cfg], -lr)
-                        add_alpha_tensor_([wtArr, wtArr_cfg], delta_wt)
+                        delta_wt = fpA.mul_num([d_wt, d_wt_cfg], -lr)
+                        fpA.add_alpha_tensor_([wtArr, wtArr_cfg], delta_wt)
                         # d_w = add_additional_col_of_zero([remove_additional_col(d_wt).t(), d_wt_cfg])
-                        delta_w = mul_num([d_wt.t(), d_wt_cfg], -lr)
-                        add_alpha_tensor_([wArr, wArr_cfg], delta_w)
+                        # todo: this can be simplified
+                        delta_w = fpA.mul_num([d_wt.t(), d_wt_cfg], -lr)
+                        fpA.add_alpha_tensor_([wArr, wArr_cfg], delta_w)
                         wtArr.grad = None
                     elif self.runMode == OptimMode.float_weight:
-                        weight_grad = de_quantization(mul_num([d_wt.t(), d_wt_cfg], -lr))
+                        weight_grad = fpA.de_quantization(fpA.mul_num([d_wt.t(), d_wt_cfg], -lr))
                         weight.add_(weight_grad)
                         temp = fpA.creat_quantization_para(bit_width=16,
                                                            tensor_type=fpA.TensorType.Normal,
                                                            device=d_wt.device)
                         x = fpA.quantization_tensor(temp, weight)
-                        write_tensor_([wArr, wArr_cfg], [x, temp])
+                        fpA.write_tensor_([wArr, wArr_cfg], [x, temp])
                         x = fpA.quantization_tensor(temp, weight.t())
-                        write_tensor_([wtArr, wtArr_cfg], [x, temp])
+                        fpA.write_tensor_([wtArr, wtArr_cfg], [x, temp])
                         wtArr.grad = None
                         weight.grad = None
                     elif self.runMode == OptimMode.full_float:
@@ -117,9 +116,9 @@ class PimSGD(Optimizer):
                         temp = fpA.creat_quantization_para(bit_width=16,
                                                            tensor_type=fpA.TensorType.Normal)
                         x = fpA.quantization_tensor(temp, weight)
-                        write_tensor_([wArr, wArr_cfg], [x, temp])
+                        fpA.write_tensor_([wArr, wArr_cfg], [x, temp])
                         x = fpA.quantization_tensor(temp, weight.t())
-                        write_tensor_([wtArr, wtArr_cfg], [x, temp])
+                        fpA.write_tensor_([wtArr, wtArr_cfg], [x, temp])
                         wtArr.grad = None
                         weight.grad = None
             else:

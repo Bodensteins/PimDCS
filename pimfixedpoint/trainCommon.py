@@ -3,10 +3,9 @@ from matplotlib import pyplot as plt
 from torch import Generator, optim
 from torch.utils.data import DataLoader, random_split
 from fixedPoint.nn.earlystopping import EarlyStopping
-# from sklearn.model_selection import KFold
 
 
-def create_datasets(train_data, test_data, train_kwargs, test_kwargs, alpha=0.2, seed=0,
+def create_datasets(train_data, test_data, train_kwargs, test_kwargs, alpha=0.2, seed=1,
                     extra_train_data=None):
     train_data_len = len(train_data)
     valid_size = int(train_data_len * alpha)
@@ -22,13 +21,13 @@ def create_datasets(train_data, test_data, train_kwargs, test_kwargs, alpha=0.2,
         train_dataset, _ = torch.utils.data.random_split(
             dataset=train_data,
             lengths=[train_size, valid_size],
-            generator=torch.Generator().manual_seed(seed)
+            generator=Generator().manual_seed(seed)
         )
 
         _, valid_dataset = torch.utils.data.random_split(
             dataset=extra_train_data,
             lengths=[train_size, valid_size],
-            generator=torch.Generator().manual_seed(seed)
+            generator=Generator().manual_seed(seed)
         )
 
     train_loader = DataLoader(train_dataset, **train_kwargs)

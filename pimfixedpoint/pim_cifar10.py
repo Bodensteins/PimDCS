@@ -1,27 +1,25 @@
-from __future__ import print_function
 import argparse
-import sys
 
 import torch.nn as nn
 import torch.optim as optim
 from torchvision import transforms
 import torchvision
 
-from fixedPoint.optim import pim_optimizer as po
+from fixedPoint import optim as fpOptim
 import torch.utils.data
 
 from fixedPoint.nn.fixedPointArithmetic import *
 from trainCommon import create_datasets, train_model, draw_loss_figure, test_model, \
     create_full_train_loader
-from networkModel import vgg13, FixedPointVGG13, FixedPointVGG8B, VGG8B
+from VGG_cifar10_model import vgg19, FixedPointVGG13, FixedPointVGG8B, VGG8B, fp_vgg19
 
 
 def main():
     # Training settings
     parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
-    parser.add_argument('--train-batch-size', type=int, default=128, metavar='N',
+    parser.add_argument('--train-batch-size', type=int, default=128, metavar='TRAIN_BATCH',
                         help='input batch size for training (default: 64)')
-    parser.add_argument('--test-batch-size', type=int, default=200, metavar='N',
+    parser.add_argument('--test-batch-size', type=int, default=200, metavar='TEST_BATCH',
                         help='input batch size for testing (default: 1000)')
     parser.add_argument('--epochs', type=int, default=300, metavar='N',
                         help='number of epochs to train (default: 14)')
@@ -29,10 +27,14 @@ def main():
                         help='learning rate (default: 1.0)')
     parser.add_argument('--scheduler', action='store_true', default=True,
                         help='use scheduler or not')
-    parser.add_argument('--lr-decay-step', type=int, default=20, metavar='STEP',
+    parser.add_argument('--lr-decay-step', type=int, default=30, metavar='STEP',
                         help='Period of learning rate decay. (default: 30)')
     parser.add_argument('--gamma', type=float, default=0.5, metavar='GAMMA',
                         help='Learning rate step gamma (default: 0.5)')
+    parser.add_argument('--momentum', type=float, default=0.9, metavar='M',
+                        help='momentum')
+    parser.add_argument('--weight-decay', '--wd', type=float, default=5e-4,
+                        metavar='W', help='weight decay (default: 5e-4)')
     parser.add_argument('--seed', type=int, default=4, metavar='S',
                         help='random seed (default: 1)')
     parser.add_argument('--data-dir', default='data', metavar='DD',
@@ -47,21 +49,24 @@ def main():
                         help='filename of load model')
     parser.add_argument('--train', action='store_true', default=True,
                         help='train the model')
-    parser.add_argument('--pim', action='store_true', default=True,
+    parser.add_argument('--fixed-point', action='store_true', default=True,
                         help='For use pim')
-    parser.add_argument('--net', type=int, default=1, metavar='NET',
+    parser.add_argument('--net', type=int, default=0, metavar='NET',
                         help='use which NN model (0:VGG 1:VGG8b)')
-    parser.add_argument('--no-cuda', action='store_true', default=False,
-                        help='disables CUDA training')
+    parser.add_argument('--cuda', action='store_true', default=True,
+                        help='use CUDA training')
     parser.add_argument('--cuda_use_num', type=int, default=1, metavar='CUDA',
                         help='use which cuda (choice: 0-2)')
  
     args = parser.parse_args()
 
+    print(args)
+
     torch.manual_seed(args.seed)
 
-    use_cuda = not args.no_cuda and torch.cuda.is_available()
+    use_cuda = args.cuda and torch.cuda.is_available()
     device = torch.device("cuda:"+str(args.cuda_use_num) if use_cuda else "cpu")
+    print(f"device: {device}")
 
     train_kwargs = {'batch_size': args.train_batch_size}
     test_kwargs = {'batch_size': args.test_batch_size}
@@ -106,26 +111,26 @@ def main():
     #     8: "ship",
     #     9: "truck",
     # }
-    if args.pim:
+    if args.fixed_point:
         if args.net == 0:
-            model = FixedPointVGG13(args.train_batch_size, device=device).to(device)
-            optimizer = po.PimSGD(model.named_parameters(), lr=args.lr)
+            model = fp_vgg19(args.train_batch_size, device=device, batch_norm=True).to(device)
+            model.double()
+            # model = FixedPointVGG13(args.train_batch_size, device=device).to(device)
         elif args.net == 1:
             model = FixedPointVGG8B(args.train_batch_size, device=device).to(device)
-            optimizer = po.PimSGD(model.named_parameters(), lr=args.lr)
         else:
-            print("undefined net!")
-            sys.exit()
+            raise Exception('undefined net!')
+
+        optimizer = fpOptim.SGD(model.named_parameters(), lr=args.lr)
     else:
         if args.net == 0:
-            model = vgg13(batch_norm=True).to(device)
-            optimizer = optim.SGD(model.parameters(), lr=args.lr, weight_decay=5e-4, momentum=0.9)
+            model = vgg19(batch_norm=True).to(device)
         elif args.net == 1:
             model = VGG8B().to(device)
-            optimizer = optim.SGD(model.parameters(), lr=args.lr)
         else:
-            print("undefined net!")
-            sys.exit()
+            raise Exception('undefined net!')
+
+        optimizer = optim.SGD(model.parameters(), lr=args.lr, weight_decay=args.weight_decay, momentum=args.momentum)
 
     print(model)
 
@@ -155,7 +160,7 @@ def main():
         #                                      args.epochs, filename=model_file, score_type='loss',
         #                                      scheduler=scheduler)
         train_loss, valid_loss = train_model(model, device, full_train_loader, test_loader, criterion, optimizer,
-                                             args.epochs, filename=model_file, score_type='accuracy', patience=60,
+                                             args.epochs, filename=model_file, score_type='accuracy', patience=100,
                                              scheduler=scheduler)
         draw_loss_figure(train_loss, valid_loss, args.figure_dir + '/' + model_name + '_')
 

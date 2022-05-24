@@ -2,18 +2,12 @@
 import types
 import torch
 from ..nn import fixedPointArithmetic as fpA
-from enum import Enum
 from torch.optim.optimizer import Optimizer
 import torch.optim._functional as F
+from .optimizer import OptimMode
 
 
-class OptimMode(Enum):
-    full_fix = 0
-    float_weight = 1
-    full_float = 2
-
-
-class PimSGD(Optimizer):
+class SGD(Optimizer):
     def __init__(self, named_parameters, lr=0.1, momentum=0, dampening=0,
                  weight_decay=0, nesterov=False, run_mode=OptimMode.full_fix):
         if not isinstance(named_parameters, types.GeneratorType) or named_parameters.__name__ != "named_parameters":
@@ -68,7 +62,7 @@ class PimSGD(Optimizer):
             params.append({"params": list(layer_params), "is_pim_params": True})
         params.append({"params": torch_param_groups, "is_pim_params": False})
 
-        super(PimSGD, self).__init__(params, defaults)
+        super(SGD, self).__init__(params, defaults)
 
     @torch.no_grad()
     def step(self, closure=None):

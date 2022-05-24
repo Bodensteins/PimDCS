@@ -1,6 +1,6 @@
 from torch.autograd import Function
 from . import fixedPointArithmetic as fpA
-from ..nn import TensorType, torch_int
+from .commonConst import TensorType, torch_int
 import torch
 import pydevd
 

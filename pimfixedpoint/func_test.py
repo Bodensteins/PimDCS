@@ -1,5 +1,5 @@
 from fixedPoint.nn.fixedPointArithmetic import *
-
+import torchvision
 
 row_size = 6
 col_Size = 4
@@ -36,6 +36,9 @@ add_alpha_tensor_([static_tensor, static_para], [data_tensor, data_para], alpha=
 print_info(static_tensor, static_para)
 print(f'max delta: {float_res.sub(de_quantization([static_tensor, static_para])).abs().max()}')
 
+
+model = torchvision.models.ResNet()
+model = torchvision.models.VGG()
 # array_para = creat_quantization_para(bit_width=array_bit_width, tensor_type=TensorType.Normal)
 # array_float_tensor = torch.randn([row_size, col_Size], dtype=torch.float)
 # array_tensor = quantization_tensor(array_para, array_float_tensor, array_float_tensor.abs().max())

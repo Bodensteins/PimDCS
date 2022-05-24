@@ -7,9 +7,9 @@ import argparse
 import torch.nn as nn
 import torch.optim as optim
 from torchvision import datasets, transforms
-from fixedPoint.optim import pim_optimizer as po
+from fixedPoint import optim as fpOptim
 from trainCommon import create_datasets, train_model, test_model, draw_loss_figure
-from networkModel import PimFcMnist, FixedPointSimpleConvNet, FcMnist, ConvMnist, PimConvMnist
+from mnist_model import PimFcMnist, FixedPointSimpleConvNet, FcMnist, ConvMnist, PimConvMnist
 
 
 def main():
@@ -86,7 +86,7 @@ def main():
         else:
             print("undefined net!")
             sys.exit()
-        optimizer = po.PimSGD(model.named_parameters(), lr=args.lr, momentum=0.9, run_mode=po.OptimMode.full_fix)
+        optimizer = fpOptim.SGD(model.named_parameters(), lr=args.lr, momentum=0.9, run_mode=fpOptim.OptimMode.full_fix)
     else:
         if args.net == 0:
             model = ConvMnist().to(device)
@@ -97,6 +97,8 @@ def main():
             sys.exit()
         # optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
         optimizer = optim.SGD(model.parameters(), lr=args.lr)
+
+    print(model)
 
     model_name = type(model).__name__
     model_file = args.model_dir + '/' + model_name + '_' + args.model_file

@@ -6,14 +6,15 @@ import torch.nn.functional
 from .. import functional as fpF
 from ..fixedPointArithmetic import creat_quantization_para, quantization_tensor
 from torch.nn import Module
-from .. import TensorType, torch_float
+from ..commonConst import TensorType, torch_float
+from typing import Tuple
 
 
-class Conv2D(Module):
-    def __init__(self, input_shape: List, kernel_size: List, output_chs: int, batch_size: int, stride: int = 1,
+class Conv2d(Module):
+    def __init__(self, input_shape: List, output_chs: int, kernel_size: Tuple, batch_size: int, stride: int = 1,
                  padding: int = 0, dilation: int = 1, inputBits: int = 16, weightBits: int = 16,
                  gradOutputBits: int = 16, static_tensor_mode: str = "NormalTensor", quantizerMode: str = "",
-                 hasBias: bool = True, device: torch.device = torch.device("cpu")):
+                 bias: bool = True, device: torch.device = torch.device("cpu")):
         # todo: don't have some para
         super().__init__()
         self.output_chs = output_chs
@@ -40,7 +41,7 @@ class Conv2D(Module):
 
         # self.inputArr = None
 
-        self.hasBias = hasBias
+        self.hasBias = bias
         if self.hasBias:
             self.m += 1
 
@@ -66,9 +67,9 @@ class Conv2D(Module):
         else:
             raise Exception("We don't implement this tensor mode!", static_tensor_mode)
 
-        self.weight_init()
+        self.reset_parameters()
 
-    def weight_init(self):
+    def reset_parameters(self):
         temp_weight = torch.empty([self.output_chs, self.input_chs, self.kernel_h, self.kernel_w], device=self.device)
         torch.nn.init.kaiming_uniform_(temp_weight, math.sqrt(5))
 

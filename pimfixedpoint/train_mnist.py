@@ -45,7 +45,7 @@ def main():
                         help='use which model (0:conv 1:fc)')
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='disables CUDA training')
-    parser.add_argument('--cuda_use_num', type=int, default=1, metavar='CUDA',
+    parser.add_argument('--cuda_use_num', type=int, default=0, metavar='CUDA',
                         help='use which cuda (choice: 0-2)')
 
     args = parser.parse_args()

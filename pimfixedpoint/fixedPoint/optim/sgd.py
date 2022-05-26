@@ -8,8 +8,8 @@ from .optimizer import OptimMode
 
 
 class SGD(Optimizer):
-    def __init__(self, named_parameters, lr=0.1, momentum=0, dampening=0,
-                 weight_decay=0, nesterov=False, run_mode=OptimMode.full_fix):
+    def __init__(self, named_parameters, lr=0.1, momentum=0, dampening=0, weight_decay=0, nesterov=False,
+                 run_mode=OptimMode.full_fix):
         if not isinstance(named_parameters, types.GeneratorType) or named_parameters.__name__ != "named_parameters":
             raise TypeError("PimSGD expected generator that return by named_parameters(), but got %s" % type(
                 named_parameters).__name__)
@@ -88,10 +88,8 @@ class SGD(Optimizer):
                         # print("d_wt:here")
                         delta_wt = fpA.mul_num([d_wt, d_wt_cfg], -lr)
                         fpA.add_alpha_tensor_([wtArr, wtArr_cfg], delta_wt)
-                        # d_w = add_additional_col_of_zero([remove_additional_col(d_wt).t(), d_wt_cfg])
-                        # todo: this can be simplified
-                        delta_w = fpA.mul_num([d_wt.t(), d_wt_cfg], -lr)
-                        fpA.add_alpha_tensor_([wArr, wArr_cfg], delta_w)
+                        temp_tensor, temp_cfg = fpA.parse_tensor_list_to_int(delta_wt)
+                        fpA.add_alpha_tensor_([wArr, wArr_cfg], [temp_tensor.t(), temp_cfg])
                         wtArr.grad = None
                     elif self.runMode == OptimMode.float_weight:
                         weight_grad = fpA.de_quantization(fpA.mul_num([d_wt.t(), d_wt_cfg], -lr))

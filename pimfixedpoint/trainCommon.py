@@ -5,42 +5,34 @@ from torch.utils.data import DataLoader, random_split
 from fixedPoint.nn.earlystopping import EarlyStopping
 
 
-def create_datasets(train_data, test_data, train_kwargs, test_kwargs, alpha=0.2, seed=1,
-                    extra_train_data=None):
-    train_data_len = len(train_data)
-    valid_size = int(train_data_len * alpha)
-    train_size = train_data_len - valid_size
-
-    if extra_train_data is None:
-        train_dataset, valid_dataset = random_split(
-            dataset=train_data,
-            lengths=[train_size, valid_size],
-            generator=Generator().manual_seed(seed)
-        )
+def split_data_loader(train_datasets, test_datasets, train_kwargs, test_kwargs, alpha=0.2, seed=1,
+                      extra_train_datasets_for_valid=None):
+    if extra_train_datasets_for_valid is None:
+        train_loader = DataLoader(train_datasets, **train_kwargs)
+        valid_loader = None
     else:
-        train_dataset, _ = torch.utils.data.random_split(
-            dataset=train_data,
+        full_train_size = len(train_datasets)
+        valid_size = int(full_train_size * alpha)
+        train_size = full_train_size - valid_size
+
+        sub_train_datasets, _ = random_split(
+            dataset=train_datasets,
             lengths=[train_size, valid_size],
             generator=Generator().manual_seed(seed)
         )
 
-        _, valid_dataset = torch.utils.data.random_split(
-            dataset=extra_train_data,
+        _, sub_valid_datasets = random_split(
+            dataset=extra_train_datasets_for_valid,
             lengths=[train_size, valid_size],
             generator=Generator().manual_seed(seed)
         )
 
-    train_loader = DataLoader(train_dataset, **train_kwargs)
-    valid_loader = DataLoader(valid_dataset, **test_kwargs)
-    test_loader = DataLoader(test_data, **test_kwargs)
+        train_loader = DataLoader(sub_train_datasets, **train_kwargs)
+        valid_loader = DataLoader(sub_valid_datasets, **test_kwargs)
+
+    test_loader = DataLoader(test_datasets, **test_kwargs)
 
     return train_loader, test_loader, valid_loader
-
-
-def create_full_train_loader(train_data, train_kwargs):
-    train_loader = DataLoader(train_data, **train_kwargs)
-
-    return train_loader
 
 
 def train_model(model, device, train_loader, valid_loader, criterion, optimizer, n_epochs,
@@ -53,6 +45,8 @@ def train_model(model, device, train_loader, valid_loader, criterion, optimizer,
     avg_train_losses = []
     # to track the average validation loss per epoch as the model trains
     avg_valid_losses = []
+
+    valid_acc_list = []
 
     # initialize the early_stopping object
     early_stopping = EarlyStopping(filename=filename, patience=patience, verbose=verbose, score_type=score_type)
@@ -103,6 +97,9 @@ def train_model(model, device, train_loader, valid_loader, criterion, optimizer,
         epoch_len = len(str(n_epochs))
 
         valid_acc = correct / len(valid_loader.dataset)
+
+        valid_acc_list.append(valid_acc)
+
         print_msg = (f'[{epoch:>{epoch_len}}/{n_epochs:>{epoch_len}}] ' +
                      f'train_loss: {train_loss:.4f} ' +
                      f'valid_loss: {valid_loss:.4f} ' +
@@ -131,7 +128,7 @@ def train_model(model, device, train_loader, valid_loader, criterion, optimizer,
     # load the last checkpoint with the best model
     model.load_state_dict(torch.load(filename))
 
-    return avg_train_losses, avg_valid_losses
+    return avg_train_losses, avg_valid_losses, valid_acc_list
 
 
 def train_full_data(model, device, train_loader, criterion, optimizer, n_epochs, filename='full_data.pt'):
@@ -256,8 +253,8 @@ def get_optimal_learning_rate(model, device, train_loader, valid_loader, criteri
     while i <= n:
         optimizer = optim.SGD(model.parameters(), lr=lr)
         print(f"now lr is: {lr}, we try train {epoch} epochs")
-        _, valid_loss = train_model(model, device, train_loader, valid_loader, criterion, optimizer,
-                                    epoch, patience=epoch+1, filename=filename + '_' + str(lr), verbose=False)
+        _, valid_loss, _ = train_model(model, device, train_loader, valid_loader, criterion, optimizer, epoch,
+                                       patience=epoch+1, filename=filename + '_' + str(lr), verbose=False)
         local_valid_loss_min = min(valid_loss)
         if local_valid_loss_min < global_valid_loss_min:
             lr_optimal = lr
@@ -275,110 +272,3 @@ def net_reset_parameters(model):
     for layer in model.children():
         if hasattr(layer, 'reset_parameters'):
             layer.reset_parameters()
-
-
-# def k_fold_cross_validation(model, optimizer, train_dataset, num_epochs, criterion, k_folds=5):
-#     # For fold results
-#     results = {}
-#
-#     # Define the K-fold Cross Validator
-#     k_fold_cross_validator = KFold(n_splits=k_folds, shuffle=True)
-#
-#     # K-fold Cross Validation model evaluation
-#     for fold, (train_ids, valid_ids) in enumerate(k_fold_cross_validator.split(train_dataset)):
-#
-#         # Print
-#         print(f'FOLD {fold}')
-#         print('--------------------------------')
-#
-#         # Sample elements randomly from a given list of ids, no replacement.
-#         train_sub_sampler = torch.utils.data.SubsetRandomSampler(train_ids)
-#         valid_sub_sampler = torch.utils.data.SubsetRandomSampler(valid_ids)
-#
-#         # Define data loaders for training and testing data in this fold
-#         train_loader = torch.utils.data.DataLoader(
-#             train_dataset,
-#             batch_size=10, sampler=train_sub_sampler)
-#         valid_loader = torch.utils.data.DataLoader(
-#             train_dataset,
-#             batch_size=10, sampler=valid_sub_sampler)
-#
-#         # Run the training loop for defined number of epochs
-#         for epoch in range(0, num_epochs):
-#
-#             # Print epoch
-#             print(f'Starting epoch {epoch + 1}')
-#
-#             # Set current loss value
-#             current_loss = 0.0
-#
-#             # Iterate over the DataLoader for training data
-#             for i, data in enumerate(train_loader, 0):
-#
-#                 # Get inputs
-#                 inputs, targets = data
-#
-#                 # Zero the gradients
-#                 optimizer.zero_grad()
-#
-#                 # Perform forward pass
-#                 outputs = model(inputs)
-#
-#                 # Compute loss
-#                 loss = criterion(outputs, targets)
-#
-#                 # Perform backward pass
-#                 loss.backward()
-#
-#                 # Perform optimization
-#                 optimizer.step()
-#
-#                 # Print statistics
-#                 current_loss += loss.item()
-#                 if i % 500 == 499:
-#                     print('Loss after mini-batch %5d: %.3f' %
-#                           (i + 1, current_loss / 500))
-#                     current_loss = 0.0
-#
-#         # Process is complete.
-#         print('Training process has finished. Saving trained model.')
-#
-#         # Print about testing
-#         print('Starting testing')
-#
-#         # Saving the model
-#         save_path = f'./model-fold-{fold}.pth'
-#         torch.save(model.state_dict(), save_path)
-#
-#         # Evaluation for this fold
-#         correct, total = 0, 0
-#         with torch.no_grad():
-#
-#             # Iterate over the test data and generate predictions
-#             for i, data in enumerate(valid_loader, 0):
-#                 # Get inputs
-#                 inputs, targets = data
-#
-#                 # Generate outputs
-#                 outputs = model(inputs)
-#
-#                 # Set total and correct
-#                 _, predicted = torch.max(outputs.data, 1)
-#                 total += targets.size(0)
-#                 correct += (predicted == targets).sum().item()
-#
-#             # Print accuracy
-#             print('Accuracy for fold %d: %d %%' % (fold, 100.0 * correct / total))
-#             print('--------------------------------')
-#             results[fold] = 100.0 * (correct / total)
-#
-#         net_reset_parameters(model)
-#
-#     # Print fold results
-#     print(f'K-FOLD CROSS VALIDATION RESULTS FOR {k_folds} FOLDS')
-#     print('--------------------------------')
-#     sum = 0.0
-#     for key, value in results.items():
-#         print(f'Fold {key}: {value} %')
-#         sum += value
-#     print(f'Average: {sum / len(results.items())} %')

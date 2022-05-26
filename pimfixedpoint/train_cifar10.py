@@ -9,9 +9,8 @@ from fixedPoint import optim as fpOptim
 import torch.utils.data
 
 from fixedPoint.nn.fixedPointArithmetic import *
-from trainCommon import create_datasets, train_model, draw_loss_figure, test_model, \
-    create_full_train_loader
-from VGG_cifar10_model import vgg19, FixedPointVGG13, FixedPointVGG8B, VGG8B, fp_vgg19
+from trainCommon import split_data_loader, train_model, test_model
+from VGG_cifar10_model import vgg19, FixedPointVGG8B, VGG8B, fp_vgg19
 
 
 def main():
@@ -19,7 +18,7 @@ def main():
     parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
     parser.add_argument('--train-batch-size', type=int, default=128, metavar='TRAIN_BATCH',
                         help='input batch size for training (default: 64)')
-    parser.add_argument('--test-batch-size', type=int, default=200, metavar='TEST_BATCH',
+    parser.add_argument('--test-batch-size', type=int, default=400, metavar='TEST_BATCH',
                         help='input batch size for testing (default: 1000)')
     parser.add_argument('--epochs', type=int, default=300, metavar='N',
                         help='number of epochs to train (default: 14)')
@@ -41,8 +40,6 @@ def main():
                         help='dir of dataset')
     parser.add_argument('--model-dir', default='model', metavar='MD',
                         help='dir of load/save model')
-    parser.add_argument('--figure-dir', default='result_fig', metavar='FD',
-                        help='dir of save figure')
     parser.add_argument('--load-model', action='store_true', default=False,
                         help='load the  trained model')
     parser.add_argument('--load-filename', default='123.pt', metavar='LF',
@@ -88,16 +85,14 @@ def main():
         transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
     ])
 
-    train_data = \
+    train_datasets = \
         torchvision.datasets.CIFAR10(root=args.data_dir, train=True, download=True, transform=transform_train)
-    extra_train_data = \
-        torchvision.datasets.CIFAR10(root=args.data_dir, train=True, download=True, transform=transform_test)
-    test_data = \
+    # extra_train_datasets_for_valid = \
+    #     torchvision.datasets.CIFAR10(root=args.data_dir, train=True, download=True, transform=transform_test)
+    test_datasets = \
         torchvision.datasets.CIFAR10(root=args.data_dir, train=False, download=True, transform=transform_test)
 
-    train_loader, test_loader, valid_loader = create_datasets(train_data, test_data, train_kwargs, test_kwargs,
-                                                              seed=args.seed, extra_train_data=extra_train_data)
-    full_train_loader = create_full_train_loader(train_data, train_kwargs)
+    train_loader, test_loader, _ = split_data_loader(train_datasets, test_datasets, train_kwargs, test_kwargs)
 
     # labels_map = {
     #     0: "plane",
@@ -119,7 +114,7 @@ def main():
         elif args.net == 1:
             model = FixedPointVGG8B(args.train_batch_size, device=device).to(device)
         else:
-            raise Exception('undefined net!')
+            raise Exception('undefined net: ' + str(args.net))
 
         optimizer = fpOptim.SGD(model.named_parameters(), lr=args.lr)
     else:
@@ -128,7 +123,7 @@ def main():
         elif args.net == 1:
             model = VGG8B().to(device)
         else:
-            raise Exception('undefined net!')
+            raise Exception('undefined net: ' + str(args.net))
 
         optimizer = optim.SGD(model.parameters(), lr=args.lr, weight_decay=args.weight_decay, momentum=args.momentum)
 
@@ -147,28 +142,21 @@ def main():
 
     if args.scheduler:
         scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=args.lr_decay_step, gamma=args.gamma)
-        # lr become gamma of it every lr_decay_step
     else:
         scheduler = None
 
     if args.train:
         criterion = nn.CrossEntropyLoss()
-        # lr = trainCommon.get_optimal_learning_rate(model, device, full_train_loader, test_loader, criterion)
-        # lr = args.lr
-        # optimizer = optim.SGD(model.parameters(), lr=lr)
         # train_loss, valid_loss = train_model(model, device, train_loader, valid_loader, criterion, optimizer,
         #                                      args.epochs, filename=model_file, score_type='loss',
         #                                      scheduler=scheduler)
-        train_loss, valid_loss = train_model(model, device, full_train_loader, test_loader, criterion, optimizer,
-                                             args.epochs, filename=model_file, score_type='accuracy', patience=100,
-                                             scheduler=scheduler)
-        draw_loss_figure(train_loss, valid_loss, args.figure_dir + '/' + model_name + '_')
+        _, _, _ = train_model(model, device, train_loader, test_loader, criterion, optimizer, args.epochs,
+                              filename=model_file, score_type='accuracy', patience=100, scheduler=scheduler)
 
         # print("retrain use full data")
         #
         # train_loss, valid_loss = train_model(model, device, full_train_loader, valid_loader, criterion, optimizer,
         #                                      args.epochs, filename=model_file)
-        # draw_loss_figure(train_loss, valid_loss, args.figure_dir + '/' + model_name + '_retrain_')
 
     criterion = nn.CrossEntropyLoss(reduction='sum')
     test_model(model, device, test_loader, criterion)

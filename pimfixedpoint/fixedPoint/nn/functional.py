@@ -137,7 +137,7 @@ class linear(Function):
         fpA.set_bit_width_([qgrad_output, qgrad_output_config], qgrad_output_bits)
 
         qgrad_input, qgrad_input_config = fpA.fixed_point_matmul([qgrad_output, qgrad_output_config],
-                                                             [qweight_t, qweight_t_config])
+                                                                 [qweight_t, qweight_t_config])
 
         grad_input = None
         d_w = None

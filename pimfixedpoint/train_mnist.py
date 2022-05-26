@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torchvision import datasets, transforms
 from fixedPoint import optim as fpOptim
-from trainCommon import create_datasets, train_model, test_model, draw_loss_figure
+from trainCommon import split_data_loader, train_model, test_model
 from mnist_model import PimFcMnist, FixedPointSimpleConvNet, FcMnist, ConvMnist, PimConvMnist
 
 
@@ -19,7 +19,7 @@ def main():
                         help='input batch size for training (default: 64)')
     parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
                         help='input batch size for testing (default: 1000)')
-    parser.add_argument('--epochs', type=int, default=50, metavar='N',
+    parser.add_argument('--epochs', type=int, default=5, metavar='N',
                         help='number of epochs to train (default: 14)')
     parser.add_argument('--lr', type=float, default=0.0125, metavar='LR',
                         help='learning rate (default: 1.0)')
@@ -33,8 +33,6 @@ def main():
                         help='dir of dataset')
     parser.add_argument('--model-dir', default='model', metavar='MD',
                         help='dir of load/save model')
-    parser.add_argument('--figure-dir', default='result_fig', metavar='FD',
-                        help='dir of save figure')
     parser.add_argument('--model-file', default='checkpoint.pt', metavar='MF',
                         help='filename of load/save model')
     parser.add_argument('--load-model', action='store_true', default=False,
@@ -73,8 +71,8 @@ def main():
     train_data = datasets.MNIST(root=args.data_dir, train=True, download=True, transform=transform)
     test_data = datasets.MNIST(root=args.data_dir, train=False, download=True, transform=transform)
 
-    train_loader, test_loader, valid_loader = \
-        create_datasets(train_data, test_data, train_kwargs, test_kwargs, seed=args.seed)
+    train_loader, test_loader, _ = \
+        split_data_loader(train_data, test_data, train_kwargs, test_kwargs)
 
     if args.pim:
         if args.net == 0:
@@ -115,9 +113,8 @@ def main():
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=args.lr_decay_step, gamma=args.gamma)
 
     if args.train:
-        train_loss, valid_loss = train_model(model, device, train_loader, valid_loader, criterion, optimizer,
-                                             args.epochs, filename=model_file, scheduler=scheduler)
-        draw_loss_figure(train_loss, valid_loss, args.figure_dir + '/' + model_name + '_')
+        _, _, _ = train_model(model, device, train_loader, test_loader, criterion, optimizer, args.epochs,
+                              filename=model_file, scheduler=scheduler)
 
     criterion = nn.CrossEntropyLoss(reduction='sum')
     test_model(model, device, test_loader, criterion)

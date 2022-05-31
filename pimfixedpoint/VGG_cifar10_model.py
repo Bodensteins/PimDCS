@@ -149,7 +149,7 @@ def vgg19(batch_norm=False):
 
 class FixedPointVGG(nn.Module):
     """
-    VGG model
+    VGG model. different in dropout position
     """
     def __init__(self, features, batch_size, device):
         super(FixedPointVGG, self).__init__()
@@ -192,6 +192,15 @@ def fixed_point_make_layers(cfg, batch_size, device, batch_norm=False):
                 layers += [conv2d, nn.ReLU()]
             in_channels = v
     return nn.Sequential(*layers)
+
+
+def fp_vgg11(batch_size, device, batch_norm=False):
+    """VGG 11-layer model (configuration "A")"""
+    return FixedPointVGG(fixed_point_make_layers(VGG_cfg['A'],
+                                                 batch_size=batch_size,
+                                                 device=device,
+                                                 batch_norm=batch_norm),
+                         batch_size=batch_size, device=device)
 
 
 def fp_vgg19(batch_size, device, batch_norm=False):

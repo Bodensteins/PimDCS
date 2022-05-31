@@ -10,7 +10,7 @@ import torch.utils.data
 
 from fixedPoint.nn.fixedPointArithmetic import *
 from trainCommon import split_data_loader, train_model, test_model
-from VGG_cifar10_model import vgg19, FixedPointVGG8B, VGG8B, fp_vgg19
+from VGG_cifar10_model import vgg19, FixedPointVGG8B, VGG8B, fp_vgg19, fp_vgg11
 
 
 def main():
@@ -20,7 +20,7 @@ def main():
                         help='input batch size for training (default: 64)')
     parser.add_argument('--test-batch-size', type=int, default=400, metavar='TEST_BATCH',
                         help='input batch size for testing (default: 1000)')
-    parser.add_argument('--epochs', type=int, default=300, metavar='N',
+    parser.add_argument('--epochs', type=int, default=1, metavar='N',
                         help='number of epochs to train (default: 14)')
     parser.add_argument('--lr', type=float, default=0.1, metavar='LR',
                         help='learning rate (default: 1.0)')
@@ -41,22 +41,21 @@ def main():
     parser.add_argument('--model-dir', default='model', metavar='MD',
                         help='dir of load/save model')
     parser.add_argument('--load-model', action='store_true', default=False,
-                        help='load the  trained model')
+                        help='load the trained model')
     parser.add_argument('--load-filename', default='123.pt', metavar='LF',
                         help='filename of load model')
     parser.add_argument('--train', action='store_true', default=True,
                         help='train the model')
     parser.add_argument('--fixed-point', action='store_true', default=True,
-                        help='For use pim')
+                        help='For use fixed point')
     parser.add_argument('--net', type=int, default=0, metavar='NET',
                         help='use which NN model (0:VGG 1:VGG8b)')
     parser.add_argument('--cuda', action='store_true', default=True,
                         help='use CUDA training')
-    parser.add_argument('--cuda_use_num', type=int, default=1, metavar='CUDA',
-                        help='use which cuda (choice: 0-2)')
+    parser.add_argument('--cuda_use_num', type=int, default=0, metavar='CUDA',
+                        help='use which cuda (choice: 0-1)')
  
     args = parser.parse_args()
-
     print(args)
 
     torch.manual_seed(args.seed)
@@ -108,7 +107,8 @@ def main():
     # }
     if args.fixed_point:
         if args.net == 0:
-            model = fp_vgg19(args.train_batch_size, device=device, batch_norm=True).to(device)
+            # model = fp_vgg19(args.train_batch_size, device=device, batch_norm=True).to(device)
+            model = fp_vgg11(args.train_batch_size, device=device, batch_norm=True).to(device)
             model.double()
             # model = FixedPointVGG13(args.train_batch_size, device=device).to(device)
         elif args.net == 1:
@@ -130,12 +130,12 @@ def main():
     print(model)
 
     model_name = type(model).__name__
-
-    model_file = args.model_dir + '/' + model_name + '_checkpoint.pt'
+    model_save_filename = args.model_dir + '/' + model_name + '_checkpoint.pt'
 
     if args.load_model:
+        model_load_filename = args.model_dir + '/' + args.load_filename
         try:
-            para = torch.load(args.load_filename)
+            para = torch.load(model_load_filename)
             model.load_state_dict(para)
         except Exception as e:
             print(e)
@@ -148,15 +148,15 @@ def main():
     if args.train:
         criterion = nn.CrossEntropyLoss()
         # train_loss, valid_loss = train_model(model, device, train_loader, valid_loader, criterion, optimizer,
-        #                                      args.epochs, filename=model_file, score_type='loss',
+        #                                      args.epochs, filename=model_save_filename, score_type='loss',
         #                                      scheduler=scheduler)
         _, _, _ = train_model(model, device, train_loader, test_loader, criterion, optimizer, args.epochs,
-                              filename=model_file, score_type='accuracy', patience=100, scheduler=scheduler)
+                              filename=model_save_filename, score_type='accuracy', patience=100, scheduler=scheduler)
 
         # print("retrain use full data")
         #
         # train_loss, valid_loss = train_model(model, device, full_train_loader, valid_loader, criterion, optimizer,
-        #                                      args.epochs, filename=model_file)
+        #                                      args.epochs, filename=model_save_filename)
 
     criterion = nn.CrossEntropyLoss(reduction='sum')
     test_model(model, device, test_loader, criterion)

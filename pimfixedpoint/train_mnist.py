@@ -1,7 +1,3 @@
-from __future__ import print_function
-
-import sys
-
 import torch.utils.data
 import argparse
 import torch.nn as nn
@@ -23,37 +19,45 @@ def main():
                         help='number of epochs to train (default: 14)')
     parser.add_argument('--lr', type=float, default=0.0125, metavar='LR',
                         help='learning rate (default: 1.0)')
+    parser.add_argument('--scheduler', action='store_true', default=True,
+                        help='use scheduler or not')
     parser.add_argument('--lr-decay-step', type=int, default=5, metavar='STEP',
                         help='Period of learning rate decay. (default: 30)')
     parser.add_argument('--gamma', type=float, default=0.5, metavar='GAMMA',
                         help='Learning rate step gamma (default: 0.5)')
+    parser.add_argument('--momentum', type=float, default=0, metavar='M',
+                        help='momentum')
+    parser.add_argument('--weight-decay', '--wd', type=float, default=0,
+                        metavar='W', help='weight decay (default: 5e-4)')
     parser.add_argument('--seed', type=int, default=4, metavar='S',
                         help='random seed (default: 1)')
     parser.add_argument('--data-dir', default='data', metavar='DD',
                         help='dir of dataset')
     parser.add_argument('--model-dir', default='model', metavar='MD',
                         help='dir of load/save model')
-    parser.add_argument('--model-file', default='checkpoint.pt', metavar='MF',
-                        help='filename of load/save model')
     parser.add_argument('--load-model', action='store_true', default=False,
-                        help='For Saving the current Model')
+                        help='load the trained model')
+    parser.add_argument('--load-filename', default='123.pt', metavar='LF',
+                        help='filename of load model')
     parser.add_argument('--train', action='store_true', default=True,
                         help='train the model')
-    parser.add_argument('--pim', action='store_true', default=True,
-                        help='For use pim')
+    parser.add_argument('--fixed-point', action='store_true', default=False,
+                        help='For use fixed point')
     parser.add_argument('--net', type=int, default=0, metavar='NET',
                         help='use which model (0:conv 1:fc)')
-    parser.add_argument('--no-cuda', action='store_true', default=False,
-                        help='disables CUDA training')
+    parser.add_argument('--cuda', action='store_true', default=True,
+                        help='use CUDA training')
     parser.add_argument('--cuda_use_num', type=int, default=0, metavar='CUDA',
-                        help='use which cuda (choice: 0-2)')
+                        help='use which cuda (choice: 0-1)')
 
     args = parser.parse_args()
+    print(args)
 
     torch.manual_seed(args.seed)
 
-    use_cuda = not args.no_cuda and torch.cuda.is_available()
+    use_cuda = args.cuda and torch.cuda.is_available()
     device = torch.device("cuda:" + str(args.cuda_use_num) if use_cuda else "cpu")
+    print(f"device: {device}")
 
     train_kwargs = {'batch_size': args.train_batch_size}
     test_kwargs = {'batch_size': args.test_batch_size}
@@ -71,10 +75,9 @@ def main():
     train_data = datasets.MNIST(root=args.data_dir, train=True, download=True, transform=transform)
     test_data = datasets.MNIST(root=args.data_dir, train=False, download=True, transform=transform)
 
-    train_loader, test_loader, _ = \
-        split_data_loader(train_data, test_data, train_kwargs, test_kwargs)
+    train_loader, test_loader, _ = split_data_loader(train_data, test_data, train_kwargs, test_kwargs)
 
-    if args.pim:
+    if args.fixed_point:
         if args.net == 0:
             model = PimConvMnist(args.train_batch_size, device=device).to(device)
             # model = FixedPointSimpleConvNet(args.train_batch_size, device=device).to(device)
@@ -82,39 +85,44 @@ def main():
         elif args.net == 1:
             model = PimFcMnist(args.train_batch_size, device=device).to(device)
         else:
-            print("undefined net!")
-            sys.exit()
+            raise Exception('undefined net: ' + str(args.net))
+
         optimizer = fpOptim.SGD(model.named_parameters(), lr=args.lr, momentum=0.9, run_mode=fpOptim.OptimMode.full_fix)
+        # print(f'model.para {model.named_parameters()}')
+        # print(f'model.para {model.parameters()}')
     else:
         if args.net == 0:
             model = ConvMnist().to(device)
         elif args.net == 1:
             model = FcMnist().to(device)
         else:
-            print("undefined net!")
-            sys.exit()
+            raise Exception('undefined net: ' + str(args.net))
+
         # optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
         optimizer = optim.SGD(model.parameters(), lr=args.lr)
 
     print(model)
 
     model_name = type(model).__name__
-    model_file = args.model_dir + '/' + model_name + '_' + args.model_file
+    model_save_filename = args.model_dir + '/' + model_name + '_checkpoint.pt'
 
     if args.load_model:
+        model_load_filename = args.model_dir + '/' + args.load_filename
         try:
-            para = torch.load(model_file)
+            para = torch.load(model_load_filename)
             model.load_state_dict(para)
         except Exception as e:
             print(e)
 
-    criterion = nn.CrossEntropyLoss()
-
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=args.lr_decay_step, gamma=args.gamma)
+    if args.scheduler:
+        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=args.lr_decay_step, gamma=args.gamma)
+    else:
+        scheduler = None
 
     if args.train:
+        criterion = nn.CrossEntropyLoss()
         _, _, _ = train_model(model, device, train_loader, test_loader, criterion, optimizer, args.epochs,
-                              filename=model_file, scheduler=scheduler)
+                              filename=model_save_filename, scheduler=scheduler)
 
     criterion = nn.CrossEntropyLoss(reduction='sum')
     test_model(model, device, test_loader, criterion)

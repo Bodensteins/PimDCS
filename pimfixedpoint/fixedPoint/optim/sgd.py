@@ -18,11 +18,9 @@ class SGD(Optimizer):
         if momentum < 0.0:
             raise ValueError("Invalid momentum value: {}".format(momentum))
         if weight_decay < 0.0:
-            raise ValueError(
-                "Invalid weight_decay value: {}".format(weight_decay))
+            raise ValueError("Invalid weight_decay value: {}".format(weight_decay))
         if nesterov and (momentum <= 0 or dampening != 0):
-            raise ValueError(
-                "Nesterov momentum requires a momentum and zero dampening")
+            raise ValueError("Nesterov momentum requires a momentum and zero dampening")
         self.runMode = run_mode
 
         defaults = dict(
@@ -62,6 +60,7 @@ class SGD(Optimizer):
             params.append({"params": list(layer_params), "is_pim_params": True})
         params.append({"params": torch_param_groups, "is_pim_params": False})
 
+        print(params)
         super(SGD, self).__init__(params, defaults)
 
     @torch.no_grad()
@@ -85,7 +84,6 @@ class SGD(Optimizer):
                 d_wt = wtArr.grad
                 if d_wt is not None:
                     if self.runMode == OptimMode.full_fix:
-                        # print("d_wt:here")
                         delta_wt = fpA.mul_num([d_wt, d_wt_cfg], -lr)
                         fpA.add_alpha_tensor_([wtArr, wtArr_cfg], delta_wt)
                         temp_tensor, temp_cfg = fpA.parse_tensor_list_to_int(delta_wt)

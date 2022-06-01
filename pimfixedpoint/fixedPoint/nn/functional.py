@@ -90,14 +90,13 @@ class dropout(Function):
 
 class linear(Function):
     @staticmethod
-    def forward(ctx, fp_input, fp_input_config, fp_weight, fp_weight_config, delta_fp_weight_config,
-                input_bit_width: int, grad_output_bit_width: int, has_bias: bool):
+    def forward(ctx, fp_input, fp_input_config, fp_weight, fp_weight_config, has_bias: bool,
+                input_bit_width: int, grad_output_bit_width: int):
         if has_bias:
             fp_input = fpA.add_additional_col_of_one([fp_input, fp_input_config])
 
         # todo: optimize here
-        ctx.save_for_backward(fp_input.clone(), fp_input_config.clone(), fp_weight, fp_weight_config,
-                              delta_fp_weight_config)
+        ctx.save_for_backward(fp_input.clone(), fp_input_config.clone(), fp_weight, fp_weight_config)
 
         fpA.set_bit_width_([fp_input, fp_input_config], input_bit_width)
 
@@ -113,7 +112,7 @@ class linear(Function):
         if debug_backward is True:
             pydevd.settrace(suspend=False, trace_only_current_thread=True)
 
-        qinputArr, qinputArr_config, qweight, qweight_config, delta_qweight_config = ctx.saved_tensors
+        qinputArr, qinputArr_config, qweight, qweight_config = ctx.saved_tensors
         hasBias = ctx.hasBias
         qgrad_output_bits = ctx.gradOutputBits
         fpA.set_bit_width_([qgrad_output, qgrad_output_config], qgrad_output_bits)
@@ -121,12 +120,10 @@ class linear(Function):
         qgrad_input, qgrad_input_config = fpA.fixed_point_matmul([qgrad_output, qgrad_output_config],
                                                                  [qweight, qweight_config])
 
-
         if hasBias:
             qgrad_input = qgrad_input[:, 0:-1]
 
-        # todo: may be simplified
-        delta_qweight, _ = fpA.fixed_point_t_matmul([qgrad_output, qgrad_output_config], [qinputArr, qinputArr_config],
-                                                    delta_qweight_config)
+        fp_delta_weight, fp_delta_weight_cfg \
+            = fpA.fixed_point_matmul([qgrad_output.t(), qgrad_output_config], [qinputArr, qinputArr_config])
 
-        return qgrad_input, qgrad_input_config, delta_qweight, None, None, None, None, None
+        return qgrad_input, qgrad_input_config, fp_delta_weight, fp_delta_weight_cfg, None, None, None

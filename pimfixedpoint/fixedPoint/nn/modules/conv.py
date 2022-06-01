@@ -49,8 +49,8 @@ class Conv2d(Module):
         self.fp_weight = None
 
         # this bit_width is not used in fact.
-        self.fp_delta_weight_cfg = torch.nn.Parameter(
-            creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Normal))
+        # self.fp_delta_weight_cfg = torch.nn.Parameter(
+        #     creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Normal))
 
         if static_tensor_mode == "NormalTensor":
             self.fp_weight_cfg = torch.nn.Parameter(
@@ -88,8 +88,7 @@ class Conv2d(Module):
 
         # re-use linear function to get the answer
         qoutput, qoutput_config = fpF.linear.apply(fp_input, qinput_config, self.fp_weight, self.fp_weight_cfg,
-                                                   self.fp_delta_weight_cfg, self.inputBits, self.gradOutputBits,
-                                                   self.hasBias)
+                                                   self.hasBias, self.inputBits, self.gradOutputBits)
 
         # reshape the output to the conv-shape
         # Here, for simplicity, we use dequan & fold & quan to simulate fixed-point fold

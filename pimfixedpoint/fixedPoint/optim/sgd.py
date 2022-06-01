@@ -34,22 +34,19 @@ class SGD(Optimizer):
 
         fp_weight_list = []
         fp_weight_cfg_list = []
-        fp_delta_weight_cfg_list = []
-        # weight_list = []
         torch_param_groups = []
 
         for name, param in named_parameters:
             if 'fp_weight_cfg' in name:
                 fp_weight_cfg_list.append(param)
-            elif 'fp_delta_weight_cfg' in name:
-                fp_delta_weight_cfg_list.append(param)
             elif 'fp_weight' in name:
                 fp_weight_list.append(param)
             else:
+                print('here is named_parameters')
                 print(name, param.shape)
                 torch_param_groups.append(param)
 
-        for layer_params in zip(fp_weight_list, fp_weight_cfg_list, fp_delta_weight_cfg_list):
+        for layer_params in zip(fp_weight_list, fp_weight_cfg_list):
             params.append({"params": list(layer_params), "is_pim_params": True})
         params.append({"params": torch_param_groups, "is_pim_params": False})
 
@@ -72,8 +69,9 @@ class SGD(Optimizer):
                 nesterov = group['nesterov']
                 lr = group['lr']
 
-                fp_weight, fp_weight_cfg, d_w_cfg = group["params"]
+                fp_weight, fp_weight_cfg = group["params"]
                 d_w = fp_weight.grad
+                d_w_cfg = fp_weight_cfg.grad
                 if d_w is not None:
                     if self.runMode == OptimMode.full_fix:
                         sub_weight = fpA.mul_num([d_w, d_w_cfg], -lr)

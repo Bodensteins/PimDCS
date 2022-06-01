@@ -28,10 +28,6 @@ class Linear(Module):
         else:
             raise Exception("We don't implement this tensor mode: " + weight_tensor_mode)
 
-        # this bit_width is not used in fact.
-        self.fp_delta_weight_cfg \
-            = Parameter(creat_quantization_para(bit_width=weight_bit_width, tensor_type=TensorType.Normal))
-
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -50,8 +46,7 @@ class Linear(Module):
 
     def forward(self, qinput, qinput_config):
         qoutput, qoutput_config = fpF.linear.apply(qinput, qinput_config, self.fp_weight, self.fp_weight_cfg,
-                                                   self.fp_delta_weight_cfg, self.inputBits, self.gradOutputBits,
-                                                   self.hasBias)
+                                                   self.hasBias, self.inputBits, self.gradOutputBits)
 
         return qoutput, qoutput_config
 

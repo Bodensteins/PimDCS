@@ -97,3 +97,6 @@ class Conv2d(Module):
         output = torch.nn.functional.fold(output, self.output_size, (1, 1))
 
         return output
+
+    def extra_repr(self) -> str:
+        return 'to be finished'

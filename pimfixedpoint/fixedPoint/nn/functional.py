@@ -91,21 +91,9 @@ class dropout(Function):
 class linear(Function):
     @staticmethod
     def forward(ctx, fp_input, fp_input_config, fp_weight, fp_weight_config, delta_fp_weight_config,
-                input_bit_width: int, grad_output_bit_width: int, has_bias: bool, _input, weight):
+                input_bit_width: int, grad_output_bit_width: int, has_bias: bool):
         if has_bias:
             fp_input = fpA.add_additional_col_of_one([fp_input, fp_input_config])
-            if _input is not None:
-                full_one_col = torch.full([_input.size()[0], 1], 1, dtype=_input.dtype, device=_input.device)
-                _input = torch.cat((_input, full_one_col), 1)
-
-        ctx.has_origin_input = False
-        output = None
-        if _input is not None:
-            # todo: modify here, may have bugs
-            output = torch.matmul(_input, weight)
-            ctx.input = _input
-            ctx.pim_weight = weight
-            ctx.has_origin_input = True
 
         # todo: optimize here
         ctx.save_for_backward(fp_input.clone(), fp_input_config.clone(), fp_weight, fp_weight_config,
@@ -118,10 +106,10 @@ class linear(Function):
         ctx.gradOutputBits = grad_output_bit_width
         ctx.hasBias = has_bias
 
-        return qoutput, qoutput_config, output
+        return qoutput, qoutput_config
 
     @staticmethod
-    def backward(ctx, qgrad_output, qgrad_output_config, grad_output):
+    def backward(ctx, qgrad_output, qgrad_output_config):
         if debug_backward is True:
             pydevd.settrace(suspend=False, trace_only_current_thread=True)
 
@@ -133,20 +121,12 @@ class linear(Function):
         qgrad_input, qgrad_input_config = fpA.fixed_point_matmul([qgrad_output, qgrad_output_config],
                                                                  [qweight, qweight_config])
 
-        grad_input = None
-        d_w = None
-        if ctx.has_origin_input:
-            grad_input = torch.matmul(grad_output, ctx.pim_weight.t())
-            d_w = torch.matmul(grad_output.t(), ctx.input).t()
 
         if hasBias:
             qgrad_input = qgrad_input[:, 0:-1]
-            if ctx.has_origin_input:
-                grad_input = grad_input[:, 0:-1]
 
         # todo: may be simplified
-        delta_qweight, _ = \
-            fpA.fixed_point_t_matmul([qgrad_output, qgrad_output_config], [qinputArr, qinputArr_config],
+        delta_qweight, _ = fpA.fixed_point_t_matmul([qgrad_output, qgrad_output_config], [qinputArr, qinputArr_config],
                                      delta_qweight_config)
 
-        return qgrad_input, qgrad_input_config, delta_qweight, None, None, None, None, None, grad_input, d_w
+        return qgrad_input, qgrad_input_config, delta_qweight, None, None, None, None, None

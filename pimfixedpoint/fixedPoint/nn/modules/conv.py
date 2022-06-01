@@ -98,9 +98,9 @@ class Conv2d(Module):
         fp_input, qinput_config = fpF.quan.apply(_input, self.inputBits)
 
         # re-use pimlinerfunction to get the answer
-        qoutput, qoutput_config, _ = \
-            fpF.linear.apply(fp_input, qinput_config, self.fp_weight, self.fp_weight_cfg, self.fp_delta_weight_cfg,
-                             self.inputBits, self.gradOutputBits, self.hasBias, None, self.pim_weight)
+        qoutput, qoutput_config= fpF.linear.apply(fp_input, qinput_config, self.fp_weight, self.fp_weight_cfg,
+                                                  self.fp_delta_weight_cfg, self.inputBits, self.gradOutputBits,
+                                                  self.hasBias)
 
         # reshape the qoutput to the conv-shape
         # Here, for simpicity, we use dequan & fold & quan to simulate fixed-point fold

@@ -61,10 +61,10 @@ class Linear(Module):
         # self.pim_wtArr = torch.nn.Parameter(
         #     quantization_tensor(self.pim_wtArr_cfg, temp_weight.t()))
 
-    def forward(self, qinput, qinput_config, _input=None):
-        qoutput, qoutput_config, _ = fpF.linear.apply(qinput, qinput_config, self.fp_weight, self.fp_weight_cfg,
-                                                      self.fp_delta_weight_cfg, self.inputBits,
-                                                      self.gradOutputBits, self.hasBias, _input, self.pim_weight)
+    def forward(self, qinput, qinput_config):
+        qoutput, qoutput_config = fpF.linear.apply(qinput, qinput_config, self.fp_weight, self.fp_weight_cfg,
+                                                   self.fp_delta_weight_cfg, self.inputBits, self.gradOutputBits,
+                                                   self.hasBias)
 
         return qoutput, qoutput_config
 

@@ -32,35 +32,29 @@ class SGD(Optimizer):
         )
         params = []
 
-        wtArray = []
-        wArray = []
-        wArray_cfgs = []
-        wtArray_cfgs = []
-        delta_qweight_t_cfgs = []
-        weight = []
+        fp_weight_list = []
+        fp_weight_cfg_list = []
+        fp_delta_weight_cfg_list = []
+        weight_list = []
         torch_param_groups = []
 
         for name, param in named_parameters:
-            if 'pim_wArr_cfg' in name:
-                wArray_cfgs.append(param)
-            elif 'pim_wtArr_cfg' in name:
-                wtArray_cfgs.append(param)
-            elif 'pim_delta_qweight_t_cfg' in name:
-                delta_qweight_t_cfgs.append(param)
-            elif 'pim_wArr' in name:
-                wArray.append(param)
-            elif 'pim_wtArr' in name:
-                wtArray.append(param)
+            if 'fp_weight_cfg' in name:
+                fp_weight_cfg_list.append(param)
+            elif 'fp_delta_weight_cfg' in name:
+                fp_delta_weight_cfg_list.append(param)
+            elif 'fp_weight' in name:
+                fp_weight_list.append(param)
             elif 'pim_weight' in name:
-                weight.append(param)
+                weight_list.append(param)
             else:
+                print(name, param.shape)
                 torch_param_groups.append(param)
 
-        for layer_params in zip(wArray, wArray_cfgs, wtArray, wtArray_cfgs, weight, delta_qweight_t_cfgs):
+        for layer_params in zip(fp_weight_list, fp_weight_cfg_list, weight_list, fp_delta_weight_cfg_list):
             params.append({"params": list(layer_params), "is_pim_params": True})
         params.append({"params": torch_param_groups, "is_pim_params": False})
 
-        print(params)
         super(SGD, self).__init__(params, defaults)
 
     @torch.no_grad()
@@ -80,37 +74,39 @@ class SGD(Optimizer):
                 nesterov = group['nesterov']
                 lr = group['lr']
 
-                wArr, wArr_cfg, wtArr, wtArr_cfg, weight, d_wt_cfg = group["params"]
-                d_wt = wtArr.grad
-                if d_wt is not None:
+                fp_weight, fp_weight_cfg, weight, d_w_cfg = group["params"]
+                d_w = fp_weight.grad
+                if d_w is not None:
                     if self.runMode == OptimMode.full_fix:
-                        delta_wt = fpA.mul_num([d_wt, d_wt_cfg], -lr)
-                        fpA.add_alpha_tensor_([wtArr, wtArr_cfg], delta_wt)
-                        temp_tensor, temp_cfg = fpA.parse_tensor_list_to_int(delta_wt)
-                        fpA.add_alpha_tensor_([wArr, wArr_cfg], [temp_tensor.t(), temp_cfg])
-                        wtArr.grad = None
+                        modify_weight = fpA.mul_num([d_w, d_w_cfg], -lr)
+                        fpA.add_alpha_tensor_([fp_weight, fp_weight_cfg], modify_weight)
+                        fp_weight.grad = None  # todo: this should in zero method, not here
                     elif self.runMode == OptimMode.float_weight:
-                        weight_grad = fpA.de_quantization(fpA.mul_num([d_wt.t(), d_wt_cfg], -lr))
-                        weight.add_(weight_grad)
-                        temp = fpA.creat_quantization_para(bit_width=16,
-                                                           tensor_type=fpA.TensorType.Normal,
-                                                           device=d_wt.device)
-                        x = fpA.quantization_tensor(temp, weight)
-                        fpA.write_tensor_([wArr, wArr_cfg], [x, temp])
-                        x = fpA.quantization_tensor(temp, weight.t())
-                        fpA.write_tensor_([wtArr, wtArr_cfg], [x, temp])
-                        wtArr.grad = None
-                        weight.grad = None
+                        print("unsupported mode")
+                        pass
+                        # weight_grad = fpA.de_quantization(fpA.mul_num([d_w.t(), d_w_cfg], -lr))
+                        # weight.add_(weight_grad)
+                        # temp = fpA.creat_quantization_para(bit_width=16,
+                        #                                    tensor_type=fpA.TensorType.Normal,
+                        #                                    device=d_w.device)
+                        # x = fpA.quantization_tensor(temp, weight)
+                        # fpA.write_tensor_([fp_weight, fp_weight_cfg], [x, temp])
+                        # x = fpA.quantization_tensor(temp, weight.t())
+                        # fpA.write_tensor_([wtArr, wtArr_cfg], [x, temp])
+                        # wtArr.grad = None
+                        # weight.grad = None
                     elif self.runMode == OptimMode.full_float:
-                        weight.add_(weight.grad * (-lr))
-                        temp = fpA.creat_quantization_para(bit_width=16,
-                                                           tensor_type=fpA.TensorType.Normal)
-                        x = fpA.quantization_tensor(temp, weight)
-                        fpA.write_tensor_([wArr, wArr_cfg], [x, temp])
-                        x = fpA.quantization_tensor(temp, weight.t())
-                        fpA.write_tensor_([wtArr, wtArr_cfg], [x, temp])
-                        wtArr.grad = None
-                        weight.grad = None
+                        print("unsupported mode")
+                        pass
+                        # weight.add_(weight.grad * (-lr))
+                        # temp = fpA.creat_quantization_para(bit_width=16,
+                        #                                    tensor_type=fpA.TensorType.Normal)
+                        # x = fpA.quantization_tensor(temp, weight)
+                        # fpA.write_tensor_([fp_weight, fp_weight_cfg], [x, temp])
+                        # x = fpA.quantization_tensor(temp, weight.t())
+                        # fpA.write_tensor_([wtArr, wtArr_cfg], [x, temp])
+                        # wtArr.grad = None
+                        # weight.grad = None
             else:
                 # Pytorch SGD
 

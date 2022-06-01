@@ -143,8 +143,7 @@ def parse_tensor_list_to_int(tensor_list: list):
     return int_tensor, quantization_para
 
 
-def creat_quantization_para(s: int = None, bit_width: int = None, tensor_type: TensorType = None,
-                            device: torch.device = torch.device("cpu")):
+def creat_quantization_para(s: int = None, bit_width: int = None, tensor_type: TensorType = None, device=None):
     quantization_para = torch.empty(3, dtype=torch_int, device=device)
     if s is not None:
         quantization_para[0] = s

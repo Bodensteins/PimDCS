@@ -6,15 +6,15 @@ import torch.nn.functional
 from .. import functional as fpF
 from ..fixedPointArithmetic import creat_quantization_para, quantization_tensor
 from torch.nn import Module
-from ..commonConst import TensorType, torch_float
+from ..commonConst import TensorType
 from typing import Tuple
 
 
 class Conv2d(Module):
-    def __init__(self, input_shape: List, output_chs: int, kernel_size: Tuple, batch_size: int, stride: int = 1,
-                 padding: int = 0, dilation: int = 1, inputBits: int = 16, weightBits: int = 16,
-                 gradOutputBits: int = 16, static_tensor_mode: str = "NormalTensor", quantizerMode: str = "",
-                 bias: bool = True, device: torch.device = torch.device("cpu")):
+    def __init__(self, input_shape: List, output_chs: int, kernel_size: Tuple, stride: int = 1, padding: int = 0,
+                 dilation: int = 1, inputBits: int = 16, weightBits: int = 16, gradOutputBits: int = 16,
+                 static_tensor_mode: str = "NormalTensor", quantizerMode: str = "", bias: bool = True,
+                 device: torch.device = torch.device("cpu")):
         # todo: don't have some para
         super().__init__()
         self.output_chs = output_chs
@@ -51,19 +51,19 @@ class Conv2d(Module):
         self.device = device
 
         # this bit_width is not used in fact.
-        self.pim_delta_qweight_t_cfg = torch.nn.Parameter(
+        self.fp_delta_weight_cfg = torch.nn.Parameter(
             creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Normal, device=device))
 
         if static_tensor_mode == "NormalTensor":
-            self.pim_inArr_cfg = creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Normal,
-                                                         device=device)
-            self.pim_wArr_cfg = torch.nn.Parameter(
+            # self.pim_inArr_cfg = creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Normal,
+            #                                              device=device)
+            self.fp_weight_cfg = torch.nn.Parameter(
                 creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Normal, device=device))
-            self.pim_wtArr_cfg = torch.nn.Parameter(
-                creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Normal, device=device))
+            # self.pim_wtArr_cfg = torch.nn.Parameter(
+            #     creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Normal, device=device))
 
-            input_array_row = batch_size * self.output_size[0] * self.output_size[1]
-            self.inputArr = torch.empty([input_array_row, self.m], dtype=torch_float, device=device)
+            # input_array_row = batch_size * self.output_size[0] * self.output_size[1]
+            # self.inputArr = torch.empty([input_array_row, self.m], dtype=torch_float, device=device)
         else:
             raise Exception("We don't implement this tensor mode!", static_tensor_mode)
 
@@ -73,21 +73,19 @@ class Conv2d(Module):
         temp_weight = torch.empty([self.output_chs, self.input_chs, self.kernel_h, self.kernel_w], device=self.device)
         torch.nn.init.kaiming_uniform_(temp_weight, math.sqrt(5))
 
-        temp_weight = temp_weight.reshape(self.output_chs, -1).T
+        temp_weight = temp_weight.reshape(self.output_chs, -1)
 
         if self.hasBias:
             temp_bias = torch.empty(self.output_chs, device=self.device)
-            _, fan_in = torch.nn.init._calculate_fan_in_and_fan_out(temp_weight)  # our weight is different
+            fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(temp_weight)  # our weight is different
             bound = 1 / math.sqrt(fan_in)
             torch.nn.init.uniform_(temp_bias, -bound, bound)
-            temp_bias = temp_bias.unsqueeze(0)
-            temp_weight = torch.cat((temp_weight, temp_bias), 0)
+            temp_bias = temp_bias.unsqueeze(1)
+            temp_weight = torch.cat((temp_weight, temp_bias), 1)
 
         self.pim_weight = torch.nn.Parameter(temp_weight.clone().detach().requires_grad_())
-        self.pim_wArr = torch.nn.Parameter(
-            quantization_tensor(self.pim_wArr_cfg, temp_weight))
-        self.pim_wtArr = torch.nn.Parameter(
-            quantization_tensor(self.pim_wtArr_cfg, temp_weight.t()))
+        self.fp_weight = torch.nn.Parameter(
+            quantization_tensor(self.fp_weight_cfg, temp_weight))
 
     def forward(self, _input: Tensor):
         # reshaple qinput to the matrix-shape
@@ -100,18 +98,9 @@ class Conv2d(Module):
         fp_input, qinput_config = fpF.quan.apply(_input, self.inputBits)
 
         # re-use pimlinerfunction to get the answer
-        if self.training:
-            qoutput, qoutput_config, _ = \
-                fpF.linear.apply(fp_input, qinput_config, self.inputArr, self.pim_inArr_cfg, self.pim_wArr,
-                                        self.pim_wArr_cfg, self.pim_wtArr, self.pim_wtArr_cfg,
-                                        self.pim_delta_qweight_t_cfg,
-                                        self.inputBits, self.gradOutputBits, self.hasBias, None, self.pim_weight)
-        else:
-            qoutput, qoutput_config, _ = \
-                fpF.linear.apply(fp_input, qinput_config, None, self.pim_inArr_cfg, self.pim_wArr,
-                                        self.pim_wArr_cfg, self.pim_wtArr, self.pim_wtArr_cfg,
-                                        self.pim_delta_qweight_t_cfg,
-                                        self.inputBits, self.gradOutputBits, self.hasBias, None, self.pim_weight)
+        qoutput, qoutput_config, _ = \
+            fpF.linear.apply(fp_input, qinput_config, self.fp_weight, self.fp_weight_cfg, self.fp_delta_weight_cfg,
+                             self.inputBits, self.gradOutputBits, self.hasBias, None, self.pim_weight)
 
         # reshape the qoutput to the conv-shape
         # Here, for simpicity, we use dequan & fold & quan to simulate fixed-point fold

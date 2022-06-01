@@ -108,7 +108,7 @@ def main():
     if args.fixed_point:
         if args.net == 0:
             # model = fp_vgg19(args.train_batch_size, device=device, batch_norm=True).to(device)
-            model = fp_vgg11(args.train_batch_size, device=device, batch_norm=True).to(device)
+            model = fp_vgg11(batch_norm=True).to(device)
             model.double()
             # model = FixedPointVGG13(args.train_batch_size, device=device).to(device)
         elif args.net == 1:

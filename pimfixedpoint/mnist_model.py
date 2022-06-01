@@ -1,4 +1,3 @@
-import torch
 import fixedPoint as fp
 import torch.nn as nn
 import torch.nn.functional as F
@@ -22,13 +21,12 @@ class FcMnist(nn.Module):
 
 
 class PimFcMnist(nn.Module):
-    def __init__(self, batch_size, device: torch.device = torch.device("cpu")):
+    def __init__(self):
         super().__init__()
-        self.device = device
         self.flatten = nn.Flatten()
         self.quan = fpnn.Quan(fp.half_data_flow_bit_width)
-        self.fc1 = fpnn.Linear(784, 128, batch_size, 16, 16, 16, device=device)
-        self.fc2 = fpnn.Linear(128, 10, batch_size, 16, 16, 16, device=device)
+        self.fc1 = fpnn.Linear(784, 128)
+        self.fc2 = fpnn.Linear(128, 10)
         self.relu = fpnn.ReLU()
         self.dequan = fpnn.DeQuan(fp.half_data_flow_bit_width)
 
@@ -64,19 +62,18 @@ class ConvMnist(nn.Module):
 
 
 class PimConvMnist(nn.Module):
-    def __init__(self, batch_size, device: torch.device = torch.device("cpu")):
+    def __init__(self):
         super().__init__()
-        self.device = device
-        self.conv = fpnn.MulInputSequential(fpnn.Conv2d([1, 28, 28], 10, (5, 5), batch_size, device=device),
+        self.conv = fpnn.MulInputSequential(fpnn.Conv2d([1, 28, 28], 10, (5, 5)),
                                             nn.ReLU(),
                                             nn.MaxPool2d(kernel_size=(2, 2), stride=2),
-                                            fpnn.Conv2d([10, 12, 12], 20, (5, 5), batch_size, device=device),
+                                            fpnn.Conv2d([10, 12, 12], 20, (5, 5)),
                                             nn.ReLU(),
                                             nn.MaxPool2d(kernel_size=(2, 2), stride=2),
                                             nn.Flatten(),
                                             fpnn.Quan(fp.half_data_flow_bit_width),
                                             fpnn.Dropout(p=0.2),
-                                            fpnn.Linear(4 * 4 * 20, 10, batch_size, device=device),
+                                            fpnn.Linear(4 * 4 * 20, 10),
                                             fpnn.DeQuan(fp.half_data_flow_bit_width))
 
     def forward(self, x):
@@ -86,18 +83,16 @@ class PimConvMnist(nn.Module):
 
 
 class FixedPointSimpleConvNet(nn.Module):
-    def __init__(self, batch_size, device: torch.device = torch.device("cpu")):
+    def __init__(self):
         super().__init__()
-        self.device = device
-
-        self.conv = fpnn.MulInputSequential(fpnn.Conv2d([1, 28, 28], 30, (5, 5), batch_size, device=device),
+        self.conv = fpnn.MulInputSequential(fpnn.Conv2d([1, 28, 28], 30, (5, 5)),
                                             nn.ReLU(),
                                             nn.MaxPool2d(kernel_size=2, stride=2),
                                             nn.Flatten(),
                                             fpnn.Quan(fp.half_data_flow_bit_width),
-                                            fpnn.Linear(12 * 12 * 30, 100, batch_size, device=device),
+                                            fpnn.Linear(12 * 12 * 30, 100),
                                             fpnn.ReLU(),
-                                            fpnn.Linear(100, 10, batch_size, device=device),
+                                            fpnn.Linear(100, 10),
                                             fpnn.DeQuan(fp.half_data_flow_bit_width)
                                             )
 

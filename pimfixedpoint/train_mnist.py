@@ -41,7 +41,7 @@ def main():
                         help='filename of load model')
     parser.add_argument('--train', action='store_true', default=True,
                         help='train the model')
-    parser.add_argument('--fixed-point', action='store_true', default=False,
+    parser.add_argument('--fixed-point', action='store_true', default=True,
                         help='For use fixed point')
     parser.add_argument('--net', type=int, default=0, metavar='NET',
                         help='use which model (0:conv 1:fc)')
@@ -79,11 +79,12 @@ def main():
 
     if args.fixed_point:
         if args.net == 0:
-            model = PimConvMnist(args.train_batch_size, device=device).to(device)
+            # model = PimConvMnist(args.train_batch_size, device=device).to(device)
+            model = PimConvMnist().to(device)
             # model = FixedPointSimpleConvNet(args.train_batch_size, device=device).to(device)
             # model.double()
         elif args.net == 1:
-            model = PimFcMnist(args.train_batch_size, device=device).to(device)
+            model = PimFcMnist().to(device)
         else:
             raise Exception('undefined net: ' + str(args.net))
 

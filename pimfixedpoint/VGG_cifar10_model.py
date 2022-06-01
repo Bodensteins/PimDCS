@@ -45,28 +45,28 @@ class FixedPointVGG8B(nn.Module):
         self.device = device
 
         self.conv = \
-            fpnn.MulInputSequential(fpnn.Conv2d([3, 32, 32], 128, (3, 3), batch_size, padding=1, device=device),
+            fpnn.MulInputSequential(fpnn.Conv2d([3, 32, 32], 128, (3, 3), padding=1),
                                     nn.ReLU(),
-                                    fpnn.Conv2d([128, 32, 32], 256, (3, 3), batch_size, padding=1, device=device),
-                                    nn.ReLU(),
-                                    nn.MaxPool2d(kernel_size=(2, 2), stride=2),
-                                    fpnn.Conv2d([256, 16, 16], 256, (3, 3), batch_size, padding=1, device=device),
-                                    nn.ReLU(),
-                                    fpnn.Conv2d([256, 16, 16], 512, (3, 3), batch_size, padding=1, device=device),
+                                    fpnn.Conv2d([128, 32, 32], 256, (3, 3), padding=1),
                                     nn.ReLU(),
                                     nn.MaxPool2d(kernel_size=(2, 2), stride=2),
-                                    fpnn.Conv2d([512, 8, 8], 512, (3, 3), batch_size, padding=1, device=device),
+                                    fpnn.Conv2d([256, 16, 16], 256, (3, 3), padding=1),
+                                    nn.ReLU(),
+                                    fpnn.Conv2d([256, 16, 16], 512, (3, 3), padding=1),
                                     nn.ReLU(),
                                     nn.MaxPool2d(kernel_size=(2, 2), stride=2),
-                                    fpnn.Conv2d([512, 4, 4], 512, (3, 3), batch_size, padding=1, device=device),
+                                    fpnn.Conv2d([512, 8, 8], 512, (3, 3), padding=1),
+                                    nn.ReLU(),
+                                    nn.MaxPool2d(kernel_size=(2, 2), stride=2),
+                                    fpnn.Conv2d([512, 4, 4], 512, (3, 3), padding=1),
                                     nn.ReLU(),
                                     nn.MaxPool2d(kernel_size=(2, 2), stride=2),
                                     nn.Flatten(),
                                     fpnn.Quan(fp.half_data_flow_bit_width),
-                                    fpnn.Linear(2048, 1024, batch_size=batch_size, device=device),
+                                    fpnn.Linear(2048, 1024),
                                     fpnn.ReLU(),
                                     fpnn.Dropout(p=0.2),
-                                    fpnn.Linear(1024, 10, batch_size=batch_size, device=device),
+                                    fpnn.Linear(1024, 10),
                                     fpnn.Dropout(p=0.2),
                                     fpnn.DeQuan(fp.half_data_flow_bit_width)
                                     )
@@ -151,19 +151,19 @@ class FixedPointVGG(nn.Module):
     """
     VGG model. different in dropout position
     """
-    def __init__(self, features, batch_size, device):
+    def __init__(self, features):
         super(FixedPointVGG, self).__init__()
         self.features = features
         self.classifier = fpnn.MulInputSequential(
             nn.Flatten(),
             fpnn.Quan(fp.half_data_flow_bit_width),
-            fpnn.Linear(512, 512, batch_size=batch_size, device=device),
+            fpnn.Linear(512, 512),
             fpnn.ReLU(),
             fpnn.Dropout(),
-            fpnn.Linear(512, 512, batch_size=batch_size, device=device),
+            fpnn.Linear(512, 512),
             fpnn.ReLU(),
             fpnn.Dropout(),
-            fpnn.Linear(512, 10, batch_size=batch_size, device=device),
+            fpnn.Linear(512, 10),
             fpnn.DeQuan(fp.half_data_flow_bit_width)
         )
 
@@ -173,7 +173,7 @@ class FixedPointVGG(nn.Module):
         return x
 
 
-def fixed_point_make_layers(cfg, batch_size, device, batch_norm=False):
+def fixed_point_make_layers(cfg, batch_norm=False):
     layers = []
     in_channels = 3
     height = 32
@@ -184,8 +184,7 @@ def fixed_point_make_layers(cfg, batch_size, device, batch_norm=False):
             height = height // 2
             width = width // 2
         else:
-            conv2d = fpnn.Conv2d([in_channels, height, width], v, (3, 3),
-                                 batch_size=batch_size, padding=1, device=device)
+            conv2d = fpnn.Conv2d([in_channels, height, width], v, (3, 3), padding=1)
             if batch_norm:
                 layers += [conv2d, nn.BatchNorm2d(v), nn.ReLU()]
             else:
@@ -194,17 +193,11 @@ def fixed_point_make_layers(cfg, batch_size, device, batch_norm=False):
     return nn.Sequential(*layers)
 
 
-def fp_vgg11(batch_size, device, batch_norm=False):
+def fp_vgg11(batch_norm=False):
     """VGG 11-layer model (configuration "A")"""
-    return FixedPointVGG(fixed_point_make_layers(VGG_cfg['A'],
-                                                 batch_size=batch_size,
-                                                 device=device,
-                                                 batch_norm=batch_norm),
-                         batch_size=batch_size, device=device)
+    return FixedPointVGG(fixed_point_make_layers(VGG_cfg['A'], batch_norm=batch_norm))
 
 
-def fp_vgg19(batch_size, device, batch_norm=False):
+def fp_vgg19(batch_norm=False):
     """VGG 19-layer model (configuration "E")"""
-    return FixedPointVGG(fixed_point_make_layers(VGG_cfg['E'],
-                                                 batch_size=batch_size, device=device, batch_norm=batch_norm),
-                         batch_size=batch_size, device=device)
+    return FixedPointVGG(fixed_point_make_layers(VGG_cfg['E'], batch_norm=batch_norm))

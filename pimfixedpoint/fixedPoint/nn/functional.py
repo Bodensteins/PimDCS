@@ -26,7 +26,7 @@ class dequan(Function):
             pydevd.settrace(suspend=False, trace_only_current_thread=True)
         qgrad_output_config = fpA.creat_quantization_para(bit_width=ctx.backBit, tensor_type=TensorType.Normal,
                                                       device=grad_output.device)
-        # print(grad_output)
+
         qgrad_output = fpA.quantization_tensor(qgrad_output_config, grad_output)
 
         return qgrad_output, qgrad_output_config, None, None, None
@@ -127,6 +127,6 @@ class linear(Function):
 
         # todo: may be simplified
         delta_qweight, _ = fpA.fixed_point_t_matmul([qgrad_output, qgrad_output_config], [qinputArr, qinputArr_config],
-                                     delta_qweight_config)
+                                                    delta_qweight_config)
 
         return qgrad_input, qgrad_input_config, delta_qweight, None, None, None, None, None

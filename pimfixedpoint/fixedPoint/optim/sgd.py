@@ -35,7 +35,7 @@ class SGD(Optimizer):
         fp_weight_list = []
         fp_weight_cfg_list = []
         fp_delta_weight_cfg_list = []
-        weight_list = []
+        # weight_list = []
         torch_param_groups = []
 
         for name, param in named_parameters:
@@ -45,13 +45,11 @@ class SGD(Optimizer):
                 fp_delta_weight_cfg_list.append(param)
             elif 'fp_weight' in name:
                 fp_weight_list.append(param)
-            elif 'pim_weight' in name:
-                weight_list.append(param)
             else:
                 print(name, param.shape)
                 torch_param_groups.append(param)
 
-        for layer_params in zip(fp_weight_list, fp_weight_cfg_list, weight_list, fp_delta_weight_cfg_list):
+        for layer_params in zip(fp_weight_list, fp_weight_cfg_list, fp_delta_weight_cfg_list):
             params.append({"params": list(layer_params), "is_pim_params": True})
         params.append({"params": torch_param_groups, "is_pim_params": False})
 
@@ -74,12 +72,12 @@ class SGD(Optimizer):
                 nesterov = group['nesterov']
                 lr = group['lr']
 
-                fp_weight, fp_weight_cfg, weight, d_w_cfg = group["params"]
+                fp_weight, fp_weight_cfg, d_w_cfg = group["params"]
                 d_w = fp_weight.grad
                 if d_w is not None:
                     if self.runMode == OptimMode.full_fix:
-                        modify_weight = fpA.mul_num([d_w, d_w_cfg], -lr)
-                        fpA.add_alpha_tensor_([fp_weight, fp_weight_cfg], modify_weight)
+                        sub_weight = fpA.mul_num([d_w, d_w_cfg], -lr)
+                        fpA.add_alpha_tensor_([fp_weight, fp_weight_cfg], sub_weight)
                         fp_weight.grad = None  # todo: this should in zero method, not here
                     elif self.runMode == OptimMode.float_weight:
                         print("unsupported mode")

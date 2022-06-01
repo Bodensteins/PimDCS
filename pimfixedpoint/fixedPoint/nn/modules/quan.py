@@ -3,7 +3,7 @@ from .. import functional as fpF
 
 
 class Quan(Module):
-    def __init__(self, bit_width):
+    def __init__(self, bit_width=16):
         super().__init__()
         self.bit_width = bit_width
 

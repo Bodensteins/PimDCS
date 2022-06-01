@@ -1,3 +1,5 @@
+import torch.nn.functional
+
 from fixedPoint.nn.fixedPointArithmetic import *
 import torchvision
 
@@ -40,6 +42,7 @@ print(f'max delta: {float_res.sub(de_quantization([static_tensor, static_para]))
 model = torchvision.models.ResNet()
 model = torchvision.models.VGG()
 torch.optim.SGD()
+
 # array_para = creat_quantization_para(bit_width=array_bit_width, tensor_type=TensorType.Normal)
 # array_float_tensor = torch.randn([row_size, col_Size], dtype=torch.float)
 # array_tensor = quantization_tensor(array_para, array_float_tensor, array_float_tensor.abs().max())

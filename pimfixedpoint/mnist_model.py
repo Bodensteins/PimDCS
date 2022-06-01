@@ -71,10 +71,10 @@ class PimConvMnist(nn.Module):
                                             nn.ReLU(),
                                             nn.MaxPool2d(kernel_size=(2, 2), stride=2),
                                             nn.Flatten(),
-                                            fpnn.Quan(fp.half_data_flow_bit_width),
+                                            fpnn.Quan(),
                                             fpnn.Dropout(p=0.2),
                                             fpnn.Linear(4 * 4 * 20, 10),
-                                            fpnn.DeQuan(fp.half_data_flow_bit_width))
+                                            fpnn.DeQuan())
 
     def forward(self, x):
         x = self.conv(x)

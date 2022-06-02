@@ -12,13 +12,13 @@ from torch.nn.modules.utils import _pair
 
 
 class Conv2d(Module):
-    def __init__(self, in_channels: int, output_channels: int, kernel_size: _size_2_t, stride: _size_2_t = 1,
+    def __init__(self, in_channels: int, out_channels: int, kernel_size: _size_2_t, stride: _size_2_t = 1,
                  padding: _size_2_t = 0, dilation: _size_2_t = 1, groups: int = 1, bias: bool = True,
                  padding_mode: str = 'zeros', inputBits: int = 16, weightBits: int = 16, gradOutputBits: int = 16,
                  weight_tensor_mode: str = "NormalTensor", quantizerMode: str = ""):
         super().__init__()
-        self.input_channels = in_channels
-        self.output_channels = output_channels
+        self.in_channels = in_channels
+        self.out_channels = out_channels
         self.kernel_size = _pair(kernel_size)
         self.stride = _pair(stride)
         self.padding = _pair(padding)
@@ -41,13 +41,13 @@ class Conv2d(Module):
         self.reset_parameters()
 
     def reset_parameters(self):
-        temp_weight = torch.empty([self.output_channels, self.input_channels, self.kernel_size[0], self.kernel_size[1]])
+        temp_weight = torch.empty([self.out_channels, self.in_channels, self.kernel_size[0], self.kernel_size[1]])
         init.kaiming_uniform_(temp_weight, math.sqrt(5))
 
-        temp_weight = temp_weight.reshape(self.output_channels, -1)
+        temp_weight = temp_weight.reshape(self.out_channels, -1)
 
         if self.hasBias:
-            temp_bias = torch.empty(self.output_channels)
+            temp_bias = torch.empty(self.out_channels)
             fan_in, _ = init._calculate_fan_in_and_fan_out(temp_weight)
             bound = 1 / math.sqrt(fan_in)
             torch.nn.init.uniform_(temp_bias, -bound, bound)
@@ -65,7 +65,7 @@ class Conv2d(Module):
 
         _input = torch.nn.functional.unfold(_input, self.kernel_size, dilation=self.dilation, padding=self.padding,
                                             stride=self.stride)
-        _input = _input.transpose(1, 2).reshape(-1, self.input_channels * self.kernel_size[0] * self.kernel_size[1])
+        _input = _input.transpose(1, 2).reshape(-1, self.in_channels * self.kernel_size[0] * self.kernel_size[1])
         fp_input, qinput_config = fpF.quan.apply(_input, self.inputBits)
 
         # re-use linear function to get the answer
@@ -75,7 +75,7 @@ class Conv2d(Module):
         # reshape the output to the conv-shape
         # Here, for simplicity, we use dequan & fold & quan to simulate fixed-point fold
         output = fpF.dequan.apply(qoutput, qoutput_config, None, None)
-        output = output.reshape(batch_size, -1, self.output_channels).transpose(1, 2)
+        output = output.reshape(batch_size, -1, self.out_channels).transpose(1, 2)
 
         output_size = (math.floor((input_h + 2 * self.padding[0] - self.dilation[0] * (self.kernel_size[0] - 1) - 1)
                                   / self.stride[0] + 1),
@@ -86,4 +86,18 @@ class Conv2d(Module):
         return output
 
     def extra_repr(self) -> str:
-        return 'to be finished'
+        s = ('{in_channels}, {out_channels}, kernel_size={kernel_size}'
+             ', stride={stride}')
+        if self.padding != (0,) * len(self.padding):
+            s += ', padding={padding}'
+        if self.dilation != (1,) * len(self.dilation):
+            s += ', dilation={dilation}'
+        # if self.output_padding != (0,) * len(self.output_padding):
+        #     s += ', output_padding={output_padding}'
+        if self.groups != 1:
+            s += ', groups={groups}'
+        if not self.hasBias:
+            s += ', bias=False'
+        if self.padding_mode != 'zeros':
+            s += ', padding_mode={padding_mode}'
+        return s.format(**self.__dict__)

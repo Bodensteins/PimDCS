@@ -80,29 +80,9 @@ class SGD(Optimizer):
                     elif self.runMode == OptimMode.float_weight:
                         print("unsupported mode")
                         pass
-                        # weight_grad = fpA.de_quantization(fpA.mul_num([d_w.t(), d_w_cfg], -lr))
-                        # weight.add_(weight_grad)
-                        # temp = fpA.creat_quantization_para(bit_width=16,
-                        #                                    tensor_type=fpA.TensorType.Normal,
-                        #                                    device=d_w.device)
-                        # x = fpA.quantization_tensor(temp, weight)
-                        # fpA.write_tensor_([fp_weight, fp_weight_cfg], [x, temp])
-                        # x = fpA.quantization_tensor(temp, weight.t())
-                        # fpA.write_tensor_([wtArr, wtArr_cfg], [x, temp])
-                        # wtArr.grad = None
-                        # weight.grad = None
                     elif self.runMode == OptimMode.full_float:
                         print("unsupported mode")
                         pass
-                        # weight.add_(weight.grad * (-lr))
-                        # temp = fpA.creat_quantization_para(bit_width=16,
-                        #                                    tensor_type=fpA.TensorType.Normal)
-                        # x = fpA.quantization_tensor(temp, weight)
-                        # fpA.write_tensor_([fp_weight, fp_weight_cfg], [x, temp])
-                        # x = fpA.quantization_tensor(temp, weight.t())
-                        # fpA.write_tensor_([wtArr, wtArr_cfg], [x, temp])
-                        # wtArr.grad = None
-                        # weight.grad = None
             else:
                 # Pytorch SGD
 

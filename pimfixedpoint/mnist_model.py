@@ -64,10 +64,10 @@ class ConvMnist(nn.Module):
 class PimConvMnist(nn.Module):
     def __init__(self):
         super().__init__()
-        self.conv = fpnn.MulInputSequential(fpnn.Conv2d([1, 28, 28], 10, (5, 5)),
+        self.conv = fpnn.MulInputSequential(fpnn.Conv2d(1, 10, (5, 5)),
                                             nn.ReLU(),
                                             nn.MaxPool2d(kernel_size=(2, 2), stride=2),
-                                            fpnn.Conv2d([10, 12, 12], 20, (5, 5)),
+                                            fpnn.Conv2d(10, 20, (5, 5)),
                                             nn.ReLU(),
                                             nn.MaxPool2d(kernel_size=(2, 2), stride=2),
                                             nn.Flatten(),
@@ -85,7 +85,7 @@ class PimConvMnist(nn.Module):
 class FixedPointSimpleConvNet(nn.Module):
     def __init__(self):
         super().__init__()
-        self.conv = fpnn.MulInputSequential(fpnn.Conv2d([1, 28, 28], 30, (5, 5)),
+        self.conv = fpnn.MulInputSequential(fpnn.Conv2d(1, 30, (5, 5)),
                                             nn.ReLU(),
                                             nn.MaxPool2d(kernel_size=2, stride=2),
                                             nn.Flatten(),

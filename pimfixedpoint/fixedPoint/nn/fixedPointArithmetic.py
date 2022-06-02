@@ -350,15 +350,6 @@ def fixed_point_matmul(normal_tensor_list: list, static_tensor_list: list) \
     if normal_tensor_type != TensorType.Normal:
         raise Exception("Illegal normal tensor type: " + str(normal_tensor_type.value))
 
-    if normal_int_tensor.shape[1] < static_int_tensor.shape[0]:
-        #  todo: may modify the implementation
-        zero_cols = torch.zeros([normal_int_tensor.shape[0], static_int_tensor.shape[0] - normal_int_tensor.shape[1]],
-                                dtype=normal_int_tensor.dtype, device=normal_int_tensor.device)
-        normal_int_tensor = torch.cat((normal_int_tensor, zero_cols), 1)
-    elif normal_int_tensor.shape[1] > static_int_tensor.shape[0]:
-        raise Exception("Illegal tensor shape, normal tensor shape: " + str(normal_int_tensor.shape) +
-                        ", but static tensor shape" + str(static_int_tensor.shape))
-
     if normal_int_tensor.is_cuda:
         matmul_result = matmul_int_cuda(normal_int_tensor, static_int_tensor)
     else:

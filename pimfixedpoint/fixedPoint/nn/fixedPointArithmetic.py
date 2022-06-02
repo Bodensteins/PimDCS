@@ -335,7 +335,7 @@ def write_tensor_(static_tensor_list: list, data_tensor_list: list, mode: RightS
     return to_float(static_int_tensor)
 
 
-def fixed_point_matmul(normal_tensor_list: list, static_tensor_list: list, matmul_result_para: Tensor = None) \
+def fixed_point_matmul(normal_tensor_list: list, static_tensor_list: list) \
         -> [Tensor, Tensor]:
     """a normal tensor matmul a static tensor.
         :param normal_tensor_list: a normal tensor list.
@@ -364,24 +364,11 @@ def fixed_point_matmul(normal_tensor_list: list, static_tensor_list: list, matmu
     else:
         matmul_result = torch.matmul(normal_int_tensor, static_int_tensor)
 
-    if matmul_result_para is None:
-        matmul_result_para = creat_quantization_para(device=normal_int_tensor.device,
-                                                     s=normal_s + static_s, tensor_type=TensorType.Normal)
-    else:
-        int_matmul_result_para = to_int(matmul_result_para)
-        if int_matmul_result_para[2] != TensorType.Normal.value:
-            raise Exception("Illegal tensor type: ", str(int_matmul_result_para[2]))
-        int_matmul_result_para[0] = normal_s + static_s
+    matmul_result_para = creat_quantization_para(device=normal_int_tensor.device,
+                                                 s=normal_s + static_s, tensor_type=TensorType.Normal)
 
     set_bit_width_([matmul_result, matmul_result_para], data_flow_bit_width)
     return to_float(matmul_result), to_float(matmul_result_para)
-
-
-def fixed_point_t_matmul(normal_tensor_list: list, static_tensor_list: list, matmul_result_para: Tensor = None) \
-        -> [Tensor, Tensor]:
-    normal_tensor, normal_para = normal_tensor_list
-
-    return fixed_point_matmul([normal_tensor.t(), normal_para], static_tensor_list, matmul_result_para)
 
 
 def fixed_point_less(float_tensor_list: list, a: float) -> torch.BoolTensor:

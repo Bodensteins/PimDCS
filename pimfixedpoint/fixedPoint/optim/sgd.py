@@ -47,8 +47,8 @@ class SGD(Optimizer):
                 torch_param_groups.append(param)
 
         for layer_params in zip(fp_weight_list, fp_weight_cfg_list):
-            params.append({"params": list(layer_params), "is_pim_params": True})
-        params.append({"params": torch_param_groups, "is_pim_params": False})
+            params.append({"params": list(layer_params), "is_fixed_point_params": True})
+        params.append({"params": torch_param_groups, "is_fixed_point_params": False})
 
         super(SGD, self).__init__(params, defaults)
 
@@ -60,9 +60,11 @@ class SGD(Optimizer):
                 loss = closure()
 
         for group in self.param_groups:
-            if group["is_pim_params"]:
+            if group["is_fixed_point_params"]:
                 # PIM SGD, each group is single pim layer
-
+                params_with_grad = []
+                d_p_list = []
+                momentum_buffer_list = []
                 weight_decay = group['weight_decay']
                 momentum = group['momentum']
                 dampening = group['dampening']
@@ -72,20 +74,21 @@ class SGD(Optimizer):
                 fp_weight, fp_weight_cfg = group["params"]
                 d_w = fp_weight.grad
                 d_w_cfg = fp_weight_cfg.grad
-                if d_w is not None:
+                if d_w is not None and d_w_cfg is not None:
                     if self.runMode == OptimMode.full_fix:
                         sub_weight = fpA.mul_num([d_w, d_w_cfg], -lr)
                         fpA.add_alpha_tensor_([fp_weight, fp_weight_cfg], sub_weight)
                         fp_weight.grad = None  # todo: this should in zero method, not here
                     elif self.runMode == OptimMode.float_weight:
-                        print("unsupported mode")
+                        print("unsupported optimizer mode")
                         pass
                     elif self.runMode == OptimMode.full_float:
-                        print("unsupported mode")
+                        print("unsupported optimizer mode")
                         pass
+                else:
+                    raise Exception("err: grad is None")
             else:
                 # Pytorch SGD
-
                 params_with_grad = []
                 d_p_list = []
                 momentum_buffer_list = []

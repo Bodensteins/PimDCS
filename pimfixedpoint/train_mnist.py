@@ -41,7 +41,7 @@ def main():
                         help='filename of load model')
     parser.add_argument('--train', action='store_true', default=True,
                         help='train the model')
-    parser.add_argument('--fixed-point', action='store_true', default=False,
+    parser.add_argument('--fixed-point', action='store_true', default=True,
                         help='For use fixed point')
     parser.add_argument('--net', type=int, default=0, metavar='NET',
                         help='use which model (0:conv 1:fc)')
@@ -88,7 +88,9 @@ def main():
         else:
             raise Exception('undefined net: ' + str(args.net))
 
-        optimizer = fpOptim.SGD(model.named_parameters(), lr=args.lr, run_mode=fpOptim.OptimMode.full_fix)
+        optimizer = fpOptim.SGD(model.named_parameters(), lr=args.lr,
+                                momentum=args.momentum, weight_decay= args.weight_decay,
+                                run_mode=fpOptim.OptimMode.full_fix)
         # print(f'model.para {model.named_parameters()}')
         # print(f'model.para {model.parameters()}')
     else:

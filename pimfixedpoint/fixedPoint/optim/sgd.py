@@ -87,7 +87,7 @@ class SGD(Optimizer):
                         fp_d_p_cfg = p.grad
                     else:
                         fp_para = p
-                        fp_d_p = p
+                        fp_d_p = p.grad
                         params_with_grad.append((fp_para, fp_para_cfg))
                         d_p_list.append((fp_d_p, fp_d_p_cfg))
                         state = self.state[p]

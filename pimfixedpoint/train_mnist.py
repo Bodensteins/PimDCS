@@ -88,7 +88,7 @@ def main():
         else:
             raise Exception('undefined net: ' + str(args.net))
 
-        optimizer = fpOptim.SGD(model.named_parameters(), lr=args.lr, momentum=0.9, run_mode=fpOptim.OptimMode.full_fix)
+        optimizer = fpOptim.SGD(model.named_parameters(), lr=args.lr, run_mode=fpOptim.OptimMode.full_fix)
         # print(f'model.para {model.named_parameters()}')
         # print(f'model.para {model.parameters()}')
     else:
@@ -100,7 +100,7 @@ def main():
             raise Exception('undefined net: ' + str(args.net))
 
         # optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
-        optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
+        optimizer = optim.SGD(model.parameters(), lr=args.lr)
 
     print(model)
 

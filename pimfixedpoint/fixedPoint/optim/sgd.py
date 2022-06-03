@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
 import types
-import torch
+from . import _functional as F
 from ..nn import fixedPointArithmetic as fpA
+
+import torch
+
 from torch.optim.optimizer import Optimizer
 from .optimizer import OptimMode
 
@@ -96,59 +99,36 @@ class SGD(Optimizer):
                 else:
                     raise Exception("para grad is None!")
 
-            fp_weight, fp_weight_cfg = group["params"]
-            d_w = fp_weight.grad
-            d_w_cfg = fp_weight_cfg.grad
-            if d_w is not None and d_w_cfg is not None:
-                if self.runMode == OptimMode.full_fix:
-                    sub_weight = fpA.mul_num([d_w, d_w_cfg], -lr)
-                    fpA.add_alpha_tensor_([fp_weight, fp_weight_cfg], sub_weight)
-                    # fp_weight.grad = None  # todo: this should in zero method, not here
-                    # fp_weight_cfg.grad = None
-                elif self.runMode == OptimMode.float_weight:
-                    print("unsupported optimizer mode")
-                    pass
-                elif self.runMode == OptimMode.full_float:
-                    print("unsupported optimizer mode")
-                    pass
-            else:
-                raise Exception("err: grad is None")
+            F.sgd(params_with_grad,
+                  d_p_list,
+                  momentum_buffer_list,
+                  weight_decay=weight_decay,
+                  momentum=momentum,
+                  lr=lr,
+                  dampening=dampening,
+                  nesterov=nesterov)
+
+            # fp_weight, fp_weight_cfg = group["params"]
+            # d_w = fp_weight.grad
+            # d_w_cfg = fp_weight_cfg.grad
+            # if d_w is not None and d_w_cfg is not None:
+            #     if self.runMode == OptimMode.full_fix:
+            #         sub_weight = fpA.mul_num([d_w, d_w_cfg], -lr)
+            #         fpA.add_alpha_tensor_([fp_weight, fp_weight_cfg], sub_weight)
+            #         # fp_weight.grad = None  # todo: this should in zero method, not here
+            #         # fp_weight_cfg.grad = None
+            #     elif self.runMode == OptimMode.float_weight:
+            #         print("unsupported optimizer mode")
+            #         pass
+            #     elif self.runMode == OptimMode.full_float:
+            #         print("unsupported optimizer mode")
+            #         pass
+            # else:
+            #     raise Exception("err: grad is None")
+
+            # update momentum_buffers in state
+            for p, momentum_buffer in zip(params_with_grad, momentum_buffer_list):
+                state = self.state[p]
+                state['momentum_buffer'] = momentum_buffer
 
         return loss
-
-
-def sgd(params: List[Tensor],
-        d_p_list: List[Tensor],
-        momentum_buffer_list: List[Optional[Tensor]],
-        *,
-        weight_decay: float,
-        momentum: float,
-        lr: float,
-        dampening: float,
-        nesterov: bool):
-    r"""Functional API that performs SGD algorithm computation.
-
-    See :class:`~torch.optim.SGD` for details.
-    """
-
-    for i, param in enumerate(params):
-
-        d_p = d_p_list[i]
-        if weight_decay != 0:
-            d_p = d_p.add(param, alpha=weight_decay)
-
-        if momentum != 0:
-            buf = momentum_buffer_list[i]
-
-            if buf is None:
-                buf = torch.clone(d_p).detach()
-                momentum_buffer_list[i] = buf
-            else:
-                buf.mul_(momentum).add_(d_p, alpha=1 - dampening)
-
-            if nesterov:
-                d_p = d_p.add(buf, alpha=momentum)
-            else:
-                d_p = buf
-
-        param.add_(d_p, alpha=-lr)

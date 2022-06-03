@@ -25,9 +25,9 @@ def main():
                         help='Period of learning rate decay. (default: 30)')
     parser.add_argument('--gamma', type=float, default=0.5, metavar='GAMMA',
                         help='Learning rate step gamma (default: 0.5)')
-    parser.add_argument('--momentum', type=float, default=0, metavar='M',
+    parser.add_argument('--momentum', type=float, default=0.9, metavar='M',
                         help='momentum')
-    parser.add_argument('--weight-decay', '--wd', type=float, default=0,
+    parser.add_argument('--weight-decay', '--wd', type=float, default=5e-4,
                         metavar='W', help='weight decay (default: 5e-4)')
     parser.add_argument('--seed', type=int, default=4, metavar='S',
                         help='random seed (default: 1)')
@@ -41,7 +41,7 @@ def main():
                         help='filename of load model')
     parser.add_argument('--train', action='store_true', default=True,
                         help='train the model')
-    parser.add_argument('--fixed-point', action='store_true', default=True,
+    parser.add_argument('--fixed-point', action='store_true', default=False,
                         help='For use fixed point')
     parser.add_argument('--net', type=int, default=0, metavar='NET',
                         help='use which model (0:conv 1:fc)')
@@ -100,7 +100,7 @@ def main():
             raise Exception('undefined net: ' + str(args.net))
 
         # optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
-        optimizer = optim.SGD(model.parameters(), lr=args.lr)
+        optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
 
     print(model)
 

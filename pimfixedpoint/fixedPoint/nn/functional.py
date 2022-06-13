@@ -101,6 +101,7 @@ class linear(Function):
         fpA.set_bit_width_([fp_input, fp_input_config], input_bit_width)
 
         qoutput, qoutput_config = fpA.fixed_point_matmul([fp_input, fp_input_config], [fp_weight.t(), fp_weight_config])
+        # print(f'forward: {fp_input.shape}')
 
         ctx.gradOutputBits = grad_output_bit_width
         ctx.hasBias = has_bias
@@ -119,6 +120,7 @@ class linear(Function):
 
         qgrad_input, qgrad_input_config = fpA.fixed_point_matmul([qgrad_output, qgrad_output_config],
                                                                  [qweight, qweight_config])
+        # print(f'backward: {qgrad_output.shape}')
 
         if hasBias:
             qgrad_input = qgrad_input[:, 0:-1]

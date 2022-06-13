@@ -88,7 +88,7 @@ def main():
         else:
             raise Exception('undefined net: ' + str(args.net))
 
-        optimizer = fpOptim.SGD(model.named_parameters(), lr=args.lr,
+        optimizer = fpOptim.SGD(model.parameters(), lr=args.lr,
                                 momentum=args.momentum, weight_decay= args.weight_decay,
                                 run_mode=fpOptim.OptimMode.full_fix)
         # print(f'model.para {model.named_parameters()}')

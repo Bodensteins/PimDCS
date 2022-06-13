@@ -116,7 +116,7 @@ def main():
         else:
             raise Exception('undefined net: ' + str(args.net))
 
-        optimizer = fpOptim.SGD(model.named_parameters(), lr=args.lr)
+        optimizer = fpOptim.SGD(model.parameters(), lr=args.lr)
     else:
         if args.net == 0:
             model = vgg19(batch_norm=True).to(device)

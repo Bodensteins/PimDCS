@@ -1,20 +1,14 @@
 # -*- coding: utf-8 -*-
-import types
 from . import _functional as F
 from ..nn import fixedPointArithmetic as fpA
-
 import torch
-
 from torch.optim.optimizer import Optimizer
 from .optimizer import OptimMode
 
 
 class SGD(Optimizer):
-    def __init__(self, named_parameters, lr=0.1, momentum=0, dampening=0, weight_decay=0, nesterov=False,
+    def __init__(self, params, lr=0.1, momentum=0, dampening=0, weight_decay=0, nesterov=False,
                  run_mode=OptimMode.full_fix):
-        if not isinstance(named_parameters, types.GeneratorType) or named_parameters.__name__ != "named_parameters":
-            raise TypeError("PimSGD expected generator that return by named_parameters(), but got %s" % type(
-                named_parameters).__name__)
         if lr < 0.0:
             raise ValueError("Invalid learning rate: {}".format(lr))
         if momentum < 0.0:
@@ -32,26 +26,6 @@ class SGD(Optimizer):
             weight_decay=weight_decay,
             nesterov=nesterov,
         )
-        params = []
-
-        # fp_weight_list = []
-        # fp_weight_cfg_list = []
-        # torch_param_groups = []
-
-        for name, param in named_parameters:
-            params.append(param)
-            # if 'fp_weight_cfg' in name:
-            #     fp_weight_cfg_list.append(param)
-            # elif 'fp_weight' in name:
-            #     fp_weight_list.append(param)
-            # else:
-            #     print('here is named_parameters')
-            #     print(name, param.shape)
-            #     torch_param_groups.append(param)
-        #
-        # for layer_params in zip(fp_weight_list, fp_weight_cfg_list):
-        #     params.append({"params": list(layer_params), "is_fixed_point_params": True})
-        # params.append({"params": torch_param_groups, "is_fixed_point_params": False})
 
         super(SGD, self).__init__(params, defaults)
 
@@ -108,25 +82,6 @@ class SGD(Optimizer):
                   dampening=dampening,
                   nesterov=nesterov)
 
-            # fp_weight, fp_weight_cfg = group["params"]
-            # d_w = fp_weight.grad
-            # d_w_cfg = fp_weight_cfg.grad
-            # if d_w is not None and d_w_cfg is not None:
-            #     if self.runMode == OptimMode.full_fix:
-            #         sub_weight = fpA.mul_num([d_w, d_w_cfg], -lr)
-            #         fpA.add_alpha_tensor_([fp_weight, fp_weight_cfg], sub_weight)
-            #         # fp_weight.grad = None  # todo: this should in zero method, not here
-            #         # fp_weight_cfg.grad = None
-            #     elif self.runMode == OptimMode.float_weight:
-            #         print("unsupported optimizer mode")
-            #         pass
-            #     elif self.runMode == OptimMode.full_float:
-            #         print("unsupported optimizer mode")
-            #         pass
-            # else:
-            #     raise Exception("err: grad is None")
-
-            # update momentum_buffers in state
             for p, momentum_buffer in zip(params_with_grad, momentum_buffer_list):
                 state = self.state[p]
                 state['momentum_buffer'] = momentum_buffer

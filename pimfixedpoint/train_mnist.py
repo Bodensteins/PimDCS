@@ -41,7 +41,7 @@ def main():
                         help='filename of load model')
     parser.add_argument('--train', action='store_true', default=True,
                         help='train the model')
-    parser.add_argument('--fixed-point', action='store_true', default=True,
+    parser.add_argument('--fixed-point', action='store_true', default=False,
                         help='For use fixed point')
     parser.add_argument('--net', type=int, default=0, metavar='NET',
                         help='use which model (0:conv 1:fc)')
@@ -91,8 +91,7 @@ def main():
         optimizer = fpOptim.SGD(model.parameters(), lr=args.lr,
                                 momentum=args.momentum, weight_decay= args.weight_decay,
                                 run_mode=fpOptim.OptimMode.full_fix)
-        # print(f'model.para {model.named_parameters()}')
-        # print(f'model.para {model.parameters()}')
+
     else:
         if args.net == 0:
             model = ConvMnist().to(device)
@@ -101,8 +100,7 @@ def main():
         else:
             raise Exception('undefined net: ' + str(args.net))
 
-        # optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
-        optimizer = optim.SGD(model.parameters(), lr=args.lr)
+        optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
 
     print(model)
 

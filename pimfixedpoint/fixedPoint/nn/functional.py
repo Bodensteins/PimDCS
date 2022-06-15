@@ -6,6 +6,9 @@ import pydevd
 
 debug_backward = False
 
+if debug_backward:
+    print("debug mod, can't run")
+
 
 class dequan(Function):
     @staticmethod

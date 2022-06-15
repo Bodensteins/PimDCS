@@ -31,7 +31,9 @@ def sgd(params: List[Tuple],
                 buf = (torch.clone(fp_d_p).detach(), torch.clone(fp_d_p_cfg).detach())
                 momentum_buffer_list[i] = buf
             else:
-                buf = fpA.mul_num(list(buf), momentum)
+                # here has bugs, we don't update the value of momentum_buffer_list
+                fpA.mul_(list(buf), momentum)
+                # buf = fpA.mul_num(list(buf), momentum)
                 fpA.add_alpha_tensor_(list(buf), list(d_p), alpha=1 - dampening)
 
             if nesterov:

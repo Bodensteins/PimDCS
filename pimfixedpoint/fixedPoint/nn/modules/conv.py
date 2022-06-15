@@ -4,6 +4,7 @@ from torch import Tensor
 import torch.nn.functional
 from torch.nn import init
 from .. import functional as fpF
+from .. import fixedPointArithmetic as fpA
 from ..fixedPointArithmetic import creat_quantization_para, quantization_tensor
 from torch.nn import Module
 from ..commonConst import TensorType

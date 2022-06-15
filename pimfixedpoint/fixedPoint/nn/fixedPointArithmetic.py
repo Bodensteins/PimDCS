@@ -393,6 +393,24 @@ def mul_num(float_tensor_list: list, alpha: float, alpha_bit_width: int = data_f
     return [to_float(mul_num_int_tensor), to_float(mul_num_para)]
 
 
+def mul_(fp_tensor_list: list, alpha: float, alpha_bit_width: int = data_flow_bit_width) -> [Tensor, Tensor]:
+    int_tensor, quantization_para = parse_tensor_list_to_int(fp_tensor_list)
+    _, _, tensor_type = parse_quantization_para(quantization_para)
+
+    alpha_s = get_fixed_point_position(abs(alpha), alpha_bit_width)
+    alpha_resolution = pow(2, alpha_s)
+    alpha_int = round(alpha / alpha_resolution)
+
+    if tensor_type == TensorType.Normal or tensor_type == TensorType.PN:
+        int_tensor.mul_(alpha_int)
+        quantization_para[0] += alpha_s
+    else:
+        raise Exception("We don't implement this tensor_type!", tensor_type)
+
+    set_bit_width_(fp_tensor_list, data_flow_bit_width)
+    return fp_tensor_list
+
+
 def add_alpha_tensor_(source_tensor_list: list, add_tensor_list: list, alpha: float = None,
                       alpha_bit_width: int = data_flow_bit_width, mode: RightShiftMode = RightShiftMode.Round,
                       strategy: WeightUpdateStrategy = WeightUpdateStrategy.DynamicRange):

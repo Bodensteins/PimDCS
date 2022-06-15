@@ -136,13 +136,14 @@ def print_quantization_info(quantization_para):
           f'data range: {min_value} ~ {max_value}')
 
 
-def parse_tensor_list_to_int(tensor_list: list):
-    int_tensor = to_int(tensor_list[0])
-    quantization_para = to_int(tensor_list[1])
+def parse_tensor_tuple_to_int(fp_tensor_tuple: tuple):
+    int_tensor = to_int(fp_tensor_tuple[0])
+    quantization_para = to_int(fp_tensor_tuple[1])
 
     return int_tensor, quantization_para
 
 
+# todo: to_float for grad, modify to_float location
 def creat_quantization_para(s: int = None, bit_width: int = None, tensor_type: TensorType = None, device=None):
     quantization_para = torch.empty(3, dtype=torch_int, device=device)
     if s is not None:
@@ -181,8 +182,8 @@ def quantization_tensor(quantization_para: Tensor, tensor: Tensor) -> Tensor:
     return to_float(int_tensor)
 
 
-def de_quantization(float_tensor_list: list) -> Tensor:
-    int_tensor, quantization_para = parse_tensor_list_to_int(float_tensor_list)
+def de_quantization(fp_tensor_tuple: tuple) -> Tensor:
+    int_tensor, quantization_para = parse_tensor_tuple_to_int(fp_tensor_tuple)
     s, bit_width, tensor_type = parse_quantization_para(quantization_para)
 
     resolution = pow(2, s)
@@ -220,8 +221,8 @@ def de_quantization(float_tensor_list: list) -> Tensor:
 #     return bit_width_dict
 
 
-def get_effective_bit_width(float_tensor_list: list):
-    int_tensor, quantization_para = parse_tensor_list_to_int(float_tensor_list)
+def get_effective_bit_width(fp_tensor_tuple: tuple):
+    int_tensor, quantization_para = parse_tensor_tuple_to_int(fp_tensor_tuple)
     _, tensor_bit_width, tensor_type = parse_quantization_para(quantization_para)
 
     bit_width = 1
@@ -249,10 +250,10 @@ def get_effective_bit_width(float_tensor_list: list):
     return bit_width
 
 
-def set_bit_width_(float_tensor_list: list, new_bit_width: int, mode: RightShiftMode = RightShiftMode.Abandon):
-    effective_bit_width = get_effective_bit_width(float_tensor_list)
+def set_bit_width_(fp_tensor_tuple: tuple, new_bit_width: int, mode: RightShiftMode = RightShiftMode.Abandon):
+    effective_bit_width = get_effective_bit_width(fp_tensor_tuple)
 
-    int_tensor, quantization_para = parse_tensor_list_to_int(float_tensor_list)
+    int_tensor, quantization_para = parse_tensor_tuple_to_int(fp_tensor_tuple)
     s, _, tensor_type = parse_quantization_para(quantization_para)
 
     if new_bit_width < 1:
@@ -271,8 +272,8 @@ def set_bit_width_(float_tensor_list: list, new_bit_width: int, mode: RightShift
     quantization_para[1] = new_bit_width
 
 
-def add_additional_col_of_one(float_tensor_list: list) -> Tensor:
-    int_tensor, quantization_para = parse_tensor_list_to_int(float_tensor_list)
+def add_additional_col_of_one(fp_tensor_tuple: tuple) -> Tensor:
+    int_tensor, quantization_para = parse_tensor_tuple_to_int(fp_tensor_tuple)
     s, bit_width, tensor_type = parse_quantization_para(quantization_para)
 
     if tensor_type != TensorType.Normal:
@@ -285,66 +286,23 @@ def add_additional_col_of_one(float_tensor_list: list) -> Tensor:
 
     if max_value < 1:
         new_bit_width = get_pos_bit_width(int_one)
-        set_bit_width_(float_tensor_list, new_bit_width)
+        set_bit_width_(fp_tensor_tuple, new_bit_width)
 
     full_one_col = torch.full([int_tensor.size()[0], 1], int_one, dtype=torch_int, device=int_tensor.device)
     int_tensor = torch.cat((int_tensor, full_one_col), 1)
 
-    return to_float(int_tensor)
+    return int_tensor
 
 
-def write_tensor_(static_tensor_list: list, data_tensor_list: list, mode: RightShiftMode = RightShiftMode.Abandon):
-    """write a dynamic tensor(immediate data) into a static tensor(weight) inplace.
-    :param static_tensor_list: a static tensor list.
-    :param data_tensor_list: a dynamic tensor list.
-    :param mode: optional, write mode.
-    """
-    static_int_tensor, static_tenor_para = parse_tensor_list_to_int(static_tensor_list)
-    _, static_bit_width, static_tensor_type = parse_quantization_para(static_tenor_para)
-    data_bit_width = get_effective_bit_width(data_tensor_list)
-    data_int_tensor, data_quantization_para = parse_tensor_list_to_int(data_tensor_list)
-    data_s, _, data_tensor_type = parse_quantization_para(data_quantization_para)
-
-    if data_tensor_type != TensorType.Normal:
-        raise Exception("Illegal dynamic tensor type: " + str(data_tensor_type.value))
-
-    if static_tensor_type == TensorType.Normal or static_tensor_type == TensorType.PN:
-        if static_bit_width >= data_bit_width:
-            static_tenor_para[0] = data_s
-        else:
-            static_tenor_para[0] = data_s + data_bit_width - static_bit_width
-
-            if mode == RightShiftMode.Abandon:
-                data_int_tensor = data_int_tensor.__rshift__(data_bit_width - static_bit_width)
-            elif mode == RightShiftMode.Round:
-                data_int_tensor = round_rshift(data_int_tensor, data_bit_width - static_bit_width)
-            else:
-                raise Exception("We don't support this right shift mode: ", str(mode))
-
-        if static_int_tensor.shape[0] == data_int_tensor.shape[0]:
-            static_int_tensor.zero_().add_(data_int_tensor)
-        elif static_int_tensor.shape[0] > data_int_tensor.shape[0]:
-            static_int_tensor.zero_()
-            static_int_tensor[0:data_int_tensor.shape[0]].add_(data_int_tensor)
-        else:
-            raise Exception("Illegal tensor shape, static: " + str(static_int_tensor.shape) +
-                            ", but dynamic: " + str(data_int_tensor.shape))
-    else:
-        raise Exception("Unknown static tensor type: " + str(static_tensor_type.value))
-
-    return to_float(static_int_tensor)
-
-
-def fixed_point_matmul(normal_tensor_list: list, static_tensor_list: list) \
+def fixed_point_matmul(input_tensor_tuple: tuple, other_tensor_tuple: tuple) \
         -> [Tensor, Tensor]:
     """a normal tensor matmul a static tensor.
-        :param normal_tensor_list: a normal tensor list.
-        :param static_tensor_list: a static tensor list.
-        :param matmul_result_para: the result para, can be none.
+        :param input_tensor_tuple: a normal tensor list.
+        :param other_tensor_tuple: a static tensor list.
         """
-    normal_int_tensor, normal_quantization_para = parse_tensor_list_to_int(normal_tensor_list)
+    normal_int_tensor, normal_quantization_para = parse_tensor_tuple_to_int(input_tensor_tuple)
     normal_s, normal_bit_width, normal_tensor_type = parse_quantization_para(normal_quantization_para)
-    static_int_tensor, static_quantization_para = parse_tensor_list_to_int(static_tensor_list)
+    static_int_tensor, static_quantization_para = parse_tensor_tuple_to_int(other_tensor_tuple)
     static_s, static_bit_width, static_tensor_type = parse_quantization_para(static_quantization_para)
 
     if normal_tensor_type != TensorType.Normal:
@@ -358,12 +316,12 @@ def fixed_point_matmul(normal_tensor_list: list, static_tensor_list: list) \
     matmul_result_para = creat_quantization_para(device=normal_int_tensor.device,
                                                  s=normal_s + static_s, tensor_type=TensorType.Normal)
 
-    set_bit_width_([matmul_result, matmul_result_para], data_flow_bit_width)
+    set_bit_width_((matmul_result, matmul_result_para), data_flow_bit_width)
     return to_float(matmul_result), to_float(matmul_result_para)
 
 
-def fixed_point_less(float_tensor_list: list, a: float) -> torch.BoolTensor:
-    int_tensor, quantization_para = parse_tensor_list_to_int(float_tensor_list)
+def fixed_point_less(tensor_tuple: tuple, a: float) -> torch.BoolTensor:
+    int_tensor, quantization_para = parse_tensor_tuple_to_int(tensor_tuple)
     s, _, tensor_type = parse_quantization_para(quantization_para)
 
     if tensor_type == TensorType.Normal:
@@ -374,8 +332,9 @@ def fixed_point_less(float_tensor_list: list, a: float) -> torch.BoolTensor:
         raise Exception("We don't implement this tensor_type!", tensor_type)
 
 
-def mul_num(float_tensor_list: list, alpha: float, alpha_bit_width: int = data_flow_bit_width) -> [Tensor, Tensor]:
-    int_tensor, quantization_para = parse_tensor_list_to_int(float_tensor_list)
+# todo: check if needed
+def fixed_point_mul(tensor_tuple: tuple, alpha: float, alpha_bit_width: int = data_flow_bit_width) -> [Tensor, Tensor]:
+    int_tensor, quantization_para = parse_tensor_tuple_to_int(tensor_tuple)
     s, _, tensor_type = parse_quantization_para(quantization_para)
 
     alpha_s = get_fixed_point_position(abs(alpha), alpha_bit_width)
@@ -389,12 +348,12 @@ def mul_num(float_tensor_list: list, alpha: float, alpha_bit_width: int = data_f
     else:
         raise Exception("We don't implement this tensor_type!", tensor_type)
 
-    set_bit_width_([mul_num_int_tensor, mul_num_para], data_flow_bit_width)
-    return [to_float(mul_num_int_tensor), to_float(mul_num_para)]
+    set_bit_width_((mul_num_int_tensor, mul_num_para), data_flow_bit_width)
+    return to_float(mul_num_int_tensor), to_float(mul_num_para)
 
 
-def mul_(fp_tensor_list: list, alpha: float, alpha_bit_width: int = data_flow_bit_width) -> [Tensor, Tensor]:
-    int_tensor, quantization_para = parse_tensor_list_to_int(fp_tensor_list)
+def fixed_point_mul_(tensor_tuple: tuple, alpha: float, alpha_bit_width: int = data_flow_bit_width) -> [Tensor, Tensor]:
+    int_tensor, quantization_para = parse_tensor_tuple_to_int(tensor_tuple)
     _, _, tensor_type = parse_quantization_para(quantization_para)
 
     alpha_s = get_fixed_point_position(abs(alpha), alpha_bit_width)
@@ -407,21 +366,22 @@ def mul_(fp_tensor_list: list, alpha: float, alpha_bit_width: int = data_flow_bi
     else:
         raise Exception("We don't implement this tensor_type!", tensor_type)
 
-    set_bit_width_(fp_tensor_list, data_flow_bit_width)
-    return fp_tensor_list
+    set_bit_width_(tensor_tuple, data_flow_bit_width)
+    return tensor_tuple
 
 
-def add_alpha_tensor_(source_tensor_list: list, add_tensor_list: list, alpha: float = None,
-                      alpha_bit_width: int = data_flow_bit_width, mode: RightShiftMode = RightShiftMode.Round,
-                      strategy: WeightUpdateStrategy = WeightUpdateStrategy.DynamicRange):
-    source_int_tensor, source_quantization_para = parse_tensor_list_to_int(source_tensor_list)
+# todo: modify its implementation
+def fixed_point_add_(source_tensor_tuple: tuple, other_tensor_tuple: tuple, alpha: float = None,
+                     alpha_bit_width: int = data_flow_bit_width, mode: RightShiftMode = RightShiftMode.Round,
+                     strategy: WeightUpdateStrategy = WeightUpdateStrategy.DynamicRange):
+    source_int_tensor, source_quantization_para = parse_tensor_tuple_to_int(source_tensor_tuple)
     source_s, source_bit_width, source_tensor_type = parse_quantization_para(source_quantization_para)
 
     if alpha is None:
-        mul_num_int_tensor, mul_num_quantization_para = parse_tensor_list_to_int(add_tensor_list)
+        mul_num_int_tensor, mul_num_quantization_para = parse_tensor_tuple_to_int(other_tensor_tuple)
     else:
         mul_num_int_tensor, mul_num_quantization_para = \
-            parse_tensor_list_to_int(mul_num(add_tensor_list, alpha, alpha_bit_width))
+            parse_tensor_tuple_to_int(fixed_point_mul(other_tensor_tuple, alpha, alpha_bit_width))
 
     mul_num_s, mul_num_bit_width, mul_num_tensor_type = parse_quantization_para(mul_num_quantization_para)
 
@@ -448,7 +408,7 @@ def add_alpha_tensor_(source_tensor_list: list, add_tensor_list: list, alpha: fl
             source_int_tensor[source_int_tensor < -neg_levels] = -neg_levels
             source_int_tensor[source_int_tensor > pos_levels] = pos_levels
         elif strategy == WeightUpdateStrategy.DynamicRange:
-            set_bit_width_([source_int_tensor, source_quantization_para], source_bit_width)
+            set_bit_width_((source_int_tensor, source_quantization_para), source_bit_width)
         else:
             raise Exception("We don't support this weight update strategy!", strategy)
     else:

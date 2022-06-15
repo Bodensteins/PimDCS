@@ -21,7 +21,7 @@ def sgd(params: List[Tuple],
 
         d_p = d_p_list[i]
         if weight_decay != 0:
-            fpA.add_alpha_tensor_(list(d_p), list(param), alpha=weight_decay)
+            fpA.fixed_point_add_(d_p, param, alpha=weight_decay)
 
         if momentum != 0:
             buf = momentum_buffer_list[i]
@@ -32,13 +32,13 @@ def sgd(params: List[Tuple],
                 momentum_buffer_list[i] = buf
             else:
                 # here has bugs, we don't update the value of momentum_buffer_list
-                fpA.mul_(list(buf), momentum)
+                fpA.fixed_point_mul_(buf, momentum)
                 # buf = fpA.mul_num(list(buf), momentum)
-                fpA.add_alpha_tensor_(list(buf), list(d_p), alpha=1 - dampening)
+                fpA.fixed_point_add_(buf, d_p, alpha=1-dampening)
 
             if nesterov:
-                fpA.add_alpha_tensor_(list(d_p), list(buf), alpha=momentum)
+                fpA.fixed_point_add_(d_p, buf, alpha=momentum)
             else:
                 d_p = buf
 
-        fpA.add_alpha_tensor_(list(param), list(d_p), alpha=-lr)
+        fpA.fixed_point_add_(param, d_p, alpha=-lr)

@@ -155,22 +155,25 @@ def creat_quantization_para(s: int = None, bit_width: int = None, tensor_type: T
     return quantization_para
 
 
-def quantization_tensor(quantization_para: Tensor, tensor: Tensor) -> Tensor:
+def quantization_tensor(tensor: Tensor, bit_width: int, tensor_type: TensorType):
     """
-    float-int type: int type, but shown as float
-    int-float type: float type, but shown as int
+    quantization_para[0]: s
+    quantization_para[1]: bit_width
+    quantization_para[2]: tensor_type
+    :param tensor_type:
+    :param bit_width:
     :param quantization_para: parameters for quantization, which is a float-int type tensor.
     This tensor has 3 values. [0]: s [1]: bit_width [2]: tensor_type
     :param tensor: Float type tensor, that is the real number for you to quantize
-    :return: The float-int type tensor. the quantization of input tensor.
+    :return: int tensor, int para.
     """
-    quantization_para = to_int(quantization_para)
-    _, bit_width, tensor_type = parse_quantization_para(quantization_para)  # s is unknown
-
     max_abs_value = tensor.abs().max().item()
+    quantization_para = torch.empty(3, dtype=torch_int, device=tensor.device)
 
     s = get_fixed_point_position(max_abs_value, bit_width, tensor_type)
     quantization_para[0] = s
+    quantization_para[1] = bit_width
+    quantization_para[2] = tensor_type.value
     resolution = pow(2, s)
 
     if tensor_type == TensorType.Normal or tensor_type == TensorType.PN:
@@ -178,7 +181,7 @@ def quantization_tensor(quantization_para: Tensor, tensor: Tensor) -> Tensor:
     else:
         raise Exception("Unknown tensor type: " + str(tensor_type.value))
 
-    return to_float(int_tensor)
+    return int_tensor, quantization_para
 
 
 def de_quantization(fp_tensor_tuple: tuple) -> Tensor:

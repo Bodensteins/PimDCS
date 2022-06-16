@@ -27,24 +27,17 @@ class dequan(Function):
     def backward(ctx, grad_output):
         if debug_backward is True:
             pydevd.settrace(suspend=False, trace_only_current_thread=True)
-        qgrad_output_config = fpA.creat_quantization_para(bit_width=ctx.backBit,
-                                                          tensor_type=TensorType.Normal,
-                                                          device=grad_output.device)
 
-        qgrad_output = fpA.quantization_tensor(qgrad_output_config, grad_output)
+        qgrad_output, qgrad_output_config = fpA.quantization_tensor(grad_output, ctx.backBit, TensorType.Normal)
 
-        return qgrad_output, fpA.to_float(qgrad_output_config), None, None, None
+        return fpA.to_float(qgrad_output), fpA.to_float(qgrad_output_config), None, None, None
 
 
 class quan(Function):
     @staticmethod
     def forward(ctx, _input, bit_width):
-        fp_output_config = fpA.creat_quantization_para(bit_width=bit_width,
-                                                       tensor_type=TensorType.Normal,
-                                                       device=_input.device)
-
-        fp_output = fpA.quantization_tensor(fp_output_config, _input)
-        return fp_output, fpA.to_float(fp_output_config)
+        fp_output, fp_output_config = fpA.quantization_tensor(_input, bit_width, TensorType.Normal)
+        return fpA.to_float(fp_output), fpA.to_float(fp_output_config)
 
     @staticmethod
     def backward(ctx, fp_grad_output, fp_grad_output_config):

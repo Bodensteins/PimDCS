@@ -15,18 +15,20 @@ class Linear(Module):
         super(Linear, self).__init__()
         self.in_features = in_features
         self.out_features = out_features
-        self.fp_weight = None
         self.hasBias = bias
 
         # quantizer mode dynamic, static.
         self.quantizerMode = quantizer_mode
         self.inputBits = input_bit_width
+        self.weightBits = weight_bit_width
         self.gradOutputBits = grad_output_bit_width
 
+        self.fp_weight = None
+        self.fp_weight_cfg = None
+        self.weight_tensor_mode = None
+
         if weight_tensor_mode == "NormalTensor":
-            weight_cfg \
-                = fpA.to_float(creat_quantization_para(bit_width=weight_bit_width, tensor_type=TensorType.Normal))
-            self.fp_weight_cfg = torch.nn.Parameter(weight_cfg)
+            self.weight_tensor_mode = TensorType.Normal
         else:
             raise Exception("We don't implement this tensor mode: " + weight_tensor_mode)
 
@@ -44,7 +46,10 @@ class Linear(Module):
             temp_bias = temp_bias.unsqueeze(1)
             temp_weight = torch.cat((temp_weight, temp_bias), 1)
 
-        self.fp_weight = torch.nn.Parameter(quantization_tensor(self.fp_weight_cfg, temp_weight))
+        weight, weight_cfg = quantization_tensor(temp_weight, self.weightBits, self.weight_tensor_mode)
+        # todo: change the place of cfg and weight
+        self.fp_weight_cfg = torch.nn.Parameter(fpA.to_float(weight_cfg))
+        self.fp_weight = torch.nn.Parameter(fpA.to_float(weight))
 
     def forward(self, qinput, qinput_config):
         qoutput, qoutput_config = fpF.linear.apply(qinput, qinput_config, self.fp_weight, self.fp_weight_cfg,

@@ -150,7 +150,7 @@ def _creat_quantization_para(s: int = None, bit_width: int = None, tensor_type: 
     :param bit_width:
     :param tensor_type:
     :param device:
-    :return:
+    :return: quantization_para
     """
     quantization_para = torch.empty(3, dtype=torch_int, device=device)
     if s is not None:

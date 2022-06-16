@@ -57,11 +57,11 @@ class SGD(Optimizer):
             for i, p in enumerate(group['params']):
                 if p.grad is not None:
                     if i % 2 == 0:
-                        fp_para_cfg = p
-                        fp_d_p_cfg = p.grad
-                    else:
                         fp_para = p
                         fp_d_p = p.grad
+                    else:
+                        fp_para_cfg = p
+                        fp_d_p_cfg = p.grad
                         params_with_grad.append((fp_para, fp_para_cfg))
                         d_p_list.append((fp_d_p, fp_d_p_cfg))
                         state = self.state[(fp_para, fp_para_cfg)]

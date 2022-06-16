@@ -47,9 +47,8 @@ class Linear(Module):
             temp_weight = torch.cat((temp_weight, temp_bias), 1)
 
         weight, weight_cfg = quantization_tensor(temp_weight, self.weightBits, self.weight_tensor_mode)
-        # todo: change the place of cfg and weight
-        self.fp_weight_cfg = torch.nn.Parameter(fpA.to_float(weight_cfg))
         self.fp_weight = torch.nn.Parameter(fpA.to_float(weight))
+        self.fp_weight_cfg = torch.nn.Parameter(fpA.to_float(weight_cfg))
 
     def forward(self, qinput, qinput_config):
         qoutput, qoutput_config = fpF.linear.apply(qinput, qinput_config, self.fp_weight, self.fp_weight_cfg,

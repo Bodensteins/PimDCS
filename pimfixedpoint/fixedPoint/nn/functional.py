@@ -1,6 +1,6 @@
 from torch.autograd import Function
 from . import fixedPointArithmetic as fpA
-from .commonConst import TensorType, torch_int
+from .commonConst import TensorType, torch_int, data_flow_bit_width
 import torch
 import pydevd
 
@@ -14,7 +14,8 @@ class dequan(Function):
     @staticmethod
     def forward(ctx, qinput, qinput_config, bit: int, backBit: int, quantizerMode: str = "dynamic"):
         if quantizerMode == "dynamic":
-            _, ctx.backBit, _ = fpA.parse_quantization_para(fpA.to_int(qinput_config))
+            ctx.backBit = data_flow_bit_width
+            # _, ctx.backBit, _ = fpA.parse_quantization_para(fpA.to_int(qinput_config))
         else:
             ctx.backBit = backBit
 
@@ -66,17 +67,17 @@ class relu(Function):
 
 class dropout(Function):
     @staticmethod
-    def forward(ctx, fake_input, fake_input_cfg, dropout_ratio, training):
+    def forward(ctx, fp_input, fp_input_cfg, dropout_ratio, training):
         if training:
-            mask = torch.rand_like(fake_input) < dropout_ratio  # position of smaller than dropout_ratio
+            mask = torch.rand_like(fp_input) < dropout_ratio  # position of smaller than dropout_ratio
             ctx.save_for_backward(mask)  # tensor should be saved in save for backward
-            fake_input[mask] = 0  # The zero in ieee754 is all zero as well.
-            return fake_input, fake_input_cfg
+            fp_input[mask] = 0  # The zero in ieee754 is all zero as well.
+            return fp_input, fp_input_cfg
         else:
-            int_input, _ = fpA.parse_tensor_tuple_to_int((fake_input, fake_input_cfg))
+            int_input, _ = fpA.parse_tensor_tuple_to_int((fp_input, fp_input_cfg))
             int_input = int_input.mul(1 - dropout_ratio).to(dtype=torch_int)
 
-            return fpA.to_float(int_input), fake_input_cfg
+            return fpA.to_float(int_input), fp_input_cfg
 
     @staticmethod
     def backward(ctx, fp_grad_output, fp_grad_output_cfg):

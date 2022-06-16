@@ -7,7 +7,7 @@ from .optimizer import OptimMode
 
 
 class SGD(Optimizer):
-    def __init__(self, params, lr=0.1, momentum=0, dampening=0, weight_decay=0, nesterov=False,
+    def __init__(self, params, bit_width_list: list, lr=0.1, momentum=0, dampening=0, weight_decay=0, nesterov=False,
                  run_mode=OptimMode.full_fix):
         if lr < 0.0:
             raise ValueError("Invalid learning rate: {}".format(lr))
@@ -18,6 +18,7 @@ class SGD(Optimizer):
         if nesterov and (momentum <= 0 or dampening != 0):
             raise ValueError("Nesterov momentum requires a momentum and zero dampening")
         self.runMode = run_mode
+        self.bit_width_list = bit_width_list
 
         defaults = dict(
             lr=lr,
@@ -74,6 +75,7 @@ class SGD(Optimizer):
                     raise Exception("para grad is None!")
 
             F.sgd(params_with_grad,
+                  self.bit_width_list,
                   d_p_list,
                   momentum_buffer_list,
                   weight_decay=weight_decay,

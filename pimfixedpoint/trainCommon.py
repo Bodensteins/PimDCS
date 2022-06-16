@@ -272,3 +272,13 @@ def net_reset_parameters(model):
     for layer in model.children():
         if hasattr(layer, 'reset_parameters'):
             layer.reset_parameters()
+
+
+def create_layer_bit_width_list(model):
+    # for layer in model.modules():
+    bit_width_list = []
+    for layer in model.children():
+        if hasattr(layer, 'weightBits'):
+            bit_width_list.append(layer.weightBits)
+
+    return bit_width_list

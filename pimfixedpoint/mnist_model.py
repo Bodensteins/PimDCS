@@ -93,8 +93,7 @@ class FixedPointSimpleConvNet(nn.Module):
                                             fpnn.Linear(12 * 12 * 30, 100),
                                             fpnn.ReLU(),
                                             fpnn.Linear(100, 10),
-                                            fpnn.DeQuan(fp.half_data_flow_bit_width)
-                                            )
+                                            fpnn.DeQuan(fp.half_data_flow_bit_width))
 
     def forward(self, x):
         x = self.conv(x)

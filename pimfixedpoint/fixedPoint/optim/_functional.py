@@ -4,6 +4,7 @@ from ..nn import fixedPointArithmetic as fpA
 
 
 def sgd(params: List[Tuple],
+        params_bit_width_list: List[int],
         d_p_list: List[Tuple],
         momentum_buffer_list: List[Optional[Tuple]],
         *,
@@ -18,7 +19,6 @@ def sgd(params: List[Tuple],
     """
 
     for i, param in enumerate(params):
-
         d_p = d_p_list[i]
         if weight_decay != 0:
             fpA.fixed_point_add_(d_p, param, alpha=weight_decay)
@@ -41,4 +41,4 @@ def sgd(params: List[Tuple],
             else:
                 d_p = buf
 
-        fpA.fixed_point_add_(param, d_p, alpha=-lr)
+        fpA.fixed_point_add_(param, d_p, source_bit_width=params_bit_width_list[i], alpha=-lr)

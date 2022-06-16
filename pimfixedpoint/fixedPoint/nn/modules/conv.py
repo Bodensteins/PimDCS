@@ -2,10 +2,9 @@ import torch
 import math
 from torch import Tensor
 import torch.nn.functional
-from torch.nn import init
+from torch.nn import init, Parameter
 from .. import functional as fpF
 from .. import fixedPointArithmetic as fpA
-from ..fixedPointArithmetic import quantization_tensor
 from torch.nn import Module
 from ..commonConst import TensorType
 from torch.nn.common_types import _size_2_t
@@ -56,9 +55,9 @@ class Conv2d(Module):
             temp_bias = temp_bias.unsqueeze(1)
             temp_weight = torch.cat((temp_weight, temp_bias), 1)
 
-        weight, weight_cfg = quantization_tensor(temp_weight, self.weightBits, self.weight_tensor_mode)
-        self.fp_weight = torch.nn.Parameter(fpA.to_float(weight))
-        self.fp_weight_cfg = torch.nn.Parameter(fpA.to_float(weight_cfg))
+        weight, weight_cfg = fpA.quantization_tensor(temp_weight, self.weightBits, self.weight_tensor_mode)
+        self.fp_weight = Parameter(fpA.to_float(weight))
+        self.fp_weight_cfg = Parameter(fpA.to_float(weight_cfg))
 
     def forward(self, _input: Tensor):
         # reshape qinput to the matrix-shape

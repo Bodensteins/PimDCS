@@ -3,7 +3,6 @@ from .. import functional as fpF
 from torch.nn import Module, Parameter, init
 import math
 from .. import fixedPointArithmetic as fpA
-from ..fixedPointArithmetic import quantization_tensor
 from ..commonConst import TensorType, half_data_flow_bit_width
 
 
@@ -46,9 +45,9 @@ class Linear(Module):
             temp_bias = temp_bias.unsqueeze(1)
             temp_weight = torch.cat((temp_weight, temp_bias), 1)
 
-        weight, weight_cfg = quantization_tensor(temp_weight, self.weightBits, self.weight_tensor_mode)
-        self.fp_weight = torch.nn.Parameter(fpA.to_float(weight))
-        self.fp_weight_cfg = torch.nn.Parameter(fpA.to_float(weight_cfg))
+        weight, weight_cfg = fpA.quantization_tensor(temp_weight, self.weightBits, self.weight_tensor_mode)
+        self.fp_weight = Parameter(fpA.to_float(weight))
+        self.fp_weight_cfg = Parameter(fpA.to_float(weight_cfg))
 
     def forward(self, qinput, qinput_config):
         qoutput, qoutput_config = fpF.linear.apply(qinput, qinput_config, self.fp_weight, self.fp_weight_cfg,

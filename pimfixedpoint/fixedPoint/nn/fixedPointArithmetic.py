@@ -13,7 +13,7 @@ def to_int(tensor):
     return tensor.detach().view(dtype=torch_int)
 
 
-def matmul_int_cuda(int_tensor1, int_tensor2):
+def _matmul_int_cuda(int_tensor1, int_tensor2):
     """matmul of tensor in cuda, int_tensor matmul int_tensor is not supported in pytorch now(2021/11/6).
 
         :param int_tensor1: a int tensor.
@@ -284,7 +284,7 @@ def fixed_point_matmul(input_tensor_tuple: tuple, other_tensor_tuple: tuple) \
         raise Exception("Illegal normal tensor type: " + str(normal_tensor_type.value))
 
     if normal_int_tensor.is_cuda:
-        matmul_result = matmul_int_cuda(normal_int_tensor, static_int_tensor)
+        matmul_result = _matmul_int_cuda(normal_int_tensor, static_int_tensor)
     else:
         matmul_result = torch.matmul(normal_int_tensor, static_int_tensor)
 

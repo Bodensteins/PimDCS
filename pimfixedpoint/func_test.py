@@ -19,14 +19,14 @@ def print_info(int_tensor: Tensor, para: Tensor):
     print(de_quantization((int_tensor, para)))
 
 
-data_para = creat_quantization_para(bit_width=data_bit_width, tensor_type=TensorType.Normal)
+data_para = _creat_quantization_para(bit_width=data_bit_width, tensor_type=TensorType.Normal)
 data_float_tensor = torch.randn([row_size, col_Size], dtype=torch.float)
 data_tensor = quantization_tensor(data_para, data_float_tensor)
 
 # print(f'normal:\n{data_float_tensor}')
 print_info(data_tensor, data_para)
 
-static_para = creat_quantization_para(bit_width=static_bit_width, tensor_type=TensorType.Normal)
+static_para = _creat_quantization_para(bit_width=static_bit_width, tensor_type=TensorType.Normal)
 static_float_tensor = torch.randn([row_size, col_Size], dtype=torch.float)
 static_tensor = quantization_tensor(static_para, static_float_tensor)
 

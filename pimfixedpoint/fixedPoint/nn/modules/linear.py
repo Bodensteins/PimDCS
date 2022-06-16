@@ -3,7 +3,7 @@ from .. import functional as fpF
 from torch.nn import Module, Parameter, init
 import math
 from .. import fixedPointArithmetic as fpA
-from ..fixedPointArithmetic import creat_quantization_para, quantization_tensor
+from ..fixedPointArithmetic import quantization_tensor
 from ..commonConst import TensorType, half_data_flow_bit_width
 
 

@@ -143,7 +143,15 @@ def parse_tensor_tuple_to_int(fp_tensor_tuple: tuple):
     return int_tensor, quantization_para
 
 
-def creat_quantization_para(s: int = None, bit_width: int = None, tensor_type: TensorType = None, device=None):
+def _creat_quantization_para(s: int = None, bit_width: int = None, tensor_type: TensorType = None, device=None):
+    """
+    [0]: s [1]: bit_width [2]: tensor_type
+    :param s:
+    :param bit_width:
+    :param tensor_type:
+    :param device:
+    :return:
+    """
     quantization_para = torch.empty(3, dtype=torch_int, device=device)
     if s is not None:
         quantization_para[0] = s
@@ -157,23 +165,16 @@ def creat_quantization_para(s: int = None, bit_width: int = None, tensor_type: T
 
 def quantization_tensor(tensor: Tensor, bit_width: int, tensor_type: TensorType):
     """
-    quantization_para[0]: s
-    quantization_para[1]: bit_width
-    quantization_para[2]: tensor_type
     :param tensor_type:
     :param bit_width:
-    :param quantization_para: parameters for quantization, which is a float-int type tensor.
-    This tensor has 3 values. [0]: s [1]: bit_width [2]: tensor_type
     :param tensor: Float type tensor, that is the real number for you to quantize
     :return: int tensor, int para.
     """
     max_abs_value = tensor.abs().max().item()
-    quantization_para = torch.empty(3, dtype=torch_int, device=tensor.device)
 
     s = get_fixed_point_position(max_abs_value, bit_width, tensor_type)
-    quantization_para[0] = s
-    quantization_para[1] = bit_width
-    quantization_para[2] = tensor_type.value
+    quantization_para = _creat_quantization_para(s, bit_width, tensor_type, tensor.device)
+
     resolution = pow(2, s)
 
     if tensor_type == TensorType.Normal or tensor_type == TensorType.PN:
@@ -315,8 +316,8 @@ def fixed_point_matmul(input_tensor_tuple: tuple, other_tensor_tuple: tuple) \
     else:
         matmul_result = torch.matmul(normal_int_tensor, static_int_tensor)
 
-    matmul_result_para = creat_quantization_para(device=normal_int_tensor.device, s=normal_s + static_s,
-                                                 tensor_type=TensorType.Normal)
+    matmul_result_para = _creat_quantization_para(device=normal_int_tensor.device, s=normal_s + static_s,
+                                                  tensor_type=TensorType.Normal)
 
     set_bit_width_((matmul_result, matmul_result_para), data_flow_bit_width)
     return matmul_result, matmul_result_para
@@ -345,7 +346,7 @@ def fixed_point_mul(tensor_tuple: tuple, alpha: float, alpha_bit_width: int = da
     if tensor_type == TensorType.Normal or tensor_type == TensorType.PN:
         mul_num_int_tensor = int_tensor.mul(alpha_int)
         mul_num_s = s + alpha_s
-        mul_num_para = creat_quantization_para(device=int_tensor.device, s=mul_num_s, tensor_type=TensorType.Normal)
+        mul_num_para = _creat_quantization_para(device=int_tensor.device, s=mul_num_s, tensor_type=TensorType.Normal)
     else:
         raise Exception("We don't implement this tensor_type!", tensor_type)
 

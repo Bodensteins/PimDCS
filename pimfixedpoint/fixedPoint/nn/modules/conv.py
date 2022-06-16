@@ -5,7 +5,7 @@ import torch.nn.functional
 from torch.nn import init
 from .. import functional as fpF
 from .. import fixedPointArithmetic as fpA
-from ..fixedPointArithmetic import creat_quantization_para, quantization_tensor
+from ..fixedPointArithmetic import quantization_tensor
 from torch.nn import Module
 from ..commonConst import TensorType
 from torch.nn.common_types import _size_2_t

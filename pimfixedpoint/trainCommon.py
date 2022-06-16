@@ -269,7 +269,7 @@ def get_optimal_learning_rate(model, device, train_loader, valid_loader, criteri
 
 def net_reset_parameters(model):
     # for layer in model.modules():
-    for layer in model.children():
+    for layer in model.modules():
         if hasattr(layer, 'reset_parameters'):
             layer.reset_parameters()
 
@@ -277,7 +277,7 @@ def net_reset_parameters(model):
 def create_layer_bit_width_list(model):
     # for layer in model.modules():
     bit_width_list = []
-    for layer in model.children():
+    for layer in model.modules():
         if hasattr(layer, 'weightBits'):
             bit_width_list.append(layer.weightBits)
 

@@ -128,5 +128,5 @@ class linear(Function):
         fp_delta_weight, fp_delta_weight_cfg \
             = fpA.fixed_point_matmul((qgrad_output.t(), qgrad_output_config), (qinputArr, qinputArr_config))
 
-        return fpA.to_float(qgrad_input), fpA.to_float(qgrad_input_config), fpA.to_float(fp_delta_weight),\
+        return fpA.to_float(qgrad_input), fpA.to_float(qgrad_input_config), fpA.to_float(fp_delta_weight), \
                fpA.to_float(fp_delta_weight_cfg), None, None, None

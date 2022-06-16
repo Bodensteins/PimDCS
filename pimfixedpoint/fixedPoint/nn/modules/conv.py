@@ -6,7 +6,7 @@ from torch.nn import init, Parameter
 from .. import functional as fpF
 from .. import fixedPointArithmetic as fpA
 from torch.nn import Module
-from ..commonConst import TensorType
+from ..commonConst import TensorType, data_flow_bit_width
 from torch.nn.common_types import _size_2_t
 from torch.nn.modules.utils import _pair
 
@@ -14,7 +14,8 @@ from torch.nn.modules.utils import _pair
 class Conv2d(Module):
     def __init__(self, in_channels: int, out_channels: int, kernel_size: _size_2_t, stride: _size_2_t = 1,
                  padding: _size_2_t = 0, dilation: _size_2_t = 1, groups: int = 1, bias: bool = True,
-                 padding_mode: str = 'zeros', inputBits: int = 16, weightBits: int = 16, gradOutputBits: int = 16,
+                 padding_mode: str = 'zeros', inputBits: int = data_flow_bit_width,
+                 weightBits: int = data_flow_bit_width, gradOutputBits: int = data_flow_bit_width,
                  weight_tensor_mode: str = "NormalTensor", quantizerMode: str = ""):
         super().__init__()
         self.in_channels = in_channels

@@ -61,7 +61,7 @@ def _round_rshift(int_tensor, shift: int):
         raise Exception("Inappropriate shift value: " + str(shift))
 
     if shift > system_bit_width - 1:
-        print("warning! right shift too many bits: " + str(shift))
+        raise Exception("warning! right shift too many bits: " + str(shift))
         return torch.zeros_like(int_tensor)
 
     round_bit = int_tensor.bitwise_and(1 << (shift - 1))
@@ -223,7 +223,7 @@ def _get_effective_bit_width(fp_tensor_tuple: tuple):
     return bit_width
 
 
-def set_bit_width_(fp_tensor_tuple: tuple, new_bit_width: int, mode: RightShiftMode = RightShiftMode.Abandon):
+def set_bit_width_(fp_tensor_tuple: tuple, new_bit_width: int, mode: RightShiftMode = RightShiftMode.Round):
     effective_bit_width = _get_effective_bit_width(fp_tensor_tuple)
 
     int_tensor, quantization_para = _parse_tensor_tuple_to_int(fp_tensor_tuple)
@@ -242,8 +242,10 @@ def set_bit_width_(fp_tensor_tuple: tuple, new_bit_width: int, mode: RightShiftM
         else:
             raise Exception("We don't support this right shift mode!", mode)
 
+        if quantization_para[0] == 2147483647:
+            raise Exception("err")
 
-# todo: have bugs
+
 def add_additional_col_of_one(fp_tensor_tuple: tuple) -> Tensor:
     int_tensor, quantization_para = _parse_tensor_tuple_to_int(fp_tensor_tuple)
     s, tensor_type = _parse_quantization_para(quantization_para)

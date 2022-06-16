@@ -3,13 +3,13 @@ from .. import functional as fpF
 from torch.nn import Module, Parameter, init
 import math
 from .. import fixedPointArithmetic as fpA
-from ..commonConst import TensorType, half_data_flow_bit_width
+from ..commonConst import TensorType, data_flow_bit_width
 
 
 class Linear(Module):
     def __init__(self, in_features: int, out_features: int, bias: bool = True,
-                 input_bit_width: int = half_data_flow_bit_width, weight_bit_width: int = half_data_flow_bit_width,
-                 grad_output_bit_width: int = half_data_flow_bit_width, weight_tensor_mode: str = "NormalTensor",
+                 input_bit_width: int = data_flow_bit_width, weight_bit_width: int = data_flow_bit_width,
+                 grad_output_bit_width: int = data_flow_bit_width, weight_tensor_mode: str = "NormalTensor",
                  quantizer_mode: str = ""):
         super(Linear, self).__init__()
         self.in_features = in_features

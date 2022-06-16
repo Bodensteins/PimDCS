@@ -2,6 +2,7 @@ import torch
 from .. import functional as fpF
 from torch.nn import Module, Parameter, init
 import math
+from .. import fixedPointArithmetic as fpA
 from ..fixedPointArithmetic import creat_quantization_para, quantization_tensor
 from ..commonConst import TensorType, half_data_flow_bit_width
 
@@ -23,8 +24,9 @@ class Linear(Module):
         self.gradOutputBits = grad_output_bit_width
 
         if weight_tensor_mode == "NormalTensor":
-            self.fp_weight_cfg \
-                = torch.nn.Parameter(creat_quantization_para(bit_width=weight_bit_width, tensor_type=TensorType.Normal))
+            weight_cfg \
+                = fpA.to_float(creat_quantization_para(bit_width=weight_bit_width, tensor_type=TensorType.Normal))
+            self.fp_weight_cfg = torch.nn.Parameter(weight_cfg)
         else:
             raise Exception("We don't implement this tensor mode: " + weight_tensor_mode)
 

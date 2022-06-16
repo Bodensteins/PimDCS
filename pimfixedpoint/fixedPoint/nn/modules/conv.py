@@ -34,8 +34,8 @@ class Conv2d(Module):
         self.fp_weight = None
 
         if weight_tensor_mode == "NormalTensor":
-            self.fp_weight_cfg = torch.nn.Parameter(creat_quantization_para(bit_width=weightBits,
-                                                                            tensor_type=TensorType.Normal))
+            weight_cfg = fpA.to_float(creat_quantization_para(bit_width=weightBits, tensor_type=TensorType.Normal))
+            self.fp_weight_cfg = torch.nn.Parameter(weight_cfg)
         else:
             raise Exception("We don't implement this tensor mode!", weight_tensor_mode)
 

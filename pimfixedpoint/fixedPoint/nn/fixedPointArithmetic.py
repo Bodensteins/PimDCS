@@ -143,7 +143,6 @@ def parse_tensor_tuple_to_int(fp_tensor_tuple: tuple):
     return int_tensor, quantization_para
 
 
-# todo: to_float for grad, modify to_float location
 def creat_quantization_para(s: int = None, bit_width: int = None, tensor_type: TensorType = None, device=None):
     quantization_para = torch.empty(3, dtype=torch_int, device=device)
     if s is not None:
@@ -153,7 +152,7 @@ def creat_quantization_para(s: int = None, bit_width: int = None, tensor_type: T
     if tensor_type is not None:
         quantization_para[2] = tensor_type.value
 
-    return to_float(quantization_para)
+    return quantization_para
 
 
 def quantization_tensor(quantization_para: Tensor, tensor: Tensor) -> Tensor:
@@ -313,11 +312,11 @@ def fixed_point_matmul(input_tensor_tuple: tuple, other_tensor_tuple: tuple) \
     else:
         matmul_result = torch.matmul(normal_int_tensor, static_int_tensor)
 
-    matmul_result_para = creat_quantization_para(device=normal_int_tensor.device,
-                                                 s=normal_s + static_s, tensor_type=TensorType.Normal)
+    matmul_result_para = creat_quantization_para(device=normal_int_tensor.device, s=normal_s + static_s,
+                                                 tensor_type=TensorType.Normal)
 
     set_bit_width_((matmul_result, matmul_result_para), data_flow_bit_width)
-    return to_float(matmul_result), to_float(matmul_result_para)
+    return matmul_result, matmul_result_para
 
 
 def fixed_point_less(tensor_tuple: tuple, a: float) -> torch.BoolTensor:
@@ -332,7 +331,6 @@ def fixed_point_less(tensor_tuple: tuple, a: float) -> torch.BoolTensor:
         raise Exception("We don't implement this tensor_type!", tensor_type)
 
 
-# todo: check if needed
 def fixed_point_mul(tensor_tuple: tuple, alpha: float, alpha_bit_width: int = data_flow_bit_width) -> [Tensor, Tensor]:
     int_tensor, quantization_para = parse_tensor_tuple_to_int(tensor_tuple)
     s, _, tensor_type = parse_quantization_para(quantization_para)
@@ -349,7 +347,7 @@ def fixed_point_mul(tensor_tuple: tuple, alpha: float, alpha_bit_width: int = da
         raise Exception("We don't implement this tensor_type!", tensor_type)
 
     set_bit_width_((mul_num_int_tensor, mul_num_para), data_flow_bit_width)
-    return to_float(mul_num_int_tensor), to_float(mul_num_para)
+    return mul_num_int_tensor, mul_num_para
 
 
 def fixed_point_mul_(tensor_tuple: tuple, alpha: float, alpha_bit_width: int = data_flow_bit_width) -> [Tensor, Tensor]:

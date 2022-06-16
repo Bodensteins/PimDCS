@@ -27,21 +27,24 @@ class dequan(Function):
     def backward(ctx, grad_output):
         if debug_backward is True:
             pydevd.settrace(suspend=False, trace_only_current_thread=True)
-        qgrad_output_config = fpA.creat_quantization_para(bit_width=ctx.backBit, tensor_type=TensorType.Normal,
-                                                      device=grad_output.device)
+        qgrad_output_config = fpA.creat_quantization_para(bit_width=ctx.backBit,
+                                                          tensor_type=TensorType.Normal,
+                                                          device=grad_output.device)
 
         qgrad_output = fpA.quantization_tensor(qgrad_output_config, grad_output)
 
-        return qgrad_output, qgrad_output_config, None, None, None
+        return qgrad_output, fpA.to_float(qgrad_output_config), None, None, None
 
 
 class quan(Function):
     @staticmethod
     def forward(ctx, _input, bit_width):
-        fp_output_config = fpA.creat_quantization_para(bit_width=bit_width, tensor_type=TensorType.Normal,
-                                                   device=_input.device)
+        fp_output_config = fpA.creat_quantization_para(bit_width=bit_width,
+                                                       tensor_type=TensorType.Normal,
+                                                       device=_input.device)
+
         fp_output = fpA.quantization_tensor(fp_output_config, _input)
-        return fp_output, fp_output_config
+        return fp_output, fpA.to_float(fp_output_config)
 
     @staticmethod
     def backward(ctx, fp_grad_output, fp_grad_output_config):
@@ -109,7 +112,7 @@ class linear(Function):
         ctx.gradOutputBits = grad_output_bit_width
         ctx.hasBias = has_bias
 
-        return qoutput, qoutput_config
+        return fpA.to_float(qoutput), fpA.to_float(qoutput_config)
 
     @staticmethod
     def backward(ctx, qgrad_output, qgrad_output_config):
@@ -131,4 +134,5 @@ class linear(Function):
         fp_delta_weight, fp_delta_weight_cfg \
             = fpA.fixed_point_matmul((qgrad_output.t(), qgrad_output_config), (qinputArr, qinputArr_config))
 
-        return qgrad_input, qgrad_input_config, fp_delta_weight, fp_delta_weight_cfg, None, None, None
+        return fpA.to_float(qgrad_input), fpA.to_float(qgrad_input_config), fpA.to_float(fp_delta_weight),\
+               fpA.to_float(fp_delta_weight_cfg), None, None, None

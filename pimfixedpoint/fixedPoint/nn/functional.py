@@ -74,7 +74,7 @@ class dropout(Function):
             fp_input[mask] = 0  # The zero in ieee754 is all zero as well.
             return fp_input, fp_input_cfg
         else:
-            int_input, _ = fpA.parse_tensor_tuple_to_int((fp_input, fp_input_cfg))
+            int_input = fpA.to_int(fp_input)
             int_input = int_input.mul(1 - dropout_ratio).to(dtype=torch_int)
 
             return fpA.to_float(int_input), fp_input_cfg

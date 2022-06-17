@@ -45,7 +45,7 @@ def main():
                         help='For use fixed point')
     parser.add_argument('--net', type=int, default=0, metavar='NET',
                         help='use which model (0:conv 1:fc)')
-    parser.add_argument('--cuda', action='store_true', default=False,
+    parser.add_argument('--cuda', action='store_true', default=True,
                         help='use CUDA training')
     parser.add_argument('--cuda_use_num', type=int, default=0, metavar='CUDA',
                         help='use which cuda (choice: 0-1)')

@@ -24,11 +24,11 @@ class PimFcMnist(nn.Module):
     def __init__(self):
         super().__init__()
         self.flatten = nn.Flatten()
-        self.quan = fpnn.Quan(fp.half_data_flow_bit_width)
+        self.quan = fpnn.Quan()
         self.fc1 = fpnn.Linear(784, 128)
         self.fc2 = fpnn.Linear(128, 10)
         self.relu = fpnn.ReLU()
-        self.dequan = fpnn.DeQuan(fp.half_data_flow_bit_width)
+        self.dequan = fpnn.DeQuan()
 
     def forward(self, x):
         x = self.flatten(x)

@@ -62,13 +62,13 @@ class FixedPointVGG8B(nn.Module):
                                     nn.ReLU(),
                                     nn.MaxPool2d(kernel_size=(2, 2), stride=2),
                                     nn.Flatten(),
-                                    fpnn.Quan(fp.half_data_flow_bit_width),
+                                    fpnn.Quan(),
                                     fpnn.Linear(2048, 1024),
                                     fpnn.ReLU(),
                                     fpnn.Dropout(p=0.2),
                                     fpnn.Linear(1024, 10),
                                     fpnn.Dropout(p=0.2),
-                                    fpnn.DeQuan(fp.half_data_flow_bit_width)
+                                    fpnn.DeQuan()
                                     )
 
     def forward(self, x):
@@ -156,7 +156,7 @@ class FixedPointVGG(nn.Module):
         self.features = features
         self.classifier = fpnn.MulInputSequential(
             nn.Flatten(),
-            fpnn.Quan(fp.half_data_flow_bit_width),
+            fpnn.Quan(),
             fpnn.Linear(512, 512),
             fpnn.ReLU(),
             fpnn.Dropout(),
@@ -164,7 +164,7 @@ class FixedPointVGG(nn.Module):
             fpnn.ReLU(),
             fpnn.Dropout(),
             fpnn.Linear(512, 10),
-            fpnn.DeQuan(fp.half_data_flow_bit_width)
+            fpnn.DeQuan()
         )
 
     def forward(self, x):

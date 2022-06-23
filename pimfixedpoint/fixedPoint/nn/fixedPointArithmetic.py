@@ -229,6 +229,9 @@ def set_bit_width_(fp_tensor_tuple: tuple, new_bit_width: int, mode: RightShiftM
     int_tensor, quantization_para = _parse_tensor_tuple_to_int(fp_tensor_tuple)
     s, tensor_type = _parse_quantization_para(quantization_para)
 
+    if s == 2147483647:
+        raise Exception("err")
+
     if new_bit_width < 1:
         raise Exception("Illegal new bit width: " + str(new_bit_width))
 
@@ -241,9 +244,6 @@ def set_bit_width_(fp_tensor_tuple: tuple, new_bit_width: int, mode: RightShiftM
             _round_rshift_(int_tensor, effective_bit_width - new_bit_width)
         else:
             raise Exception("We don't support this right shift mode!", mode)
-
-        if quantization_para[0] == 2147483647:
-            raise Exception("err")
 
 
 def add_additional_col_of_one(fp_tensor_tuple: tuple) -> Tensor:

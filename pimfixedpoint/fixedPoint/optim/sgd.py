@@ -89,3 +89,6 @@ class SGD(Optimizer):
                 state['momentum_buffer'] = momentum_buffer
 
         return loss
+
+    def zero_grad(self, set_to_none: bool = True):
+        super(SGD, self).zero_grad(set_to_none=set_to_none)

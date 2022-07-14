@@ -20,8 +20,8 @@ class WeightUpdateStrategy(Enum):
     DynamicRange = 1
 
 
-system_bit_width = 32
-data_flow_bit_width = 8
+system_bit_width = 64
+data_flow_bit_width = 16
 # data flow bit width must be half of system bit width to avoid overflow
 if system_bit_width <= 32:
     torch_int = torch.int32

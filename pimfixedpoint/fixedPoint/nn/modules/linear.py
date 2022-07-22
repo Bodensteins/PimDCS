@@ -3,7 +3,7 @@ from .. import functional as fpF
 from torch.nn import Module, Parameter, init
 import math
 from .. import fixedPointArithmetic as fpA
-from ..commonConst import TensorType, data_flow_bit_width
+from ..commonConst import TensorType, data_flow_bit_width, torch_float
 
 
 class Linear(Module):
@@ -34,7 +34,7 @@ class Linear(Module):
         self.reset_parameters()
 
     def reset_parameters(self):
-        temp_weight = torch.empty(self.out_features, self.in_features)
+        temp_weight = torch.empty(self.out_features, self.in_features, dtype=torch_float)
         init.kaiming_uniform_(temp_weight, a=math.sqrt(5))
 
         if self.hasBias:

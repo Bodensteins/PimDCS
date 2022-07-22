@@ -6,7 +6,7 @@ from torch.nn import init, Parameter
 from .. import functional as fpF
 from .. import fixedPointArithmetic as fpA
 from torch.nn import Module
-from ..commonConst import TensorType, data_flow_bit_width
+from ..commonConst import TensorType, data_flow_bit_width, torch_float
 from torch.nn.common_types import _size_2_t
 from torch.nn.modules.utils import _pair
 
@@ -43,7 +43,8 @@ class Conv2d(Module):
         self.reset_parameters()
 
     def reset_parameters(self):
-        temp_weight = torch.empty([self.out_channels, self.in_channels, self.kernel_size[0], self.kernel_size[1]])
+        temp_weight = torch.empty([self.out_channels, self.in_channels, self.kernel_size[0], self.kernel_size[1]],
+                                  dtype=torch_float)
         init.kaiming_uniform_(temp_weight, math.sqrt(5))
 
         temp_weight = temp_weight.reshape(self.out_channels, -1)

@@ -9,18 +9,18 @@ from fixedPoint import optim as fpOptim
 import torch.utils.data
 
 from fixedPoint.nn.fixedPointArithmetic import *
-from trainCommon import split_data_loader, train_model, test_model
-from VGG_cifar10_model import vgg19, FixedPointVGG8B, VGG8B, fp_vgg19, fp_vgg11
+from trainCommon import split_data_loader, train_model, test_model, create_layer_bit_width_list
+from VGG_cifar10_model import vgg16, vgg19, FixedPointVGG8B, VGG8B, fp_vgg19, fp_vgg11, fp_vgg16
 
 
 def main():
     # Training settings
-    parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
+    parser = argparse.ArgumentParser(description='PyTorch Cifar10 Example')
     parser.add_argument('--train-batch-size', type=int, default=128, metavar='TRAIN_BATCH',
                         help='input batch size for training (default: 64)')
     parser.add_argument('--test-batch-size', type=int, default=400, metavar='TEST_BATCH',
                         help='input batch size for testing (default: 1000)')
-    parser.add_argument('--epochs', type=int, default=1, metavar='N',
+    parser.add_argument('--epochs', type=int, default=500, metavar='N',
                         help='number of epochs to train (default: 14)')
     parser.add_argument('--lr', type=float, default=0.1, metavar='LR',
                         help='learning rate (default: 1.0)')
@@ -108,7 +108,7 @@ def main():
     if args.fixed_point:
         if args.net == 0:
             # model = fp_vgg19(args.train_batch_size, device=device, batch_norm=True).to(device)
-            model = fp_vgg11(batch_norm=True).to(device)
+            model = fp_vgg16(batch_norm=False).to(device)
             model.double()
             # model = FixedPointVGG13(args.train_batch_size, device=device).to(device)
         elif args.net == 1:
@@ -116,10 +116,13 @@ def main():
         else:
             raise Exception('undefined net: ' + str(args.net))
 
-        optimizer = fpOptim.SGD(model.parameters(), lr=args.lr)
+        bit_width_list = create_layer_bit_width_list(model)
+
+        optimizer = fpOptim.SGD(model.parameters(), bit_width_list, lr=args.lr, weight_decay=args.weight_decay,
+                                momentum=args.momentum)
     else:
         if args.net == 0:
-            model = vgg19(batch_norm=True).to(device)
+            model = vgg16(batch_norm=True).to(device)
         elif args.net == 1:
             model = VGG8B().to(device)
         else:

@@ -1,3 +1,5 @@
+import math
+
 import torch
 import torch.nn as nn
 import fixedPoint as fp
@@ -97,6 +99,12 @@ class VGG(nn.Module):
             nn.Linear(512, 10),
         )
 
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                m.weight.data.normal_(0, math.sqrt(2. / n))
+                m.bias.data.zero_()
+
     def forward(self, x):
         x = self.features(x)
         x = self.classifier(x)
@@ -176,15 +184,11 @@ class FixedPointVGG(nn.Module):
 def fixed_point_make_layers(cfg, batch_norm=False):
     layers = []
     in_channels = 3
-    height = 32
-    width = 32
     for v in cfg:
         if v == 'M':
             layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
-            height = height // 2
-            width = width // 2
         else:
-            conv2d = fpnn.Conv2d([in_channels, height, width], v, (3, 3), padding=1)
+            conv2d = fpnn.Conv2d(in_channels, v, (3, 3), padding=1)
             if batch_norm:
                 layers += [conv2d, nn.BatchNorm2d(v), nn.ReLU()]
             else:
@@ -196,6 +200,11 @@ def fixed_point_make_layers(cfg, batch_norm=False):
 def fp_vgg11(batch_norm=False):
     """VGG 11-layer model (configuration "A")"""
     return FixedPointVGG(fixed_point_make_layers(VGG_cfg['A'], batch_norm=batch_norm))
+
+
+def fp_vgg16(batch_norm=False):
+    """VGG 11-layer model (configuration "D")"""
+    return FixedPointVGG(fixed_point_make_layers(VGG_cfg['D'], batch_norm=batch_norm))
 
 
 def fp_vgg19(batch_norm=False):

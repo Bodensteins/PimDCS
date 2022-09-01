@@ -166,13 +166,25 @@ class FixedPointVGG(nn.Module):
         self.classifier = fpnn.MulInputSequential(
             nn.Flatten(),
             fpnn.Quan(),
-            fpnn.Linear(512, 512),
+            fpnn.Linear(512, 512,
+                        output_bit_width=8,
+                        weight_bit_width=16,
+                        grad_output_bit_width=8,
+                        compute_weight_bit_width=8),
             fpnn.ReLU(),
             fpnn.Dropout(),
-            fpnn.Linear(512, 512),
+            fpnn.Linear(512, 512,
+                        output_bit_width=8,
+                        weight_bit_width=16,
+                        grad_output_bit_width=8,
+                        compute_weight_bit_width=8),
             fpnn.ReLU(),
             fpnn.Dropout(),
-            fpnn.Linear(512, 10),
+            fpnn.Linear(512, 10,
+                        output_bit_width=8,
+                        weight_bit_width=16,
+                        grad_output_bit_width=8,
+                        compute_weight_bit_width=8),
             fpnn.DeQuan()
         )
 
@@ -189,7 +201,13 @@ def fixed_point_make_layers(cfg, batch_norm=False):
         if v == 'M':
             layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
         else:
-            conv2d = fpnn.Conv2d(in_channels, v, (3, 3), padding=1, batch_norm=batch_norm)
+            conv2d = fpnn.Conv2d(in_channels, v, (3, 3), padding=1, batch_norm=batch_norm,
+                                 input_bit_width=8,
+                                 output_bit_width=8,
+                                 weight_bit_width=16,
+                                 grad_output_bits=8,
+                                 next_grad_output_bits=8,
+                                 compute_weight_bit_width=8)
             if batch_norm:
                 layers += [conv2d, nn.BatchNorm2d(v, dtype=torch_float), nn.ReLU()]
             else:

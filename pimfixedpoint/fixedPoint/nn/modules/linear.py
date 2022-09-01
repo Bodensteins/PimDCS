@@ -9,7 +9,8 @@ from ..commonConst import TensorType, data_flow_bit_width, torch_float
 class Linear(Module):
     def __init__(self, in_features: int, out_features: int, bias: bool = True,
                  output_bit_width: int = data_flow_bit_width, weight_bit_width: int = data_flow_bit_width,
-                 grad_output_bit_width: int = data_flow_bit_width, weight_tensor_mode: str = "NormalTensor"):
+                 grad_output_bit_width: int = data_flow_bit_width, compute_weight_bit_width: int = None,
+                 weight_tensor_mode: str = "NormalTensor"):
         super(Linear, self).__init__()
         self.in_features = in_features
         self.out_features = out_features
@@ -18,6 +19,7 @@ class Linear(Module):
         self.outputBits = output_bit_width
         self.weightBits = weight_bit_width
         self.gradOutputBits = grad_output_bit_width
+        self.computeWeightBits = compute_weight_bit_width
 
         self.fp_weight = None
         self.fp_weight_cfg = None
@@ -47,8 +49,9 @@ class Linear(Module):
         self.fp_weight_cfg = Parameter(fpA.to_float(weight_cfg))
 
     def forward(self, qinput, qinput_config):
-        qoutput, qoutput_config = fpF.linear.apply(qinput, qinput_config, self.fp_weight, self.fp_weight_cfg,
-                                                   self.hasBias, self.outputBits, self.gradOutputBits)
+        qoutput, qoutput_config \
+            = fpF.linear.apply(qinput, qinput_config, self.fp_weight, self.fp_weight_cfg, self.hasBias,
+                               self.outputBits, self.gradOutputBits, self.computeWeightBits)
 
         return qoutput, qoutput_config
 

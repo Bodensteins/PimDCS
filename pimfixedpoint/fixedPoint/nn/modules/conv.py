@@ -17,7 +17,7 @@ class Conv2d(Module):
                  padding_mode: str = 'zeros', input_bit_width: int = data_flow_bit_width,
                  output_bit_width: int = data_flow_bit_width, weight_bit_width: int = data_flow_bit_width,
                  grad_output_bits: int = data_flow_bit_width, next_grad_output_bits: int = data_flow_bit_width,
-                 weight_tensor_mode: str = "NormalTensor", batch_norm=True):
+                 compute_weight_bit_width: int = None, weight_tensor_mode: str = "NormalTensor", batch_norm=True):
         super().__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -33,6 +33,7 @@ class Conv2d(Module):
         self.weightBits = weight_bit_width
         self.gradOutputBits = grad_output_bits
         self.nextGradOutputBits = next_grad_output_bits
+        self.computeWeightBits = compute_weight_bit_width
 
         self.fp_weight = None
         self.fp_weight_cfg = None
@@ -86,8 +87,9 @@ class Conv2d(Module):
         fp_input, fp_input_cfg = fpF.quan.apply(_input, self.inputBits)
 
         # re-use linear function to get the answer
-        qoutput, qoutput_config = fpF.linear.apply(fp_input, fp_input_cfg, self.fp_weight, self.fp_weight_cfg,
-                                                   self.hasBias, self.outputBits, self.gradOutputBits)
+        qoutput, qoutput_config \
+            = fpF.linear.apply(fp_input, fp_input_cfg, self.fp_weight, self.fp_weight_cfg, self.hasBias,
+                               self.outputBits, self.gradOutputBits, self.computeWeightBits)
 
         # reshape the output to the conv-shape
         # Here, for simplicity, we use dequan & fold & quan to simulate fixed-point fold

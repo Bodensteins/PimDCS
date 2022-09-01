@@ -282,7 +282,7 @@ def add_additional_col_of_one(fp_tensor_tuple: tuple) -> Tensor:
 def fixed_point_matmul(input_tensor_tuple: tuple, other_tensor_tuple: tuple,
                        result_bit_width=data_flow_bit_width) -> [Tensor, Tensor]:
     """a normal tensor matmul a static tensor.
-        :param result_bit_width:
+        :param result_bit_width: bit width of result
         :param input_tensor_tuple: a normal tensor list.
         :param other_tensor_tuple: a static tensor list.
         """

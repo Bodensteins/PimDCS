@@ -8,7 +8,7 @@ from ..commonConst import TensorType, data_flow_bit_width, torch_float
 
 class Linear(Module):
     def __init__(self, in_features: int, out_features: int, bias: bool = True,
-                 input_bit_width: int = data_flow_bit_width, weight_bit_width: int = data_flow_bit_width,
+                 output_bit_width: int = data_flow_bit_width, weight_bit_width: int = data_flow_bit_width,
                  grad_output_bit_width: int = data_flow_bit_width, weight_tensor_mode: str = "NormalTensor",
                  quantizer_mode: str = ""):
         super(Linear, self).__init__()
@@ -19,7 +19,7 @@ class Linear(Module):
         # quantizer mode dynamic, static.
         self.quantizerMode = quantizer_mode
         # todo: become output_bits
-        self.inputBits = input_bit_width
+        self.outputBits = output_bit_width
         self.weightBits = weight_bit_width
         self.gradOutputBits = grad_output_bit_width
 
@@ -52,7 +52,7 @@ class Linear(Module):
 
     def forward(self, qinput, qinput_config):
         qoutput, qoutput_config = fpF.linear.apply(qinput, qinput_config, self.fp_weight, self.fp_weight_cfg,
-                                                   self.hasBias, self.inputBits, self.gradOutputBits)
+                                                   self.hasBias, self.outputBits, self.gradOutputBits)
 
         return qoutput, qoutput_config
 

@@ -12,26 +12,19 @@ if debug_backward:
 
 class dequan(Function):
     @staticmethod
-    def forward(ctx, qinput, qinput_config, bit: int, backBit: int, quantizerMode: str = "dynamic"):
-        if quantizerMode == "dynamic":
-            ctx.backBit = data_flow_bit_width
-            # _, ctx.backBit, _ = fpA.parse_quantization_para(fpA.to_int(qinput_config))
-        else:
-            ctx.backBit = backBit
+    def forward(ctx, fp_input, fp_input_cfg, back_bit_width: int):
+        ctx.backBitWidth = back_bit_width
 
-        if bit is not None:
-            fpA.set_bit_width_((qinput, qinput_config), bit)
-
-        return fpA.de_quantization((qinput, qinput_config))
+        return fpA.de_quantization((fp_input, fp_input_cfg))
 
     @staticmethod
     def backward(ctx, grad_output):
         if debug_backward is True:
             pydevd.settrace(suspend=False, trace_only_current_thread=True)
 
-        qgrad_output, qgrad_output_config = fpA.quantization_tensor(grad_output, ctx.backBit, TensorType.Normal)
+        fp_grad_output, fp_grad_output_cfg = fpA.quantization_tensor(grad_output, ctx.backBitWidth, TensorType.Normal)
 
-        return fpA.to_float(qgrad_output), fpA.to_float(qgrad_output_config), None, None, None
+        return fpA.to_float(fp_grad_output), fpA.to_float(fp_grad_output_cfg), None
 
 
 class quan(Function):
@@ -91,11 +84,11 @@ class dropout(Function):
 class linear(Function):
     @staticmethod
     def forward(ctx, fp_input, fp_input_config, fp_weight, fp_weight_config, has_bias: bool,
-                input_bit_width: int, grad_output_bit_width: int):
+                output_bit_width: int, grad_output_bit_width: int):
         if has_bias:
             fp_input = fpA.add_additional_col_of_one((fp_input, fp_input_config))
 
-        # todo: optimize here
+        # todo: optimize here, why need clone?
         ctx.save_for_backward(fp_input, fp_input_config.clone(), fp_weight, fp_weight_config)
         # ctx.save_for_backward(fp_input, fp_input_config, fp_weight, fp_weight_config)
 
@@ -105,7 +98,7 @@ class linear(Function):
         # qoutput, qoutput_config = fpA.fixed_point_matmul((fp_input, fp_input_config), (clone_weight.t(), clone_config))
 
         qoutput, qoutput_config \
-            = fpA.fixed_point_matmul((fp_input, fp_input_config), (fp_weight.t(), fp_weight_config), input_bit_width)
+            = fpA.fixed_point_matmul((fp_input, fp_input_config), (fp_weight.t(), fp_weight_config), output_bit_width)
 
         ctx.gradOutputBits = grad_output_bit_width
         ctx.hasBias = has_bias

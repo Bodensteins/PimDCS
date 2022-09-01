@@ -9,16 +9,12 @@ from ..commonConst import TensorType, data_flow_bit_width, torch_float
 class Linear(Module):
     def __init__(self, in_features: int, out_features: int, bias: bool = True,
                  output_bit_width: int = data_flow_bit_width, weight_bit_width: int = data_flow_bit_width,
-                 grad_output_bit_width: int = data_flow_bit_width, weight_tensor_mode: str = "NormalTensor",
-                 quantizer_mode: str = ""):
+                 grad_output_bit_width: int = data_flow_bit_width, weight_tensor_mode: str = "NormalTensor"):
         super(Linear, self).__init__()
         self.in_features = in_features
         self.out_features = out_features
         self.hasBias = bias
 
-        # quantizer mode dynamic, static.
-        self.quantizerMode = quantizer_mode
-        # todo: become output_bits
         self.outputBits = output_bit_width
         self.weightBits = weight_bit_width
         self.gradOutputBits = grad_output_bit_width

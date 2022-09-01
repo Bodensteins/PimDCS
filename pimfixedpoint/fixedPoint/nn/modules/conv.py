@@ -16,7 +16,7 @@ class Conv2d(Module):
                  padding: _size_2_t = 0, dilation: _size_2_t = 1, groups: int = 1, bias: bool = True,
                  padding_mode: str = 'zeros', inputBits: int = data_flow_bit_width,
                  weightBits: int = data_flow_bit_width, gradOutputBits: int = data_flow_bit_width,
-                 weight_tensor_mode: str = "NormalTensor", quantizerMode: str = ""):
+                 weight_tensor_mode: str = "NormalTensor", quantizerMode: str = "", batch_norm=True):
         super().__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -40,22 +40,31 @@ class Conv2d(Module):
         else:
             raise Exception("We don't implement this tensor mode!", weight_tensor_mode)
 
-        self.reset_parameters()
+        self.reset_parameters(batch_norm)
 
-    def reset_parameters(self):
+    def reset_parameters(self, batch_norm):
         temp_weight = torch.empty([self.out_channels, self.in_channels, self.kernel_size[0], self.kernel_size[1]],
                                   dtype=torch_float)
-        init.kaiming_uniform_(temp_weight, math.sqrt(5))
+        if batch_norm:
+            init.kaiming_uniform_(temp_weight, math.sqrt(5))
+            temp_weight = temp_weight.reshape(self.out_channels, -1)
 
-        temp_weight = temp_weight.reshape(self.out_channels, -1)
+            if self.hasBias:
+                temp_bias = torch.empty(self.out_channels)
+                fan_in, _ = init._calculate_fan_in_and_fan_out(temp_weight)
+                bound = 1 / math.sqrt(fan_in)
+                torch.nn.init.uniform_(temp_bias, -bound, bound)
+                temp_bias = temp_bias.unsqueeze(1)
+                temp_weight = torch.cat((temp_weight, temp_bias), 1)
+        else:
+            n = self.kernel_size[0] * self.kernel_size[1] * self.out_channels
+            init.normal_(temp_weight, mean=0, std=math.sqrt(2. / n))
+            temp_weight = temp_weight.reshape(self.out_channels, -1)
 
-        if self.hasBias:
-            temp_bias = torch.empty(self.out_channels)
-            fan_in, _ = init._calculate_fan_in_and_fan_out(temp_weight)
-            bound = 1 / math.sqrt(fan_in)
-            torch.nn.init.uniform_(temp_bias, -bound, bound)
-            temp_bias = temp_bias.unsqueeze(1)
-            temp_weight = torch.cat((temp_weight, temp_bias), 1)
+            if self.hasBias:
+                temp_bias = torch.zeros(self.out_channels)
+                temp_bias = temp_bias.unsqueeze(1)
+                temp_weight = torch.cat((temp_weight, temp_bias), 1)
 
         weight, weight_cfg = fpA.quantization_tensor(temp_weight, self.weightBits, self.weight_tensor_mode)
         self.fp_weight = Parameter(fpA.to_float(weight))

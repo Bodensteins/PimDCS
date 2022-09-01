@@ -36,7 +36,7 @@ def split_data_loader(train_datasets, test_datasets, train_kwargs, test_kwargs, 
 
 
 def train_model(model, device, train_loader, valid_loader, criterion, optimizer, n_epochs,
-                patience=20, filename='checkpoint.pt', verbose=True, score_type='loss', scheduler=None):
+                patience=20, filename='checkpoint.pt', verbose=True, score_type='loss', scheduler=None, half=False):
     # to track the training loss as the model trains
     train_losses = []
     # to track the validation loss as the model trains
@@ -58,9 +58,12 @@ def train_model(model, device, train_loader, valid_loader, criterion, optimizer,
         model.train()  # prep model for training
         for batch, (data, target) in enumerate(train_loader):
             data, target = data.to(device), target.to(device)
+
             # clear the gradients of all optimized variables
             optimizer.zero_grad()
             # forward pass: compute predicted outputs by passing inputs to the model
+            if half:
+                data = data.half()
             output = model(data)
             # calculate the loss
             loss = criterion(output, target)
@@ -79,6 +82,8 @@ def train_model(model, device, train_loader, valid_loader, criterion, optimizer,
         for data, target in valid_loader:
             data, target = data.to(device), target.to(device)
             # forward pass: compute predicted outputs by passing inputs to the model
+            if half:
+                data = data.half()
             output = model(data)
             pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
             correct += pred.eq(target.view_as(pred)).sum().item()
@@ -173,7 +178,7 @@ def train_full_data(model, device, train_loader, criterion, optimizer, n_epochs,
     torch.save(model.state_dict(), filename)
 
 
-def test_model(model, device, test_loader, criterion=None):
+def test_model(model, device, test_loader, criterion, half=False):
     # initialize lists to monitor test loss and accuracy
     test_loss = 0.0
     correct = 0
@@ -184,6 +189,8 @@ def test_model(model, device, test_loader, criterion=None):
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
             # forward pass: compute predicted outputs by passing inputs to the model
+            if half:
+                data = data.half()
             output = model(data)
             # calculate the loss
             test_loss += criterion(output, target).item()

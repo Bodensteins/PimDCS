@@ -96,12 +96,16 @@ class linear(Function):
             fp_input = fpA.add_additional_col_of_one((fp_input, fp_input_config))
 
         # todo: optimize here
-        ctx.save_for_backward(fp_input.clone(), fp_input_config.clone(), fp_weight, fp_weight_config)
+        ctx.save_for_backward(fp_input, fp_input_config.clone(), fp_weight, fp_weight_config)
+        # ctx.save_for_backward(fp_input, fp_input_config, fp_weight, fp_weight_config)
 
-        fpA.set_bit_width_((fp_input, fp_input_config), input_bit_width)
+        # fpA.set_bit_width_((fp_input, fp_input_config), input_bit_width)
 
-        qoutput, qoutput_config = fpA.fixed_point_matmul((fp_input, fp_input_config), (fp_weight.t(), fp_weight_config))
-        # print(f'forward: {fp_input.shape}')
+        # clone_weight, clone_config = fpA.get_clone((fp_weight, fp_weight_config), 8)
+        # qoutput, qoutput_config = fpA.fixed_point_matmul((fp_input, fp_input_config), (clone_weight.t(), clone_config))
+
+        qoutput, qoutput_config \
+            = fpA.fixed_point_matmul((fp_input, fp_input_config), (fp_weight.t(), fp_weight_config), input_bit_width)
 
         ctx.gradOutputBits = grad_output_bit_width
         ctx.hasBias = has_bias
@@ -116,10 +120,13 @@ class linear(Function):
         qinputArr, qinputArr_config, qweight, qweight_config = ctx.saved_tensors
         hasBias = ctx.hasBias
         qgrad_output_bits = ctx.gradOutputBits
-        fpA.set_bit_width_((qgrad_output, qgrad_output_config), qgrad_output_bits)
+        # fpA.set_bit_width_((qgrad_output, qgrad_output_config), qgrad_output_bits)
 
-        qgrad_input, qgrad_input_config = fpA.fixed_point_matmul((qgrad_output, qgrad_output_config),
-                                                                 (qweight, qweight_config))
+        # clone_weight, clone_config = fpA.get_clone((qweight, qweight_config), 8)
+        # qgrad_input, qgrad_input_config = fpA.fixed_point_matmul((qgrad_output, qgrad_output_config),
+        #                                                          (clone_weight, clone_config))
+        qgrad_input, qgrad_input_config \
+            = fpA.fixed_point_matmul((qgrad_output, qgrad_output_config), (qweight, qweight_config), qgrad_output_bits)
         # print(f'backward: {qgrad_output.shape}')
 
         if hasBias:

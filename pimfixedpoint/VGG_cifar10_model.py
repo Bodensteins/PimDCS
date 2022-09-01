@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import fixedPoint as fp
 import fixedPoint.nn as fpnn
+from fixedPoint.nn import torch_float
 
 
 class VGG8B(nn.Module):
@@ -188,9 +189,9 @@ def fixed_point_make_layers(cfg, batch_norm=False):
         if v == 'M':
             layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
         else:
-            conv2d = fpnn.Conv2d(in_channels, v, (3, 3), padding=1)
+            conv2d = fpnn.Conv2d(in_channels, v, (3, 3), padding=1, batch_norm=batch_norm)
             if batch_norm:
-                layers += [conv2d, nn.BatchNorm2d(v), nn.ReLU()]
+                layers += [conv2d, nn.BatchNorm2d(v, dtype=torch_float), nn.ReLU()]
             else:
                 layers += [conv2d, nn.ReLU()]
             in_channels = v

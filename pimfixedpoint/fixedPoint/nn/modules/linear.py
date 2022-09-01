@@ -18,6 +18,7 @@ class Linear(Module):
 
         # quantizer mode dynamic, static.
         self.quantizerMode = quantizer_mode
+        # todo: become output_bits
         self.inputBits = input_bit_width
         self.weightBits = weight_bit_width
         self.gradOutputBits = grad_output_bit_width

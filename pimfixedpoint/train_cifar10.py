@@ -9,7 +9,7 @@ from fixedPoint import optim as fpOptim
 import torch.utils.data
 
 from fixedPoint.nn.fixedPointArithmetic import *
-from trainCommon import split_data_loader, train_model, test_model, create_layer_bit_width_list
+from trainCommon import split_data_loader, train_model, test_model, create_layer_bit_width_list, show_data_img
 from VGG_cifar10_model import vgg16, vgg19, FixedPointVGG8B, VGG8B, fp_vgg19, fp_vgg11, fp_vgg16
 
 
@@ -22,7 +22,7 @@ def main():
                         help='input batch size for testing (default: 1000)')
     parser.add_argument('--epochs', type=int, default=500, metavar='N',
                         help='number of epochs to train (default: 14)')
-    parser.add_argument('--lr', type=float, default=0.1, metavar='LR',
+    parser.add_argument('--lr', type=float, default=0.05, metavar='LR',
                         help='learning rate (default: 1.0)')
     parser.add_argument('--scheduler', action='store_true', default=True,
                         help='use scheduler or not')
@@ -48,6 +48,8 @@ def main():
                         help='train the model')
     parser.add_argument('--fixed-point', action='store_true', default=True,
                         help='For use fixed point')
+    parser.add_argument('--half-float', action='store_true', default=False,
+                        help='For use 16b float')
     parser.add_argument('--net', type=int, default=0, metavar='NET',
                         help='use which NN model (0:VGG 1:VGG8b)')
     parser.add_argument('--cuda', action='store_true', default=True,
@@ -86,6 +88,7 @@ def main():
 
     train_datasets = \
         torchvision.datasets.CIFAR10(root=args.data_dir, train=True, download=True, transform=transform_train)
+
     # extra_train_datasets_for_valid = \
     #     torchvision.datasets.CIFAR10(root=args.data_dir, train=True, download=True, transform=transform_test)
     test_datasets = \
@@ -105,11 +108,13 @@ def main():
     #     8: "ship",
     #     9: "truck",
     # }
+
+    # show_data_img(labels_map, train_datasets)
     if args.fixed_point:
         if args.net == 0:
             # model = fp_vgg19(args.train_batch_size, device=device, batch_norm=True).to(device)
             model = fp_vgg16(batch_norm=False).to(device)
-            model.double()
+            # model.double()
             # model = FixedPointVGG13(args.train_batch_size, device=device).to(device)
         elif args.net == 1:
             model = FixedPointVGG8B(args.train_batch_size, device=device).to(device)
@@ -118,11 +123,12 @@ def main():
 
         bit_width_list = create_layer_bit_width_list(model)
 
-        optimizer = fpOptim.SGD(model.parameters(), bit_width_list, lr=args.lr, weight_decay=args.weight_decay,
+        optimizer = fpOptim.SGD(model.named_parameters(), bit_width_list, lr=args.lr, weight_decay=args.weight_decay,
                                 momentum=args.momentum)
     else:
         if args.net == 0:
-            model = vgg16(batch_norm=True).to(device)
+            model = vgg16().to(device)
+            model.half()
         elif args.net == 1:
             model = VGG8B().to(device)
         else:
@@ -154,7 +160,8 @@ def main():
         #                                      args.epochs, filename=model_save_filename, score_type='loss',
         #                                      scheduler=scheduler)
         _, _, _ = train_model(model, device, train_loader, test_loader, criterion, optimizer, args.epochs,
-                              filename=model_save_filename, score_type='accuracy', patience=100, scheduler=scheduler)
+                              filename=model_save_filename, score_type='accuracy', patience=100, scheduler=scheduler,
+                              half=args.half_float)
 
         # print("retrain use full data")
         #
@@ -162,7 +169,7 @@ def main():
         #                                      args.epochs, filename=model_save_filename)
 
     criterion = nn.CrossEntropyLoss(reduction='sum')
-    test_model(model, device, test_loader, criterion)
+    test_model(model, device, test_loader, criterion, half=args.half_float)
 
 
 if __name__ == "__main__":

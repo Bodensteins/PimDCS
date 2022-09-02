@@ -263,20 +263,24 @@ def add_additional_col_of_one(fp_tensor_tuple: tuple) -> Tensor:
 
     decimal_part_bit_width = -s
 
-    if decimal_part_bit_width > data_flow_bit_width - 2:
-        right_shift = decimal_part_bit_width - (data_flow_bit_width - 2)
-        _round_rshift_(int_tensor, right_shift)
-        quantization_para[0] += right_shift
-        decimal_part_bit_width = data_flow_bit_width - 2
-    elif decimal_part_bit_width < 0:
-        raise Exception("decimal part bit width is too short: " + str(decimal_part_bit_width))
+    if decimal_part_bit_width < 0:
+        print("decimal part bit width is too short: " + str(decimal_part_bit_width))
 
-    int_one = 1 << decimal_part_bit_width
+        int_one = 0
+    else:
+        if decimal_part_bit_width > data_flow_bit_width - 2:
+            right_shift = decimal_part_bit_width - (data_flow_bit_width - 2)
+            _round_rshift_(int_tensor, right_shift)
+            quantization_para = quantization_para.clone()  # to avoid inplace op
+            quantization_para[0] += right_shift
+            decimal_part_bit_width = data_flow_bit_width - 2
+
+        int_one = 1 << decimal_part_bit_width
 
     full_one_col = torch.full([int_tensor.size()[0], 1], int_one, dtype=torch_int, device=int_tensor.device)
     int_tensor = torch.cat((int_tensor, full_one_col), 1)
 
-    return int_tensor
+    return int_tensor, quantization_para
 
 
 def fixed_point_matmul(input_tensor_tuple: tuple, other_tensor_tuple: tuple,

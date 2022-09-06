@@ -38,18 +38,19 @@ class Conv2d(Module):
         self.fp_weight = None
         self.fp_weight_cfg = None
         self.weight_tensor_mode = None
+        self.batch_norm = batch_norm
 
         if weight_tensor_mode == "NormalTensor":
             self.weight_tensor_mode = TensorType.Normal
         else:
             raise Exception("We don't implement this tensor mode!", weight_tensor_mode)
 
-        self.reset_parameters(batch_norm)
+        self.reset_parameters()
 
-    def reset_parameters(self, batch_norm):
+    def reset_parameters(self):
         temp_weight = torch.empty([self.out_channels, self.in_channels, self.kernel_size[0], self.kernel_size[1]],
                                   dtype=torch_float)
-        if batch_norm:
+        if self.batch_norm:
             init.kaiming_uniform_(temp_weight, math.sqrt(5))
             temp_weight = temp_weight.reshape(self.out_channels, -1)
 
@@ -73,6 +74,15 @@ class Conv2d(Module):
         weight, weight_cfg = fpA.quantization_tensor(temp_weight, self.weightBits, self.weight_tensor_mode)
         self.fp_weight = Parameter(fpA.to_float(weight))
         self.fp_weight_cfg = Parameter(fpA.to_float(weight_cfg))
+
+    def reset_parameters_from_float_parameters(self, weight, bias):
+        weight = weight.reshape(self.out_channels, -1)
+        if self.hasBias:
+            bias = bias.unsqueeze(1)
+            weight = torch.cat((weight, bias), 1)
+
+        fp_weight, fp_weight_cfg = fpA.quantization_tensor(weight, self.weightBits, self.weight_tensor_mode)
+        fpA.fixed_point_copy_((self.fp_weight, self.fp_weight_cfg), (fp_weight, fp_weight_cfg))
 
     def forward(self, _input: Tensor):
         # reshape qinput to the matrix-shape

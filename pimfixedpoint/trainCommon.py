@@ -289,3 +289,20 @@ def create_layer_bit_width_list(model):
             bit_width_list.append(layer.weightBits)
 
     return bit_width_list
+
+
+def load_float_weight_for_fixed_point(model_load_filename, model):
+    param_dict = torch.load(model_load_filename)
+    param_list = []
+    for name, param in param_dict.items():
+        param_list.append(param)
+
+    for layer in model.modules():
+        if hasattr(layer, 'weightBits'):
+            weight = param_list.pop(0)
+            bias = None
+            if layer.hasBias:
+                bias = param_list.pop(0)
+
+            layer.reset_parameters_from_float_parameters(weight, bias)
+    pass

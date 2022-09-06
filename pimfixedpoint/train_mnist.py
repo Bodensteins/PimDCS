@@ -4,7 +4,8 @@ import torch.nn as nn
 import torch.optim as optim
 from torchvision import datasets, transforms
 from fixedPoint import optim as fpOptim
-from trainCommon import split_data_loader, train_model, test_model, create_layer_bit_width_list
+from trainCommon import split_data_loader, train_model, test_model, create_layer_bit_width_list, \
+    load_float_weight_for_fixed_point
 from mnist_model import PimFcMnist, FixedPointSimpleConvNet, FcMnist, ConvMnist, PimConvMnist
 
 
@@ -35,20 +36,22 @@ def main():
                         help='dir of dataset')
     parser.add_argument('--model-dir', default='model', metavar='MD',
                         help='dir of load/save model')
-    parser.add_argument('--load-model', action='store_true', default=False,
-                        help='load the trained model')
-    parser.add_argument('--load-filename', default='123.pt', metavar='LF',
+    parser.add_argument('--load-model-type', type=int, default=1, metavar='LD',
+                        help='load mode type (0:no 1:float point model 2:fixed point model')
+    parser.add_argument('--load-filename', default='ConvMnist_checkpoint.pt', metavar='LF',
                         help='filename of load model')
-    parser.add_argument('--train', action='store_true', default=True,
+    parser.add_argument('--train', action='store_true', default=False,
                         help='train the model')
     parser.add_argument('--fixed-point', action='store_true', default=True,
                         help='For use fixed point')
+    parser.add_argument('--half-float', action='store_true', default=False,
+                        help='For use 16b float')
     parser.add_argument('--net', type=int, default=0, metavar='NET',
                         help='use which model (0:conv 1:fc)')
     parser.add_argument('--cuda', action='store_true', default=True,
                         help='use CUDA training')
-    parser.add_argument('--cuda_use_num', type=int, default=0, metavar='CUDA',
-                        help='use which cuda (choice: 0-1)')
+    parser.add_argument('--cuda_use_num', type=int, default=2, metavar='CUDA',
+                        help='use which cuda (choice: 0-2)')
 
     args = parser.parse_args()
     print(args)
@@ -90,10 +93,9 @@ def main():
 
         bit_width_list = create_layer_bit_width_list(model)
 
-        optimizer = fpOptim.SGD(model.parameters(), bit_width_list, lr=args.lr,
+        optimizer = fpOptim.SGD(model.named_parameters(), bit_width_list, lr=args.lr,
                                 momentum=args.momentum, weight_decay=args.weight_decay,
                                 run_mode=fpOptim.OptimMode.full_fix)
-
     else:
         if args.net == 0:
             model = ConvMnist().to(device)
@@ -107,15 +109,22 @@ def main():
     print(model)
 
     model_name = type(model).__name__
+
     model_save_filename = args.model_dir + '/' + model_name + '_checkpoint.pt'
 
-    if args.load_model:
-        model_load_filename = args.model_dir + '/' + args.load_filename
-        try:
+    model_load_filename = args.model_dir + '/' + args.load_filename
+
+    try:
+        if (args.load_model_type == 1 and not args.fixed_point) or (args.load_model_type == 2 and args.fixed_point):
             para = torch.load(model_load_filename)
             model.load_state_dict(para)
-        except Exception as e:
-            print(e)
+        elif args.load_model_type == 1 and args.fixed_point:
+            load_float_weight_for_fixed_point(model_load_filename, model)
+        elif args.load_model_type:
+            print("unsupported load type, load_model_type: " + str(args.load_model_type)
+                  + ", but fixed point: " + str(args.fixed_point))
+    except Exception as e:
+        print(e)
 
     if args.scheduler:
         scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=args.lr_decay_step, gamma=args.gamma)
@@ -125,7 +134,7 @@ def main():
     if args.train:
         criterion = nn.CrossEntropyLoss()
         _, _, _ = train_model(model, device, train_loader, test_loader, criterion, optimizer, args.epochs,
-                              filename=model_save_filename, scheduler=scheduler)
+                              filename=model_save_filename, score_type='accuracy', scheduler=scheduler)
 
     criterion = nn.CrossEntropyLoss(reduction='sum')
     test_model(model, device, test_loader, criterion)

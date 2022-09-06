@@ -48,6 +48,14 @@ class Linear(Module):
         self.fp_weight = Parameter(fpA.to_float(weight))
         self.fp_weight_cfg = Parameter(fpA.to_float(weight_cfg))
 
+    def reset_parameters_from_float_parameters(self, weight, bias):
+        if self.hasBias:
+            bias = bias.unsqueeze(1)
+            weight = torch.cat((weight, bias), 1)
+
+        fp_weight, fp_weight_cfg = fpA.quantization_tensor(weight, self.weightBits, self.weight_tensor_mode)
+        fpA.fixed_point_copy_((self.fp_weight, self.fp_weight_cfg), (fp_weight, fp_weight_cfg))
+
     def forward(self, qinput, qinput_config):
         qoutput, qoutput_config \
             = fpF.linear.apply(qinput, qinput_config, self.fp_weight, self.fp_weight_cfg, self.hasBias,

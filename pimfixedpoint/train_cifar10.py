@@ -40,11 +40,11 @@ def main():
                         help='dir of dataset')
     parser.add_argument('--model-dir', default='model', metavar='MD',
                         help='dir of load/save model')
-    parser.add_argument('--load-model', action='store_true', default=False,
+    parser.add_argument('--load-model', action='store_true', default=True,
                         help='load the trained model')
-    parser.add_argument('--load-filename', default='123.pt', metavar='LF',
+    parser.add_argument('--load-filename', default='FixedPointVGG_checkpoint.pt', metavar='LF',
                         help='filename of load model')
-    parser.add_argument('--train', action='store_true', default=True,
+    parser.add_argument('--train', action='store_true', default=False,
                         help='train the model')
     parser.add_argument('--fixed-point', action='store_true', default=True,
                         help='For use fixed point')
@@ -54,8 +54,8 @@ def main():
                         help='use which NN model (0:VGG 1:VGG8b)')
     parser.add_argument('--cuda', action='store_true', default=True,
                         help='use CUDA training')
-    parser.add_argument('--cuda_use_num', type=int, default=0, metavar='CUDA',
-                        help='use which cuda (choice: 0-1)')
+    parser.add_argument('--cuda_use_num', type=int, default=2, metavar='CUDA',
+                        help='use which cuda (choice: 0-2)')
  
     args = parser.parse_args()
     print(args)

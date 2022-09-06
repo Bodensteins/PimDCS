@@ -404,3 +404,22 @@ def fixed_point_add_(source_tensor_tuple: tuple, other_tensor_tuple: tuple, sour
             raise Exception("We don't support this weight update strategy!", strategy)
     else:
         raise Exception("We don't implement this source_tensor_type!", source_tensor_type)
+
+
+def fixed_point_copy_(source_tensor_tuple: tuple, other_tensor_tuple: tuple):
+    source_int_tensor, source_quantization_para = _parse_tensor_tuple_to_int(source_tensor_tuple)
+    _, source_tensor_type = _parse_quantization_para(source_quantization_para)
+
+    other_int_tensor, other_quantization_para = _parse_tensor_tuple_to_int(other_tensor_tuple)
+    other_s, other_tensor_type = _parse_quantization_para(other_quantization_para)
+
+    if source_int_tensor.size() != other_int_tensor.size():
+        raise Exception("unequal tensor size, source: " + str(source_int_tensor.size())
+                        + ", but other: " + str(other_int_tensor.size()))
+
+    if source_tensor_type != other_tensor_type:
+        raise Exception("inconsistent tensor type, source: " + str(source_tensor_type)
+                        + ", but other: " + str(other_tensor_type))
+
+    source_int_tensor.copy_(other_int_tensor)
+    source_quantization_para[0] = other_s

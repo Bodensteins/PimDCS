@@ -160,31 +160,36 @@ class FixedPointVGG(nn.Module):
     """
     VGG model. different in dropout position
     """
-    def __init__(self, features):
+    def __init__(self, features,
+                 fc_output_bit_width=8,
+                 fc_weight_bit_width=16,
+                 fc_grad_output_bit_width=8,
+                 fc_compute_weight_bit_width=8
+                 ):
         super(FixedPointVGG, self).__init__()
         self.features = features
         self.classifier = fpnn.MulInputSequential(
             nn.Flatten(),
             fpnn.Quan(),
             fpnn.Linear(512, 512,
-                        output_bit_width=8,
-                        weight_bit_width=16,
-                        grad_output_bit_width=8,
-                        compute_weight_bit_width=8),
+                        output_bit_width=fc_output_bit_width,
+                        weight_bit_width=fc_weight_bit_width,
+                        grad_output_bit_width=fc_grad_output_bit_width,
+                        compute_weight_bit_width=fc_compute_weight_bit_width),
             fpnn.ReLU(),
             fpnn.Dropout(),
             fpnn.Linear(512, 512,
-                        output_bit_width=8,
-                        weight_bit_width=16,
-                        grad_output_bit_width=8,
-                        compute_weight_bit_width=8),
+                        output_bit_width=fc_output_bit_width,
+                        weight_bit_width=fc_weight_bit_width,
+                        grad_output_bit_width=fc_grad_output_bit_width,
+                        compute_weight_bit_width=fc_compute_weight_bit_width),
             fpnn.ReLU(),
             fpnn.Dropout(),
             fpnn.Linear(512, 10,
-                        output_bit_width=8,
-                        weight_bit_width=16,
-                        grad_output_bit_width=8,
-                        compute_weight_bit_width=8),
+                        output_bit_width=fc_output_bit_width,
+                        weight_bit_width=fc_weight_bit_width,
+                        grad_output_bit_width=fc_grad_output_bit_width,
+                        compute_weight_bit_width=fc_compute_weight_bit_width),
             fpnn.DeQuan()
         )
 
@@ -194,20 +199,29 @@ class FixedPointVGG(nn.Module):
         return x
 
 
-def fixed_point_make_layers(cfg, batch_norm=False):
+def fixed_point_make_layers(cfg,
+                            conv_input_bit_width: int,
+                            conv_output_bit_width: int,
+                            conv_weight_bit_width: int,
+                            conv_grad_output_bit_width: int,
+                            conv_next_grad_output_bit_width: int,
+                            conv_compute_weight_bit_width: int,
+                            batch_norm: bool):
     layers = []
     in_channels = 3
     for v in cfg:
         if v == 'M':
             layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
         else:
-            conv2d = fpnn.Conv2d(in_channels, v, (3, 3), padding=1, batch_norm=batch_norm,
-                                 input_bit_width=8,
-                                 output_bit_width=8,
-                                 weight_bit_width=16,
-                                 grad_output_bits=8,
-                                 next_grad_output_bits=8,
-                                 compute_weight_bit_width=8)
+            conv2d = fpnn.Conv2d(in_channels, v, (3, 3), padding=1,
+                                 input_bit_width=conv_input_bit_width,
+                                 output_bit_width=conv_output_bit_width,
+                                 weight_bit_width=conv_weight_bit_width,
+                                 grad_output_bit_width=conv_grad_output_bit_width,
+                                 next_grad_output_bit_width=conv_next_grad_output_bit_width,
+                                 compute_weight_bit_width=conv_compute_weight_bit_width,
+                                 batch_norm=batch_norm
+                                 )
             if batch_norm:
                 layers += [conv2d, nn.BatchNorm2d(v, dtype=torch_float), nn.ReLU()]
             else:
@@ -221,9 +235,34 @@ def fp_vgg11(batch_norm=False):
     return FixedPointVGG(fixed_point_make_layers(VGG_cfg['A'], batch_norm=batch_norm))
 
 
-def fp_vgg16(batch_norm=False):
-    """VGG 11-layer model (configuration "D")"""
-    return FixedPointVGG(fixed_point_make_layers(VGG_cfg['D'], batch_norm=batch_norm))
+def fp_vgg16(conv_input_bit_width,
+             conv_output_bit_width,
+             conv_weight_bit_width,
+             conv_grad_output_bit_width,
+             conv_next_grad_output_bit_width,
+             conv_compute_weight_bit_width,
+             fc_output_bit_width,
+             fc_weight_bit_width,
+             fc_grad_output_bit_width,
+             fc_compute_weight_bit_width,
+             batch_norm=False):
+    """VGG 16-layer model (configuration "D")"""
+    return FixedPointVGG(
+        fixed_point_make_layers(
+            VGG_cfg['D'],
+            conv_input_bit_width=conv_input_bit_width,
+            conv_output_bit_width=conv_output_bit_width,
+            conv_weight_bit_width=conv_weight_bit_width,
+            conv_grad_output_bit_width=conv_grad_output_bit_width,
+            conv_next_grad_output_bit_width=conv_next_grad_output_bit_width,
+            conv_compute_weight_bit_width=conv_compute_weight_bit_width,
+            batch_norm=batch_norm
+        ),
+        fc_output_bit_width=fc_output_bit_width,
+        fc_weight_bit_width=fc_weight_bit_width,
+        fc_grad_output_bit_width=fc_grad_output_bit_width,
+        fc_compute_weight_bit_width=fc_compute_weight_bit_width
+    )
 
 
 def fp_vgg19(batch_norm=False):

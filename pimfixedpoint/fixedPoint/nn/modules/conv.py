@@ -16,7 +16,8 @@ class Conv2d(Module):
                  padding: _size_2_t = 0, dilation: _size_2_t = 1, groups: int = 1, bias: bool = True,
                  padding_mode: str = 'zeros', input_bit_width: int = data_flow_bit_width,
                  output_bit_width: int = data_flow_bit_width, weight_bit_width: int = data_flow_bit_width,
-                 grad_output_bits: int = data_flow_bit_width, next_grad_output_bits: int = data_flow_bit_width,
+                 grad_output_bit_width: int = data_flow_bit_width,
+                 next_grad_output_bit_width: int = data_flow_bit_width,
                  compute_weight_bit_width: int = None, weight_tensor_mode: str = "NormalTensor", batch_norm=True):
         super().__init__()
         self.in_channels = in_channels
@@ -31,8 +32,8 @@ class Conv2d(Module):
         self.inputBits = input_bit_width  # notice: input bits should be equal to out bits of last layer
         self.outputBits = output_bit_width
         self.weightBits = weight_bit_width
-        self.gradOutputBits = grad_output_bits
-        self.nextGradOutputBits = next_grad_output_bits
+        self.gradOutputBits = grad_output_bit_width
+        self.nextGradOutputBits = next_grad_output_bit_width
         self.computeWeightBits = compute_weight_bit_width
 
         self.fp_weight = None

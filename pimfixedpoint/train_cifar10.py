@@ -9,8 +9,9 @@ from fixedPoint import optim as fpOptim
 import torch.utils.data
 
 from fixedPoint.nn.fixedPointArithmetic import *
-from trainCommon import split_data_loader, train_model, test_model, create_layer_bit_width_list, show_data_img
-from VGG_cifar10_model import vgg16, vgg19, FixedPointVGG8B, VGG8B, fp_vgg19, fp_vgg11, fp_vgg16
+from trainCommon import split_data_loader, train_model, test_model, create_layer_bit_width_list, \
+    load_float_weight_for_fixed_point
+from VGG_cifar10_model import vgg16, FixedPointVGG8B, VGG8B, fp_vgg16
 
 
 def main():
@@ -20,7 +21,7 @@ def main():
                         help='input batch size for training (default: 64)')
     parser.add_argument('--test-batch-size', type=int, default=400, metavar='TEST_BATCH',
                         help='input batch size for testing (default: 1000)')
-    parser.add_argument('--epochs', type=int, default=500, metavar='N',
+    parser.add_argument('--epochs', type=int, default=300, metavar='N',
                         help='number of epochs to train (default: 14)')
     parser.add_argument('--lr', type=float, default=0.05, metavar='LR',
                         help='learning rate (default: 1.0)')
@@ -40,21 +41,41 @@ def main():
                         help='dir of dataset')
     parser.add_argument('--model-dir', default='model', metavar='MD',
                         help='dir of load/save model')
-    parser.add_argument('--load-model', action='store_true', default=True,
-                        help='load the trained model')
-    parser.add_argument('--load-filename', default='FixedPointVGG_checkpoint.pt', metavar='LF',
+    parser.add_argument('--load-model-type', type=int, default=1, metavar='LD',
+                        help='load mode type (0:no 1:float point model 2:fixed point model')
+    parser.add_argument('--load-filename', default='old_VGG_checkpoint.pt', metavar='LF',
                         help='filename of load model')
     parser.add_argument('--train', action='store_true', default=False,
                         help='train the model')
     parser.add_argument('--fixed-point', action='store_true', default=True,
                         help='For use fixed point')
-    parser.add_argument('--half-float', action='store_true', default=False,
+    parser.add_argument('--conv-input-bit-width', type=int, default=16, metavar='CIBW',
+                        help='conv layer input bit width')
+    parser.add_argument('--conv-output-bit-width', type=int, default=16, metavar='COBW',
+                        help='conv layer output bit width')
+    parser.add_argument('--conv-weight-bit-width', type=int, default=16, metavar='CWBW',
+                        help='conv layer weight bit width')
+    parser.add_argument('--conv-grad-output-bit-width', type=int, default=16, metavar='CGOBW',
+                        help='conv layer grad output bit width')
+    parser.add_argument('--conv-next-grad-output-bit-width', type=int, default=16, metavar='CNGOBW',
+                        help='conv layer next layer grad output bit width')
+    parser.add_argument('--conv-compute-weight-bit-width', type=int, default=8, metavar='CCWBW',
+                        help='conv layer compute weight bit width')
+    parser.add_argument('--fc-output-bit-width', type=int, default=16, metavar='FOBW',
+                        help='fc layer output bit width')
+    parser.add_argument('--fc-weight-bit-width', type=int, default=16, metavar='FWBW',
+                        help='fc layer weight bit width')
+    parser.add_argument('--fc-grad-output-bit-width', type=int, default=16, metavar='FGOBW',
+                        help='fc layer grad output bit width')
+    parser.add_argument('--fc-compute-weight-bit-width', type=int, default=8, metavar='FCWBW',
+                        help='fc layer compute weight bit width')
+    parser.add_argument('--half-float', action='store_true', default=True,
                         help='For use 16b float')
     parser.add_argument('--net', type=int, default=0, metavar='NET',
                         help='use which NN model (0:VGG 1:VGG8b)')
     parser.add_argument('--cuda', action='store_true', default=True,
                         help='use CUDA training')
-    parser.add_argument('--cuda_use_num', type=int, default=2, metavar='CUDA',
+    parser.add_argument('--cuda-use-num', type=int, default=2, metavar='CUDA',
                         help='use which cuda (choice: 0-2)')
  
     args = parser.parse_args()
@@ -113,7 +134,19 @@ def main():
     if args.fixed_point:
         if args.net == 0:
             # model = fp_vgg19(args.train_batch_size, device=device, batch_norm=True).to(device)
-            model = fp_vgg16(batch_norm=False).to(device)
+            model = fp_vgg16(
+                conv_input_bit_width=args.conv_input_bit_width,
+                conv_output_bit_width=args.conv_output_bit_width,
+                conv_weight_bit_width=args.conv_weight_bit_width,
+                conv_grad_output_bit_width=args.conv_grad_output_bit_width,
+                conv_next_grad_output_bit_width=args.conv_next_grad_output_bit_width,
+                conv_compute_weight_bit_width=args.conv_compute_weight_bit_width,
+                fc_output_bit_width=args.fc_output_bit_width,
+                fc_weight_bit_width=args.fc_weight_bit_width,
+                fc_grad_output_bit_width=args.fc_grad_output_bit_width,
+                fc_compute_weight_bit_width=args.fc_compute_weight_bit_width
+            )
+            model.to(device)
             # model.double()
             # model = FixedPointVGG13(args.train_batch_size, device=device).to(device)
         elif args.net == 1:
@@ -128,7 +161,8 @@ def main():
     else:
         if args.net == 0:
             model = vgg16().to(device)
-            model.half()
+            if args.half_float:
+                model.half()
         elif args.net == 1:
             model = VGG8B().to(device)
         else:
@@ -139,15 +173,22 @@ def main():
     print(model)
 
     model_name = type(model).__name__
+
     model_save_filename = args.model_dir + '/' + model_name + '_checkpoint.pt'
 
-    if args.load_model:
-        model_load_filename = args.model_dir + '/' + args.load_filename
-        try:
+    model_load_filename = args.model_dir + '/' + args.load_filename
+
+    try:
+        if (args.load_model_type == 1 and not args.fixed_point) or (args.load_model_type == 2 and args.fixed_point):
             para = torch.load(model_load_filename)
             model.load_state_dict(para)
-        except Exception as e:
-            print(e)
+        elif args.load_model_type == 1 and args.fixed_point:
+            load_float_weight_for_fixed_point(model_load_filename, model)
+        elif args.load_model_type:
+            print("unsupported load type, load_model_type: " + str(args.load_model_type)
+                  + ", but fixed point: " + str(args.fixed_point))
+    except Exception as e:
+        print(e)
 
     if args.scheduler:
         scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=args.lr_decay_step, gamma=args.gamma)

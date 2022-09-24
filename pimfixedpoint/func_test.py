@@ -1,41 +1,64 @@
-from quantization import *
+import torch.nn.functional
 
-row_size = 4
+from fixedPoint.nn.fixedPointArithmetic import *
+import torchvision
+
+row_size = 6
 col_Size = 4
-data_bit_width = 10
-array_bit_width = 9
+data_bit_width = 9
+static_bit_width = 10
 alpha = 2.3
 alpha_bit_width = 12
 
+torch.matmul()
+
 
 def print_info(int_tensor: Tensor, para: Tensor):
-    s, bit_width, tensor_type = parse_quantization_para(to_int(para))
-    print_quantization_info(s, bit_width, tensor_type)
+    print_quantization_info(para)
     print(to_int(int_tensor))
-    print(de_quantization([int_tensor, para]))
+    print(de_quantization((int_tensor, para)))
 
 
-data_para = creat_quantization_para(bit_width=data_bit_width, tensor_type=TensorType.Ref)
+data_para = _creat_quantization_para(bit_width=data_bit_width, tensor_type=TensorType.Normal)
 data_float_tensor = torch.randn([row_size, col_Size], dtype=torch.float)
-data_tensor = quantization_tensor(data_para, data_float_tensor, data_float_tensor.abs().max())
+data_tensor = quantization_tensor(data_para, data_float_tensor)
 
-print('\nsource:')
+# print(f'normal:\n{data_float_tensor}')
 print_info(data_tensor, data_para)
 
-array_para = creat_quantization_para(bit_width=array_bit_width, tensor_type=TensorType.Normal)
-array_float_tensor = torch.randn([row_size, col_Size], dtype=torch.float)
-array_tensor = quantization_tensor(array_para, array_float_tensor, array_float_tensor.abs().max())
+static_para = _creat_quantization_para(bit_width=static_bit_width, tensor_type=TensorType.Normal)
+static_float_tensor = torch.randn([row_size, col_Size], dtype=torch.float)
+static_tensor = quantization_tensor(static_para, static_float_tensor)
 
-print('\nadd:')
-print_info(array_tensor, array_para)
+# print(f'source:\n{static_float_tensor}')
+print_info(static_tensor, static_para)
 
-add_alpha_tensor_([data_tensor, data_para], [array_tensor, array_para], alpha, alpha_bit_width)
+float_res = torch.add(static_float_tensor, data_float_tensor, alpha=0.01)
+print(f'float res: \n{float_res}')
 
-print('\nadd result:')
-print_info(data_tensor, data_para)
+fixed_point_add_((static_tensor, static_para), (data_tensor, data_para), alpha=0.01)
+print_info(static_tensor, static_para)
+print(f'max delta: {float_res.sub(de_quantization((static_tensor, static_para))).abs().max()}')
 
-delta = data_float_tensor.add(array_float_tensor.mul(alpha)) - de_quantization([data_tensor, data_para])
-print(f'max delta: {delta.abs().max()}')
+
+model = torchvision.models.ResNet()
+model = torchvision.models.VGG()
+torch.optim.SGD()
+
+# array_para = creat_quantization_para(bit_width=array_bit_width, tensor_type=TensorType.Normal)
+# array_float_tensor = torch.randn([row_size, col_Size], dtype=torch.float)
+# array_tensor = quantization_tensor(array_para, array_float_tensor, array_float_tensor.abs().max())
+#
+# print('\nadd:')
+# print_info(array_tensor, array_para)
+#
+# add_alpha_tensor_([data_tensor, data_para], [array_tensor, array_para], alpha, alpha_bit_width)
+#
+# print('\nadd result:')
+# print_info(data_tensor, data_para)
+#
+# delta = data_float_tensor.add(array_float_tensor.mul(alpha)) - de_quantization([data_tensor, data_para])
+# print(f'max delta: {delta.abs().max()}')
 
 
 # array_para = creat_quantization_para(bit_width=array_bit_width, tensor_type=TensorType.Ref)

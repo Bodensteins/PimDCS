@@ -15,9 +15,9 @@ class PerformanceManager:
 
 
 class AreaModule:
-    def __init__(self, net: nn.Module) -> None:
+    def __init__(self, net: nn.Module, batch_size: int) -> None:
         self.net = net
-
+        self.batch_size = batch_size
         self.PE_size = 0
         
         self.adc_area = const.single_adc_area * const.phyArrColSize * const.phyArrayNum / const.adc_shared_ratio
@@ -62,16 +62,14 @@ class AreaModule:
             m = m + 1
         pe_size = utils.ceil(const.times * m * n, const.phyArrayNum)
 
-        # run mode
-        # TODO
-        # if const.runmode != const.PIMRunMode.inference:
-        #     x, y = utils.ceil(_out, const.phyArrRowSize), utils.ceil(_in, const.unitsPerPhyRow)
-        #     self.PE_size = self.PE_size + utils.ceil(const.times * x * y, const.phyArrayNum)
+        if const.runmode != const.PIMRunMode.inference:
+            x, y = utils.ceil(_out, const.phyArrRowSize), utils.ceil(_in, const.unitsPerPhyRow)
+            pe_size = pe_size + utils.ceil(const.times * x * y, const.phyArrayNum)
 
-        #     if const.runmode == const.PIMRunMode.train_transientInBuffer:
-        #         pass
-        #     else:
-        #         pass # TODO
+            if const.runmode != const.PIMRunMode.train_transientInBuffer:
+                row, col = utils.ceil(self.batch_size, const.phyArrRowSize), utils.ceil(m, const.unitsPerPhyRow)
+                pe_size = pe_size + utils.ceil(const.times * row * col, const.phyArrayNum)
+
         return pe_size
 
     def calc_fpLinear(self, layer: nn.Module) -> int:

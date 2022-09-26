@@ -15,8 +15,6 @@ def get_shape(h: int, w: int, net: nn.Module) -> List:
     shapes = [[h, w]]
     for idx, (name, layer) in enumerate(net.named_modules()):
         input = shapes[-1]
-        print(input)
-        print(layer)
         if isinstance(layer, nn.Linear) or isinstance(layer, fp.Linear):
             _in, _out = layer.in_features, layer.out_features
             shapes.append([1, _out])
@@ -33,5 +31,3 @@ def test():
     net = ConvMnist()
     shapes = get_shape(28, 28, net)
     print(shapes)
-
-test()

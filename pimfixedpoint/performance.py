@@ -15,7 +15,7 @@ class PerformanceManager:
 
 
 class AreaModule:
-    def __init__(self, net: nn.Module, batch_size: int) -> None:
+    def __init__(self, net: nn.Module, batch_size: int = 1) -> None:
         self.net = net
         self.batch_size = batch_size
         self.PE_size = 0

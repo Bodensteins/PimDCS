@@ -1,3 +1,4 @@
+from typing import List
 import torch.nn as nn
 import const
 import utils
@@ -7,8 +8,9 @@ from mnist_model import ConvMnist, FcMnist, PimFcMnist
 
 
 class PerformanceManager:
-    def __init__(self, net: nn.Module):
-        self.area_module = AreaModule(net)
+    def __init__(self, net: nn.Module, h: int, w: int, batch_size: int = 1):
+        self.shapes = utils.get_shape(h, w, net)
+        self.area_module = AreaModule(net, self.shapes, batch_size)
         self.energy_module = EnergyModule(net)
     
     def print(self):
@@ -17,11 +19,12 @@ class PerformanceManager:
 
 
 class AreaModule:
-    def __init__(self, net: nn.Module, batch_size: int = 1) -> None:
+    def __init__(self, net: nn.Module, shapes: List, batch_size: int = 1) -> None:
         self.net = net
+        self.shapes = shapes
         self.batch_size = batch_size
+
         self.PE_size = 0
-        
         self.adc_area = const.single_adc_area * const.phyArrColSize * const.phyArrayNum / const.adc_shared_ratio
         self.dac_area = const.single_dac_area * const.phyArrRowSize * const.phyArrayNum / const.dac_shared_ratio
         self.SH_area = const.single_SH_area * const.phyArrColSize * const.phyArrayNum
@@ -46,13 +49,13 @@ class AreaModule:
                 self.PE_size = self.PE_size + self.calc_Linear(layer)
 
             if isinstance(layer, nn.Conv2d):
-                self.PE_size = self.PE_size + self.calc_Conv(layer)
+                self.PE_size = self.PE_size + self.calc_Conv(idx, layer)
 
             if isinstance(layer, fp.Linear):
                 self.PE_size = self.PE_size + self.calc_fpLinear(layer)
 
             if isinstance(layer, fp.Conv2d):
-                self.PE_size = self.PE_size + self.calc_fpConv(layer)
+                self.PE_size = self.PE_size + self.calc_fpConv(idx, layer)
 
         return self.PE_size
 
@@ -92,7 +95,7 @@ class AreaModule:
         return pe_size
 
 
-    def calc_Conv(self, layer: nn.Module) -> int:
+    def calc_Conv(self, idx: int, layer: nn.Module) -> int:
         _in_channel, _out_channel, _kernel, _bias = layer.in_channels, layer.out_channels, layer.kernel_size, layer.bias
         # choose a better allocation strategy
         _in = _kernel[0] * _kernel[1] * _in_channel
@@ -106,12 +109,13 @@ class AreaModule:
             pe_size = pe_size + utils.ceil(const.times * x * y, const.phyArrayNum)
 
             if const.runmode != const.PIMRunMode.train_transientInBuffer:
-                # TODO
-                pass
+                shape = self.shapes[idx]
+                row, col = utils.ceil(shape[0] * shape[1], const.phyArrRowSize), utils.ceil(_in_channel)
+                pe_size = pe_size + self.batch_size * utils.ceil(const.times * row * col, const.phyArrRowSize)
 
         return pe_size 
 
-    def calc_fpConv(self, layer: nn.Module) -> int:
+    def calc_fpConv(self, idx: int, layer: nn.Module) -> int:
         _in_channel, _out_channel, _kernel, _bias = layer.in_channels, layer.out_channels, layer.kernel_size, layer.bias
         # choose a better allocation strategy
         _in = _kernel[0] * _kernel[1] * _in_channel
@@ -125,8 +129,9 @@ class AreaModule:
             pe_size = pe_size + utils.ceil(const.times * x * y, const.phyArrayNum)
 
             if const.runmode != const.PIMRunMode.train_transientInBuffer:
-                # TODO
-                pass
+                shape = self.shapes[idx]
+                row, col = utils.ceil(shape[0] * shape[1], const.phyArrRowSize), utils.ceil(_in_channel)
+                pe_size = pe_size + self.batch_size * utils.ceil(const.times * row * col, const.phyArrRowSize)
 
         return pe_size 
 
@@ -157,7 +162,7 @@ class EnergyModule:
 
 def test():
     net = PimFcMnist()
-    manager = PerformanceManager(net)
+    manager = PerformanceManager(net, 1, 784)
     manager.print()
 
 test()

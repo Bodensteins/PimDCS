@@ -3,3 +3,8 @@
 build
 data
 model_params
+pimfixedpoint/__pycache__/
+pimfixedpoint/fixedPoint/__pycache__
+pimfixedpoint/fixedPoint/nn/__pycache__
+pimfixedpoint/fixedPoint/nn/modules/__pycache__
+pimfixedpoint/fixedPoint/optim/__pycache__

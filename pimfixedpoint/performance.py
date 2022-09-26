@@ -57,9 +57,9 @@ class AreaModule:
     def calc_Linear(self, layer: nn.Module) -> int:
         # basic phy array
         _in, _out, _bias = layer.in_features, layer.out_features, layer.bias
-        m, n = utils.ceil(_in, const.phyArrRowSize), utils.ceil(_out, const.unitsPerPhyRow)
         if _bias is not None:
-            m = m + 1
+            _in = _in + 1
+        m, n = utils.ceil(_in, const.phyArrRowSize), utils.ceil(_out, const.unitsPerPhyRow)
         pe_size = utils.ceil(const.times * m * n, const.phyArrayNum)
 
         if const.runmode != const.PIMRunMode.inference:
@@ -74,9 +74,9 @@ class AreaModule:
 
     def calc_fpLinear(self, layer: nn.Module) -> int:
         _in, _out, _bias = layer.in_features, layer.out_features, layer.hasBias
-        m, n = utils.ceil(_in, const.phyArrRowSize), utils.ceil(_out, const.unitsPerPhyRow)
         if _bias == True:
-            m = m + 1
+            _in = _in + 1
+        m, n = utils.ceil(_in, const.phyArrRowSize), utils.ceil(_out, const.unitsPerPhyRow)
         pe_size = utils.ceil(const.times * m * n, const.phyArrayNum)
 
         if const.runmode != const.PIMRunMode.inference:
@@ -93,9 +93,10 @@ class AreaModule:
     def calc_Conv(self, layer: nn.Module) -> int:
         _in_channel, _out_channel, _kernel, _bias = layer.in_channels, layer.out_channels, layer.kernel_size, layer.bias
         # choose a better allocation strategy
-        m, n = _kernel[0] * _kernel[1] * _in_channel, _out_channel
+        _in = _kernel[0] * _kernel[1] * _in_channel
         if _bias is not None:
-            m = m + 1
+            _in = m + 1
+        m, n = utils.ceil(_in, const.phyArrRowSize), utils.ceil(_out_channel, const.unitsPerPhyRow)
         pe_size = utils.ceil(const.times * m * n, const.phyArrayNum)
 
         # TODO

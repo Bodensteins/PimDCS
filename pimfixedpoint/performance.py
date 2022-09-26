@@ -95,19 +95,38 @@ class AreaModule:
         # choose a better allocation strategy
         _in = _kernel[0] * _kernel[1] * _in_channel
         if _bias is not None:
-            _in = m + 1
+            _in = _in + 1
         m, n = utils.ceil(_in, const.phyArrRowSize), utils.ceil(_out_channel, const.unitsPerPhyRow)
         pe_size = utils.ceil(const.times * m * n, const.phyArrayNum)
 
-        # TODO
+        if const.runmode != const.PIMRunMode.inference:
+            x, y = utils.ceil(_kernel[0] * _kernel[1] * _out_channel, const.phyArrRowSize), utils.ceil(_in_channel, const.unitBits)
+            pe_size = pe_size + utils.ceil(const.times * x * y, const.phyArrayNum)
+
+            if const.runmode != const.PIMRunMode.train_transientInBuffer:
+                # TODO
+                pass
 
         return pe_size 
 
     def calc_fpConv(self, layer: nn.Module) -> int:
-        pe_size = 0
-        # TODO
+        _in_channel, _out_channel, _kernel, _bias = layer.in_channels, layer.out_channels, layer.kernel_size, layer.bias
+        # choose a better allocation strategy
+        _in = _kernel[0] * _kernel[1] * _in_channel
+        if _bias == True:
+            _in = _in + 1
+        m, n = utils.ceil(_in, const.phyArrRowSize), utils.ceil(_out_channel, const.unitsPerPhyRow)
+        pe_size = utils.ceil(const.times * m * n, const.phyArrayNum)
 
-        return pe_size
+        if const.runmode != const.PIMRunMode.inference:
+            x, y = utils.ceil(_kernel[0] * _kernel[1] * _out_channel, const.phyArrRowSize), utils.ceil(_in_channel, const.unitBits)
+            pe_size = pe_size + utils.ceil(const.times * x * y, const.phyArrayNum)
+
+            if const.runmode != const.PIMRunMode.train_transientInBuffer:
+                # TODO
+                pass
+
+        return pe_size 
 
 
 def test():

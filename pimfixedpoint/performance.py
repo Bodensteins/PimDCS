@@ -1,7 +1,7 @@
 import torch.nn as nn
-import torch
 import const
 import utils
+import fixedPoint as fp
 
 from mnist_model import ConvMnist, FcMnist, PimFcMnist
 
@@ -32,34 +32,64 @@ class AreaModule:
     def get_PE_size(self) -> int:
         for idx, (name, layer) in enumerate(self.net.named_modules()):
             if isinstance(layer, nn.Linear):
-                # basic phy array
-                _in, _out, _bias = layer.in_features, layer.out_features, layer.bias
-                m, n = utils.ceil(_in, const.phyArrRowSize), utils.ceil(_out, const.unitsPerPhyRow)
-                if _bias is not None:
-                    m = m + 1
-                self.PE_size = self.PE_size + utils.ceil(const.times * m * n, const.phyArrayNum)
-
-                # run mode
-                # TODO
-                # if const.runmode != const.PIMRunMode.inference:
-                #     x, y = utils.ceil(_out, const.phyArrRowSize), utils.ceil(_in, const.unitsPerPhyRow)
-                #     self.PE_size = self.PE_size + utils.ceil(const.times * x * y, const.phyArrayNum)
-
-                #     if const.runmode == const.PIMRunMode.train_transientInBuffer:
-                #         pass
-                #     else:
-                #         pass # TODO
+                self.PE_size = self.PE_size + self.calc_Linear(layer)
 
             if isinstance(layer, nn.Conv2d):
-                _in_channel, _out_channel, _kernel, _bias = layer.in_channels, layer.out_channels, layer.kernel_size, layer.bias
-                # choose a better allocation strategy
-                m, n = _kernel[0] * _kernel[1] * _in_channel, _out_channel
-                if _bias is not None:
-                    m = m + 1
-                self.PE_size = self.PE_size + utils.ceil(const.times * m * n, const.phyArrayNum)
+                self.PE_size = self.PE_size + self.calc_Conv(layer)
+
+            if isinstance(layer, fp.Linear):
+                self.PE_size = self.PE_size + self.calc_fpLinear(layer)
+
+            if isinstance(layer, fp.Conv2d):
+                self.PE_size = self.PE_size + self.calc_fpConv(layer)
 
         return self.PE_size
-            
+
+    def calc_Linear(self, layer: nn.Module) -> int:
+        # basic phy array
+        _in, _out, _bias = layer.in_features, layer.out_features, layer.bias
+        m, n = utils.ceil(_in, const.phyArrRowSize), utils.ceil(_out, const.unitsPerPhyRow)
+        if _bias is not None:
+            m = m + 1
+        pe_size = utils.ceil(const.times * m * n, const.phyArrayNum)
+
+        # run mode
+        # TODO
+        # if const.runmode != const.PIMRunMode.inference:
+        #     x, y = utils.ceil(_out, const.phyArrRowSize), utils.ceil(_in, const.unitsPerPhyRow)
+        #     self.PE_size = self.PE_size + utils.ceil(const.times * x * y, const.phyArrayNum)
+
+        #     if const.runmode == const.PIMRunMode.train_transientInBuffer:
+        #         pass
+        #     else:
+        #         pass # TODO
+        return pe_size
+
+    def calc_fpLinear(self, layer: nn.Module) -> int:
+        pe_size = 0
+        # TODO
+
+        return pe_size
+
+
+    def calc_Conv(self, layer: nn.Module) -> int:
+        _in_channel, _out_channel, _kernel, _bias = layer.in_channels, layer.out_channels, layer.kernel_size, layer.bias
+        # choose a better allocation strategy
+        m, n = _kernel[0] * _kernel[1] * _in_channel, _out_channel
+        if _bias is not None:
+            m = m + 1
+        pe_size = utils.ceil(const.times * m * n, const.phyArrayNum)
+
+        # TODO
+
+        return pe_size 
+
+    def calc_fpConv(self, layer: nn.Module) -> int:
+        pe_size = 0
+        # TODO
+
+        return pe_size
+
 
 def test():
     net = ConvMnist()

@@ -9,9 +9,11 @@ from mnist_model import ConvMnist, FcMnist, PimFcMnist
 class PerformanceManager:
     def __init__(self, net: nn.Module):
         self.area_module = AreaModule(net)
+        self.energy_module = EnergyModule(net)
     
     def print(self):
         self.area_module.print_area_info()
+        self.energy_module.print_energy_info()
 
 
 class AreaModule:
@@ -127,6 +129,30 @@ class AreaModule:
                 pass
 
         return pe_size 
+
+class EnergyModule:
+    def __init__(self, net: nn.Module):
+        self.net = net
+
+        self.read_num = 0
+        self.write_num = 0
+        self.calc_num = 0
+        self.read_energy = 0.
+        self.write_energy = 0.
+        self.calc_energy = 0.
+
+    def print_energy_info(self) -> None:
+        print("Energy info:")
+        print("    read op count: %d" % (self.read_num))
+        print("    write op count: %d" % (self.write_num))
+        print("    calculation op count: %d" % (self.calc_num))
+        print("    memory energy cost: %f" % (self.read_energy + self.write_energy))
+        print("    calculation energy cost: %f" % (self.calc_energy))
+        print("    total energy cost: %f" % (self.read_energy + self.write_energy + self.calc_energy))
+
+    def get(self, net: nn.Module):
+        pass
+
 
 
 def test():

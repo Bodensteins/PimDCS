@@ -5,6 +5,15 @@ import fixedPoint as fp
 
 from mnist_model import ConvMnist, FcMnist, PimFcMnist
 
+
+class PerformanceManager:
+    def __init__(self, net: nn.Module):
+        self.area_module = AreaModule(net)
+    
+    def print(self):
+        self.area_module.print_area_info()
+
+
 class AreaModule:
     def __init__(self, net: nn.Module) -> None:
         self.net = net
@@ -93,7 +102,7 @@ class AreaModule:
 
 def test():
     net = ConvMnist()
-    areaModule = AreaModule(net)
-    areaModule.print_area_info()
+    manager = PerformanceManager(net)
+    manager.print()
 
 test()

@@ -73,8 +73,19 @@ class AreaModule:
         return pe_size
 
     def calc_fpLinear(self, layer: nn.Module) -> int:
-        pe_size = 0
-        # TODO
+        _in, _out, _bias = layer.in_features, layer.out_features, layer.hasBias
+        m, n = utils.ceil(_in, const.phyArrRowSize), utils.ceil(_out, const.unitsPerPhyRow)
+        if _bias == True:
+            m = m + 1
+        pe_size = utils.ceil(const.times * m * n, const.phyArrayNum)
+
+        if const.runmode != const.PIMRunMode.inference:
+            x, y = utils.ceil(_out, const.phyArrRowSize), utils.ceil(_in, const.unitsPerPhyRow)
+            pe_size = pe_size + utils.ceil(const.times * x * y, const.phyArrayNum)
+
+            if const.runmode != const.PIMRunMode.train_transientInBuffer:
+                row, col = utils.ceil(self.batch_size, const.phyArrRowSize), utils.ceil(m, const.unitsPerPhyRow)
+                pe_size = pe_size + utils.ceil(const.times * row * col, const.phyArrayNum)
 
         return pe_size
 
@@ -99,7 +110,7 @@ class AreaModule:
 
 
 def test():
-    net = ConvMnist()
+    net = PimFcMnist()
     manager = PerformanceManager(net)
     manager.print()
 

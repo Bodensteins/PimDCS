@@ -24,7 +24,14 @@ def get_shape(h: int, w: int, net: nn.Module) -> List:
             h_out = floor((h_in + 2 * _padding[0] - _dilation[0] * (_kernel[0] - 1) - 1), _stride[0]) + 1
             w_out = floor((w_in + 2 * _padding[1] - _dilation[1] * (_kernel[1] - 1) - 1), _stride[1]) + 1
             shapes.append([h_out, w_out])
-        # TODO, pooling
+        if isinstance(layer, nn.MaxPool2d):
+            # TODO: 2d shape of padding, dilation, stride
+            _kernel, _padding, _dilation, _stride = layer.kernel_size, layer.padding, layer.dilation, layer.stride
+            h_in, w_in = input[0], input[1]
+            h_out = floor((h_in + 2 * _padding - _dilation * (_kernel[0] - 1) - 1), _stride) + 1
+            w_out = floor((w_in + 2 * _padding - _dilation * (_kernel[1] - 1) - 1), _stride) + 1
+            shapes.append([h_out, w_out])
+
     return shapes
 
 def test():

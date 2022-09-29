@@ -25,6 +25,7 @@ class AreaModule:
         self.batch_size = batch_size
 
         self.PE_size = 0
+        # TODO: other device to be considered, according to the architecture
         self.adc_area = const.single_adc_area * const.phyArrColSize * const.phyArrayNum / const.adc_shared_ratio
         self.dac_area = const.single_dac_area * const.phyArrRowSize * const.phyArrayNum / const.dac_shared_ratio
         self.SH_area = const.single_SH_area * const.phyArrColSize * const.phyArrayNum
@@ -156,7 +157,8 @@ class EnergyModule:
         print("    total energy cost: %f" % (self.read_energy + self.write_energy + self.calc_energy))
 
     def get(self, net: nn.Module):
-        pass
+        for idx, (name, layer) in enumerate(self.net.named_modules()):
+            pass
 
 
 

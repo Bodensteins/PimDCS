@@ -119,7 +119,7 @@ def train_model(model, device, train_loader, valid_loader, criterion, optimizer,
         if scheduler is not None:
             scheduler.step()
 
-        # early_stopping needs the validation loss to check if it has decresed,
+        # early_stopping needs the validation loss to check if it has decreased,
         # and if it has, it will make a checkpoint of the current model
         if score_type == 'accuracy':
             early_stopping(valid_acc, model)
@@ -305,4 +305,15 @@ def load_float_weight_for_fixed_point(model_load_filename, model):
                 bias = param_list.pop(0)
 
             layer.reset_parameters_from_float_parameters(weight, bias)
-    pass
+
+
+def draw_data_graph(x_list, y_lists, x_label, y_label, title):
+
+    for y_list, para in y_lists:
+        plt.plot(x_list, y_list, **para)
+
+    plt.legend()
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
+    plt.title(title)
+    plt.show()

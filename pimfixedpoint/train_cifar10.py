@@ -10,8 +10,8 @@ import torch.utils.data
 
 from fixedPoint.nn.fixedPointArithmetic import *
 from trainCommon import split_data_loader, train_model, test_model, create_layer_bit_width_list, \
-    load_float_weight_for_fixed_point
-from VGG_cifar10_model import vgg16, FixedPointVGG8B, VGG8B, fp_vgg16
+    load_float_weight_for_fixed_point, draw_data_graph
+from VGG_cifar10_model import vgg16, FixedPointVGG8B, VGG8B, fp_vgg16, VGG16ForMotivation
 
 
 def main():
@@ -21,7 +21,7 @@ def main():
                         help='input batch size for training (default: 64)')
     parser.add_argument('--test-batch-size', type=int, default=400, metavar='TEST_BATCH',
                         help='input batch size for testing (default: 1000)')
-    parser.add_argument('--epochs', type=int, default=300, metavar='N',
+    parser.add_argument('--epochs', type=int, default=20, metavar='N',
                         help='number of epochs to train (default: 14)')
     parser.add_argument('--lr', type=float, default=0.05, metavar='LR',
                         help='learning rate (default: 1.0)')
@@ -41,13 +41,13 @@ def main():
                         help='dir of dataset')
     parser.add_argument('--model-dir', default='model', metavar='MD',
                         help='dir of load/save model')
-    parser.add_argument('--load-model-type', type=int, default=1, metavar='LD',
+    parser.add_argument('--load-model-type', type=int, default=0, metavar='LD',
                         help='load mode type (0:no 1:float point model 2:fixed point model')
     parser.add_argument('--load-filename', default='old_VGG_checkpoint.pt', metavar='LF',
                         help='filename of load model')
-    parser.add_argument('--train', action='store_true', default=False,
+    parser.add_argument('--train', action='store_true', default=True,
                         help='train the model')
-    parser.add_argument('--fixed-point', action='store_true', default=True,
+    parser.add_argument('--fixed-point', action='store_true', default=False,
                         help='For use fixed point')
     parser.add_argument('--conv-input-bit-width', type=int, default=16, metavar='CIBW',
                         help='conv layer input bit width')
@@ -71,8 +71,8 @@ def main():
                         help='fc layer compute weight bit width')
     parser.add_argument('--half-float', action='store_true', default=True,
                         help='For use 16b float')
-    parser.add_argument('--net', type=int, default=0, metavar='NET',
-                        help='use which NN model (0:VGG 1:VGG8b)')
+    parser.add_argument('--net', type=int, default=2, metavar='NET',
+                        help='use which NN model (0:VGG 1:VGG8b 2:VGGTest)')
     parser.add_argument('--cuda', action='store_true', default=True,
                         help='use CUDA training')
     parser.add_argument('--cuda-use-num', type=int, default=2, metavar='CUDA',
@@ -165,6 +165,12 @@ def main():
                 model.half()
         elif args.net == 1:
             model = VGG8B().to(device)
+            if args.half_float:
+                model.half()
+        elif args.net == 2:
+            model = VGG16ForMotivation().to(device)
+            if args.half_float:
+                model.half()
         else:
             raise Exception('undefined net: ' + str(args.net))
 
@@ -208,6 +214,18 @@ def main():
         #
         # train_loss, valid_loss = train_model(model, device, full_train_loader, valid_loader, criterion, optimizer,
         #                                      args.epochs, filename=model_save_filename)
+
+    y_lists = [(model.conv2InputList, dict(color="red", label="conv2.activation")),
+               (model.conv3InputList, dict(color="green", label="conv3.activation")),
+               (model.fc2InputList, dict(color="blue", label="fc2.activation")),
+               (model.fc3InputList, dict(color="orange", label="fc3.activation"))]
+    z_lists = [(model.conv2WeightList, dict(color="red", label="conv2.weight")),
+               (model.conv3WeightList, dict(color="green", label="conv3.weight")),
+               (model.fc2WeightList, dict(color="blue", label="fc2.weight")),
+               (model.fc3WeightList, dict(color="orange", label="fc3.weight"))]
+    x_list = list(range(len(model.conv2InputList)))
+    draw_data_graph(x_list, y_lists, x_label="iteration * 1000", y_label="MaxValue(log2)", title="Activation")
+    draw_data_graph(x_list, z_lists, x_label="iteration * 1000", y_label="MaxValue(log2)", title="Weight")
 
     criterion = nn.CrossEntropyLoss(reduction='sum')
     test_model(model, device, test_loader, criterion, half=args.half_float)

@@ -36,17 +36,17 @@ def main():
                         help='dir of dataset')
     parser.add_argument('--model-dir', default='model', metavar='MD',
                         help='dir of load/save model')
-    parser.add_argument('--load-model-type', type=int, default=1, metavar='LD',
+    parser.add_argument('--load-model-type', type=int, default=0, metavar='LD',
                         help='load mode type (0:no 1:float point model 2:fixed point model')
     parser.add_argument('--load-filename', default='ConvMnist_checkpoint.pt', metavar='LF',
                         help='filename of load model')
-    parser.add_argument('--train', action='store_true', default=False,
+    parser.add_argument('--train', action='store_true', default=True,
                         help='train the model')
     parser.add_argument('--fixed-point', action='store_true', default=True,
                         help='For use fixed point')
     parser.add_argument('--half-float', action='store_true', default=False,
                         help='For use 16b float')
-    parser.add_argument('--net', type=int, default=0, metavar='NET',
+    parser.add_argument('--net', type=int, default=1, metavar='NET',
                         help='use which model (0:conv 1:fc)')
     parser.add_argument('--cuda', action='store_true', default=True,
                         help='use CUDA training')

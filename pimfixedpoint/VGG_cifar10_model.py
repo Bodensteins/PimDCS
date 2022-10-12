@@ -268,3 +268,223 @@ def fp_vgg16(conv_input_bit_width,
 def fp_vgg19(batch_norm=False):
     """VGG 19-layer model (configuration "E")"""
     return FixedPointVGG(fixed_point_make_layers(VGG_cfg['E'], batch_norm=batch_norm))
+
+
+class VGG16ForMotivation(nn.Module):
+    """
+    VGG model
+    """
+    def __init__(self):
+        super(VGG16ForMotivation, self).__init__()
+
+        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        self.conv1 = nn.Conv2d(3, 64, (3, 3), padding=1)
+        self.conv2 = nn.Conv2d(64, 64, (3, 3), padding=1)
+
+        self.conv3 = nn.Conv2d(64, 128, (3, 3), padding=1)
+        self.conv4 = nn.Conv2d(128, 128, (3, 3), padding=1)
+
+        self.conv5 = nn.Conv2d(128, 256, (3, 3), padding=1)
+        self.conv6 = nn.Conv2d(256, 256, (3, 3), padding=1)
+        self.conv7 = nn.Conv2d(256, 256, (3, 3), padding=1)
+
+        self.conv8 = nn.Conv2d(256, 512, (3, 3), padding=1)
+        self.conv9 = nn.Conv2d(512, 512, (3, 3), padding=1)
+        self.conv10 = nn.Conv2d(512, 512, (3, 3), padding=1)
+
+        self.conv11 = nn.Conv2d(512, 512, (3, 3), padding=1)
+        self.conv12 = nn.Conv2d(512, 512, (3, 3), padding=1)
+        self.conv13 = nn.Conv2d(512, 512, (3, 3), padding=1)
+
+        self.flatten = nn.Flatten()
+        self.relu = nn.ReLU()
+        self.dropout = nn.Dropout()
+
+        self.fc1 = nn.Linear(512, 512)
+        self.fc2 = nn.Linear(512, 512)
+        self.fc3 = nn.Linear(512, 10)
+
+        self.conv1InputList = []
+        self.conv2InputList = []
+        self.conv3InputList = []
+        self.conv4InputList = []
+        self.conv5InputList = []
+        self.conv6InputList = []
+        self.conv7InputList = []
+        self.conv8InputList = []
+        self.conv9InputList = []
+        self.conv10InputList = []
+        self.conv11InputList = []
+        self.conv12InputList = []
+        self.conv13InputList = []
+
+        self.fc1InputList = []
+        self.fc2InputList = []
+        self.fc3InputList = []
+
+        self.conv1WeightList = []
+        self.conv2WeightList = []
+        self.conv3WeightList = []
+        self.conv4WeightList = []
+        self.conv5WeightList = []
+        self.conv6WeightList = []
+        self.conv7WeightList = []
+        self.conv8WeightList = []
+        self.conv9WeightList = []
+        self.conv10WeightList = []
+        self.conv11WeightList = []
+        self.conv12WeightList = []
+        self.conv13WeightList = []
+
+        self.fc1WeightList = []
+        self.fc2WeightList = []
+        self.fc3WeightList = []
+
+        self.logInterval = 1000
+        self.index = 0
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                m.weight.data.normal_(0, math.sqrt(2. / n))
+                m.bias.data.zero_()
+
+    def forward(self, x):
+        if self.index == 0:
+            # self.conv1WeightList.append(math.log2(max(self.conv1.weight.abs().max().item(),
+            #                                           self.conv1.bias.abs().max().item())))
+            self.conv2WeightList.append(math.log2(max(self.conv2.weight.abs().max().item(),
+                                                      self.conv2.bias.abs().max().item())))
+            self.conv3WeightList.append(math.log2(max(self.conv3.weight.abs().max().item(),
+                                                      self.conv3.bias.abs().max().item())))
+            # self.conv4WeightList.append(max(self.conv4.weight.abs().max(), self.conv4.bias.abs().max()))
+            # self.conv5WeightList.append(max(self.conv5.weight.abs().max(), self.conv5.bias.abs().max()))
+            # self.conv6WeightList.append(max(self.conv6.weight.abs().max(), self.conv6.bias.abs().max()))
+            # self.conv7WeightList.append(max(self.conv7.weight.abs().max(), self.conv7.bias.abs().max()))
+            # self.conv8WeightList.append(max(self.conv8.weight.abs().max(), self.conv8.bias.abs().max()))
+            # self.conv9WeightList.append(max(self.conv9.weight.abs().max(), self.conv9.bias.abs().max()))
+            # self.conv10WeightList.append(max(self.conv10.weight.abs().max(), self.conv10.bias.abs().max()))
+            # self.conv11WeightList.append(max(self.conv11.weight.abs().max(), self.conv11.bias.abs().max()))
+            # self.conv12WeightList.append(max(self.conv12.weight.abs().max(), self.conv12.bias.abs().max()))
+            # self.conv13WeightList.append(max(self.conv13.weight.abs().max(), self.conv13.bias.abs().max()))
+            # self.fc1WeightList.append(max(self.fc1.weight.abs().max(), self.fc1.bias.abs().max()))
+            self.fc2WeightList.append(math.log2(max(self.fc2.weight.abs().max().item(),
+                                                    self.fc2.bias.abs().max().item())))
+            self.fc3WeightList.append(math.log2(max(self.fc3.weight.abs().max().item(),
+                                                    self.fc3.bias.abs().max().item())))
+
+        if self.index == 0:
+            self.conv1InputList.append(max(x.abs().max(), 1))
+
+        x = self.conv1(x)
+        x = self.relu(x)
+
+        if self.index == 0:
+            self.conv2InputList.append(math.log2(max(x.abs().max(), 1)))
+
+        x = self.conv2(x)
+        x = self.relu(x)
+
+        x = self.pool(x)
+
+        if self.index == 0:
+            self.conv3InputList.append(math.log2(max(x.abs().max(), 1)))
+
+        x = self.conv3(x)
+        x = self.relu(x)
+
+        if self.index == 0:
+            self.conv4InputList.append(math.log2(max(x.abs().max(), 1)))
+
+        x = self.conv4(x)
+        x = self.relu(x)
+
+        x = self.pool(x)
+
+        if self.index == 0:
+            self.conv5InputList.append(max(x.abs().max(), 1))
+
+        x = self.conv5(x)
+        x = self.relu(x)
+
+        if self.index == 0:
+            self.conv6InputList.append(max(x.abs().max(), 1))
+
+        x = self.conv6(x)
+        x = self.relu(x)
+
+        if self.index == 0:
+            self.conv7InputList.append(max(x.abs().max(), 1))
+
+        x = self.conv7(x)
+        x = self.relu(x)
+
+        x = self.pool(x)
+
+        if self.index == 0:
+            self.conv8InputList.append(max(x.abs().max(), 1))
+
+        x = self.conv8(x)
+        x = self.relu(x)
+
+        if self.index == 0:
+            self.conv9InputList.append(max(x.abs().max(), 1))
+
+        x = self.conv9(x)
+        x = self.relu(x)
+
+        if self.index == 0:
+            self.conv10InputList.append(max(x.abs().max(), 1))
+
+        x = self.conv10(x)
+        x = self.relu(x)
+
+        x = self.pool(x)
+
+        if self.index == 0:
+            self.conv11InputList.append(max(x.abs().max(), 1))
+
+        x = self.conv11(x)
+        x = self.relu(x)
+
+        if self.index == 0:
+            self.conv12InputList.append(max(x.abs().max(), 1))
+
+        x = self.conv12(x)
+        x = self.relu(x)
+
+        if self.index == 0:
+            self.conv13InputList.append(max(x.abs().max(), 1))
+
+        x = self.conv13(x)
+        x = self.relu(x)
+
+        x = self.pool(x)
+
+        x = self.flatten(x)
+
+        x = self.dropout(x)
+
+        if self.index == 0:
+            self.fc1InputList.append(max(x.abs().max(), 1))
+
+        x = self.fc1(x)
+        x = self.relu(x)
+
+        x = self.dropout(x)
+
+        if self.index == 0:
+            self.fc2InputList.append(math.log2(max(x.abs().max(), 1)))
+
+        x = self.fc2(x)
+        x = self.relu(x)
+
+        if self.index == 0:
+            self.fc3InputList.append(math.log2(max(x.abs().max(), 1)))
+
+        x = self.fc3(x)
+
+        self.index = (self.index + 1) % 1000
+
+        return x

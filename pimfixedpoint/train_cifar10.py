@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torchvision import transforms
 import torchvision
+import json
 
 from fixedPoint import optim as fpOptim
 import torch.utils.data
@@ -39,14 +40,20 @@ def main():
                         help='random seed (default: 1)')
     parser.add_argument('--data-dir', default='data', metavar='DD',
                         help='dir of dataset')
+    parser.add_argument('--result-dir', default='result', metavar='RD',
+                        help='dir of train result')
     parser.add_argument('--model-dir', default='model', metavar='MD',
                         help='dir of load/save model')
+    parser.add_argument('--trace-dir', default='trace', metavar='TD',
+                        help='dir of load/save trace')
     parser.add_argument('--load-model-type', type=int, default=0, metavar='LD',
                         help='load mode type (0:no 1:float point model 2:fixed point model')
     parser.add_argument('--load-filename', default='old_VGG_checkpoint.pt', metavar='LF',
                         help='filename of load model')
     parser.add_argument('--train', action='store_true', default=True,
                         help='train the model')
+    parser.add_argument('--save-trace', action='store_true', default=True,
+                        help='save all model in train process')
     parser.add_argument('--fixed-point', action='store_true', default=False,
                         help='For use fixed point')
     parser.add_argument('--conv-input-bit-width', type=int, default=16, metavar='CIBW',
@@ -71,7 +78,7 @@ def main():
                         help='fc layer compute weight bit width')
     parser.add_argument('--half-float', action='store_true', default=True,
                         help='For use 16b float')
-    parser.add_argument('--net', type=int, default=2, metavar='NET',
+    parser.add_argument('--net', type=int, default=0, metavar='NET',
                         help='use which NN model (0:VGG 1:VGG8b 2:VGGTest)')
     parser.add_argument('--cuda', action='store_true', default=True,
                         help='use CUDA training')
@@ -203,29 +210,46 @@ def main():
 
     if args.train:
         criterion = nn.CrossEntropyLoss()
+
+        if args.save_trace:
+            trace_filename = args.trace_dir + '/' + model_name + '/'
+        else:
+            trace_filename = "trace/other_network/"
         # train_loss, valid_loss = train_model(model, device, train_loader, valid_loader, criterion, optimizer,
         #                                      args.epochs, filename=model_save_filename, score_type='loss',
         #                                      scheduler=scheduler)
-        _, _, _ = train_model(model, device, train_loader, test_loader, criterion, optimizer, args.epochs,
-                              filename=model_save_filename, score_type='accuracy', patience=100, scheduler=scheduler,
-                              half=args.half_float)
+        train_loss_list, valid_loss_list, valid_acc_list\
+            = train_model(model, device, train_loader, test_loader, criterion, optimizer, args.epochs,
+                          model_filename=model_save_filename, score_type='accuracy', patience=100, scheduler=scheduler,
+                          half=args.half_float, save_trace=args.save_trace, trace_filename=trace_filename)
+
+        result_dir = args.result_dir + '/' + model_name + '_'
+
+        with open(result_dir + 'train_loss.out', 'w') as FD:
+            FD.write(json.dumps(train_loss_list))
+
+        with open(result_dir + 'valid_loss.out', 'w') as FD:
+            FD.write(json.dumps(valid_loss_list))
+
+        with open(result_dir + 'valid_acc.out', 'w') as FD:
+            FD.write(json.dumps(valid_acc_list))
 
         # print("retrain use full data")
         #
         # train_loss, valid_loss = train_model(model, device, full_train_loader, valid_loader, criterion, optimizer,
         #                                      args.epochs, filename=model_save_filename)
 
-    y_lists = [(model.conv2InputList, dict(color="red", label="conv2.activation")),
-               (model.conv3InputList, dict(color="green", label="conv3.activation")),
-               (model.fc2InputList, dict(color="blue", label="fc2.activation")),
-               (model.fc3InputList, dict(color="orange", label="fc3.activation"))]
-    z_lists = [(model.conv2WeightList, dict(color="red", label="conv2.weight")),
-               (model.conv3WeightList, dict(color="green", label="conv3.weight")),
-               (model.fc2WeightList, dict(color="blue", label="fc2.weight")),
-               (model.fc3WeightList, dict(color="orange", label="fc3.weight"))]
-    x_list = list(range(len(model.conv2InputList)))
-    draw_data_graph(x_list, y_lists, x_label="iteration * 1000", y_label="MaxValue(log2)", title="Activation")
-    draw_data_graph(x_list, z_lists, x_label="iteration * 1000", y_label="MaxValue(log2)", title="Weight")
+    # y_lists = [(model.conv2InputList, dict(color="red", label="conv2.activation")),
+    #            (model.conv3InputList, dict(color="green", label="conv3.activation")),
+    #            (model.fc2InputList, dict(color="blue", label="fc2.activation")),
+    #            (model.fc3InputList, dict(color="orange", label="fc3.activation"))]
+    # z_lists = [(model.conv2WeightList, dict(color="red", label="conv2.weight")),
+    #            (model.conv3WeightList, dict(color="green", label="conv3.weight")),
+    #            (model.fc2WeightList, dict(color="blue", label="fc2.weight")),
+    #            (model.fc3WeightList, dict(color="orange", label="fc3.weight"))]
+    # x_list = list(range(len(model.conv2InputList)))
+    # draw_data_graph(x_list, y_lists, x_label="iteration * 1000", y_label="MaxValue(log2)", title="Activation")
+    # draw_data_graph(x_list, z_lists, x_label="iteration * 1000", y_label="MaxValue(log2)", title="Weight")
 
     criterion = nn.CrossEntropyLoss(reduction='sum')
     test_model(model, device, test_loader, criterion, half=args.half_float)

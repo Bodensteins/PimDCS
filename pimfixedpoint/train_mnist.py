@@ -134,7 +134,7 @@ def main():
     if args.train:
         criterion = nn.CrossEntropyLoss()
         _, _, _ = train_model(model, device, train_loader, test_loader, criterion, optimizer, args.epochs,
-                              filename=model_save_filename, score_type='accuracy', scheduler=scheduler)
+                              model_filename=model_save_filename, score_type='accuracy', scheduler=scheduler)
 
     criterion = nn.CrossEntropyLoss(reduction='sum')
     test_model(model, device, test_loader, criterion)

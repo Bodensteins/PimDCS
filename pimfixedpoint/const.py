@@ -1,5 +1,7 @@
 from enum import Enum
 
+
+############################# area module ###############################
 phyArrRowSize = 128
 phyArrColSize = 128
 phyArrayNum = 8          # 1 PE contains 8 crossbars
@@ -29,3 +31,28 @@ class PIMRunMode(Enum):
     inference = 2
     train_transientInBuffer = 3 # transient data used for backward is stored in buffer.
 runmode = PIMRunMode.train_transientInBuffer      # train_transientInBuffer
+
+
+########################### energy module(nJ) ###############################
+readRowPeripheryEnergy = 0
+readColPeripheryEnergy =0
+readUseProbability = False #use probability to calculate or not
+writeRowPeripheryEnergy = 0
+writeColPeripheryEnergy = 0
+writeParallelism = 128
+writeUseProbability = True
+DACPower = 0.00390625
+ADCPower = 2
+computeRowPeripheryEnergy = 0 #
+computeColPeripheryEnergy = 0
+adderEnergy = 0  #add vertical out
+computeUseProbability = True
+CellPD = [0.25, 0.25, 0.25, 0.25] #read probability distribution, if not illegal, exit
+CellPDDefault = 0 #0:equal probabilty 1:100% max value
+writePD = [0.0, 0.0, 0.0, 0.0, 0.2, 0.2, 0.3, 0.3]
+writePDDefault = 1
+inVPD = [0.5, 0.5]
+inVPDDefault = 0 #0:equal probabilty 1:100% max value
+
+
+########################### latency module ###############################

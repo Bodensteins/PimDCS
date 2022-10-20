@@ -1,16 +1,40 @@
 from enum import Enum
 
+#############################  basic info ################################
 
-############################# area module ###############################
 phyArrRowSize = 128
 phyArrColSize = 128
 phyArrayNum = 8          # 1 PE contains 8 crossbars
 
+inVBits = 1      # the input pulse (DAC) bits
+inBits = 16      # the input for VMM bits
+outBits = 8      # the output (ADC) bits
 unitBits = 16    # weight bits
 cellBits = 1     # the cell is 1 bit, so 8-bit weight need 8 cells to encode
 
 cellsPerUnit = unitBits / cellBits
 unitsPerPhyRow = phyArrColSize / cellsPerUnit
+
+cellLevels = 1 << cellBits
+cellsPerUnit = unitBits / cellBits
+# there may be some cells unused in a row
+unitsPerPhyRow = phyArrColSize / cellsPerUnit
+usedCellsPerPhyRow = unitsPerPhyRow * cellsPerUnit
+inLevels = 1 << inBits
+inVLevels = 1 << inVBits
+outLevels = 1 << outBits
+unitLevels = 1 << unitBits
+
+mode = 0 #0:p&n 1:ref
+times = 1 if mode == 1 else 2
+
+class PIMRunMode(Enum):
+    train = 0  #nomal training, transient data used for backward is also stored in phy pim array. refers to Pipelayer (hpca2017), or Time (dac17) architecture.
+    fast_mode_train = 1 # backend is digital
+    inference = 2
+    train_transientInBuffer = 3 # transient data used for backward is stored in buffer.
+runmode = PIMRunMode.train_transientInBuffer      # train_transientInBuffer
+############################# area module ###############################
 
 single_dac_area = 0.166015625
 single_adc_area = 1200
@@ -22,25 +46,16 @@ dac_shared_ratio = 1    # 1 means every phy array has a set of dac/adc.  2 means
                         # 1 set of dac/adc means phyArray #rowsize DACs, and phyArray #colSize ADCs.
 adc_shared_ratio = 128
 
-mode = 0 #0:p&n 1:ref
-times = 1 if mode == 1 else 2
-
-class PIMRunMode(Enum):
-    train = 0  #nomal training, transient data used for backward is also stored in phy pim array. refers to Pipelayer (hpca2017), or Time (dac17) architecture.
-    fast_mode_train = 1 # backend is digital
-    inference = 2
-    train_transientInBuffer = 3 # transient data used for backward is stored in buffer.
-runmode = PIMRunMode.train_transientInBuffer      # train_transientInBuffer
-
 
 ########################### energy module(nJ) ###############################
+
 readRowPeripheryEnergy = 0
 readColPeripheryEnergy =0
 readUseProbability = False #use probability to calculate or not
 writeRowPeripheryEnergy = 0
 writeColPeripheryEnergy = 0
 writeParallelism = 128
-writeUseProbability = True
+writeUseProbability = False
 DACPower = 0.00390625
 ADCPower = 2
 computeRowPeripheryEnergy = 0 #

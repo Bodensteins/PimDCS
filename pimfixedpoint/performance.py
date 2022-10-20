@@ -1,4 +1,5 @@
 from typing import List
+from xmlrpc.client import boolean
 import torch.nn as nn
 import const
 import utils
@@ -139,6 +140,7 @@ class AreaModule:
 class EnergyModule:
     def __init__(self, net: nn.Module):
         self.net = net
+        self.epsilon = 1e-5
 
         self.read_num = 0
         self.write_num = 0
@@ -149,6 +151,9 @@ class EnergyModule:
 
     def print_energy_info(self) -> None:
         print("Energy info:")
+        passed = self.check()
+        if passed is False:
+            return
         print("    read op count: %d" % (self.read_num))
         print("    write op count: %d" % (self.write_num))
         print("    calculation op count: %d" % (self.calc_num))
@@ -161,6 +166,46 @@ class EnergyModule:
             pass
 
 
+    def check(self) -> boolean:
+        passed = True
+
+        if const.readUseProbability is True:
+            if len(const.CellPD) != const.cellLevels:
+                passed =  False
+                print("    [Energy] CellPD illegal: the number of probabilities is not cellLevels")
+            sum = 0.0
+            for p in const.CellPD:
+                sum = sum + p
+            if abs(sum - 1.0) > self.epsilon:
+                passed = False
+                print("    [Energy] CellPD illegal: the sum of probabilities is not 1")
+
+        if const.writeUseProbability is True:
+            if len(const.writePD) != const.writeParallelism:
+                passed = False
+                print("    [Energy] writePD illegal: the number of probabilities is not equal to writeParallelism")
+            sum = 0.0
+            for p in const.writePD:
+                sum = sum + p
+            if abs(sum - 1.0) > self.epsilon:
+                passed = False
+                print("    [Energy] writePD illegal: the sum of probabilities is not 1")
+
+        if const.writeUseProbability is True:
+            if len(const.inVPD) != const.inVLevels:
+                passed = False
+                print("    [Energy] inVPD illegal: the number of probabilities is not inVLevels")
+            sum = 0.0
+            for p in const.writePD:
+                sum = sum + p
+            if abs(sum - 1.0) > self.epsilon:
+                passed = False
+                print("    [Energy] inVPD illegal: the sum of probabilities is not 1")
+
+        if passed is True:
+            print("    [Energy] params check passed")
+
+        return passed
 
 def test():
     net = PimFcMnist()

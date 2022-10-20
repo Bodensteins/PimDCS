@@ -97,7 +97,6 @@ class AreaModule:
 
         return pe_size
 
-
     def calc_Conv(self, idx: int, layer: nn.Module) -> int:
         _in_channel, _out_channel, _kernel, _bias = layer.in_channels, layer.out_channels, layer.kernel_size, layer.bias
         # choose a better allocation strategy
@@ -138,14 +137,14 @@ class AreaModule:
 
         return pe_size 
 
+
 class EnergyModule:
-    def __init__(self, net: nn.Module) -> None:
+    def __init__(self, net: nn.Module, shapes: List, batch_size: int = 1) -> None:
         self.net = net
+        self.batch_size = batch_size
+        self.shape = shapes
         self.epsilon = 1e-5
 
-        self.read_num = 0
-        self.write_num = 0
-        self.calc_num = 0
         self.read_energy = 0.
         self.write_energy = 0.
         self.calc_energy = 0.
@@ -156,7 +155,6 @@ class EnergyModule:
         self.set_params()
         self.get_average_write_energy()
 
-        
     def set_params(self) -> None:
         if const.readUseProbability is True:
             self.cell_pd = const.CellPD
@@ -187,23 +185,92 @@ class EnergyModule:
 
     def print_energy_info(self) -> None:
         print("Energy info:")
-        print("    read op count: %d" % (self.read_num))
-        print("    write op count: %d" % (self.write_num))
-        print("    calculation op count: %d" % (self.calc_num))
+        print("    read energy cost: %f" % (self.read_energy))
+        print("    write energy cost: %f" % (self.write_energy))
         print("    memory energy cost: %f" % (self.read_energy + self.write_energy))
         print("    calculation energy cost: %f" % (self.calc_energy))
         print("    total energy cost: %f" % (self.read_energy + self.write_energy + self.calc_energy))
 
     def get(self, net: nn.Module) -> None:
         for idx, (name, layer) in enumerate(self.net.named_modules()):
-            pass
+            if isinstance(layer, nn.Linear):
+                res = self.calc_Linear(layer)
+                self.read_energy = self.read_energy + res[0]
+                self.write_energy = self.write_energy + res[1]
+                self.calc_energy = self.calc_energy + res[2]
+
+            if isinstance(layer, nn.Conv2d):
+                res = self.calc_Conv(layer)
+                self.read_energy = self.read_energy + res[0]
+                self.write_energy = self.write_energy + res[1]
+                self.calc_energy = self.calc_energy + res[2]
+
+            if isinstance(layer, fp.Linear):
+                res = self.calc_fpLinear(layer)
+                self.read_energy = self.read_energy + res[0]
+                self.write_energy = self.write_energy + res[1]
+                self.calc_energy = self.calc_energy + res[2]
+
+            if isinstance(layer, fp.Conv2d):
+                res = self.calc_fpConv(layer)
+                self.read_energy = self.read_energy + res[0]
+                self.write_energy = self.write_energy + res[1]
+                self.calc_energy = self.calc_energy + res[2]
+
+    # forward:  1. write input matrix (training mode)
+    #           2. mm (input X weight)
+    # backward: 1. get grad_input  -> mm (weight X grad_output)
+    #           2. get grad_weight -> mm (input X grad_output.t())
+    def calc_Linear(self, ) -> List[float]:
+        pass
+
+    def calc_fpLinear(self, ) -> List[float]:
+        pass
+
+    def calc_Conv(self, ) -> List[float]:
+        pass
+
+    def calc_fpConv(self, ) -> List[float]:
+        pass
+
+    def get_energy_per_write(self, m: int, n: int) -> float:
+        # write all cells
+        average_energy = self.average_write_energy[-1] / const.writeParallelism
+        energy = average_energy * (m * n)
+
+        return energy
+
+    def get_energy_per_read(self, m: int, colSize: int) -> float:
+        # all column per read
+        voltage_square_mul_time = const.readV * const.readV * const.phyRdLatency
+        cells = m * colSize
+
+        energy = voltage_square_mul_time * (cells * self.average_conductance)
+        energy = energy + m * const.readRowPeripheryEnergy + colSize * const.readColPeripheryEnergy
+
+        return energy
+
+
+    def get_energy_per_mm(self, row: int, col: int) -> float:
+        average_vol_square = 0.
+        # TODO: what does the lateny means?
+        voltage_square_mul_time = const.computeUnitV * const.computeUnitV * const.phyMMLatency
+        for i in range(const.inVLevels + 1):
+            average_p_square = average_vol_square + const.inVPD[i] * i * i / const.inVLevels / const.inVLevels
+        average_energy = voltage_square_mul_time * average_p_square * self.average_conductance
+        return (average_energy *  const.phyArrColSize * const.phyArrRowSize) * row * col
+
+
 
     def get_average_write_energy(self) -> None:
+        # per write : some cells in one row
         voltage_square_mul_time = const.writeV / 2 * const.writeV / 2 * const.phyWrLatency
         average_conductance = const.minConduct
         average_write_energy = (const.writeParallelism + 1) * [.0]
         for i in range(len(self.cell_pd)):
             average_conductance = average_conductance + self.cell_pd[i] * i * const.deltaConduct
+
+        self.average_conductance = average_conductance
         
         # i cells in every writeParallelism cells need to write
         for i in range(1, const.writeParallelism + 1):
@@ -246,7 +313,7 @@ class EnergyModule:
                 passed = False
                 print("    [Energy] writePD illegal: the sum of probabilities is not 1")
 
-        if const.writeUseProbability is True:
+        if const.computeUseProbability is True:
             if len(const.inVPD) != const.inVLevels:
                 passed = False
                 print("    [Energy] inVPD illegal: the number of probabilities is not inVLevels")

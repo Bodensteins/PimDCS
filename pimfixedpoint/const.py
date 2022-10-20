@@ -75,10 +75,12 @@ CellPD = [0.25, 0.25, 0.25, 0.25] #read probability distribution, if not illegal
 CellPDDefault = 0 #0:equal probabilty 1:100% max value
 writePD = [0.0, 0.0, 0.0, 0.0, 0.2, 0.2, 0.3, 0.3]
 writePDDefault = 1
-inVPD = [0.5, 0.5]
+inVPD = [0., 1.]
 inVPDDefault = 0 #0:equal probabilty 1:100% max value
 
 
 ########################### latency module(ns) ###############################
 
+phyMMLatency = 10
+phyRdLatency = 10
 phyWrLatency = 50

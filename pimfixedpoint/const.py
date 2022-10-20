@@ -2,6 +2,10 @@ from enum import Enum
 
 #############################  basic info ################################
 
+writeV = 3.
+readV = 1.
+computeUnitV = 1.
+
 phyArrRowSize = 128
 phyArrColSize = 128
 phyArrayNum = 8          # 1 PE contains 8 crossbars
@@ -24,6 +28,11 @@ inLevels = 1 << inBits
 inVLevels = 1 << inVBits
 outLevels = 1 << outBits
 unitLevels = 1 << unitBits
+
+minConduct = 1e-7
+maxConduct = 1e-5
+deltaConduct = (maxConduct - minConduct) / (cellLevels - 1)
+
 
 mode = 0 #0:p&n 1:ref
 times = 1 if mode == 1 else 2
@@ -70,4 +79,6 @@ inVPD = [0.5, 0.5]
 inVPDDefault = 0 #0:equal probabilty 1:100% max value
 
 
-########################### latency module ###############################
+########################### latency module(ns) ###############################
+
+phyWrLatency = 50

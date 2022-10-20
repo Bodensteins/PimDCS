@@ -1,5 +1,6 @@
 from typing import List
 from xmlrpc.client import boolean
+from numpy import average
 import torch.nn as nn
 import const
 import utils
@@ -138,7 +139,7 @@ class AreaModule:
         return pe_size 
 
 class EnergyModule:
-    def __init__(self, net: nn.Module):
+    def __init__(self, net: nn.Module) -> None:
         self.net = net
         self.epsilon = 1e-5
 
@@ -148,12 +149,44 @@ class EnergyModule:
         self.read_energy = 0.
         self.write_energy = 0.
         self.calc_energy = 0.
+        
+        passed = self.check()
+        if passed is False:
+            pass
+        self.set_params()
+        self.get_average_write_energy()
+
+        
+    def set_params(self) -> None:
+        if const.readUseProbability is True:
+            self.cell_pd = const.CellPD
+        else:
+            if const.CellPDDefault == 0:
+                self.cell_pd = const.cellLevels * [1.0 / const.cellLevels]
+            else:
+                self.cell_pd = const.cellLevels * [0.0]
+                self.cell_pd[-1] = 1.0
+
+        if const.writeUseProbability is True:
+            self.write_pd = const.writePD
+        else:
+            if const.writePDDefault == 0:
+                self.cell_pd = const.writeParallelism * [1.0 / const.writeParallelism]
+            else:
+                self.cell_pd = const.writeParallelism * [0.0]
+                self.cell_pd[-1] = 1.0
+
+        if const.computeUseProbability is True:
+            self.inV_pd = const.inVPD
+        else:
+            if const.inVPDDefault == 0:
+                self.cell_pd = const.inVLevels * [1.0 / const.inVLevels]
+            else:
+                self.cell_pd = const.inVLevels * [0.0]
+                self.cell_pd[-1] = 1.0
 
     def print_energy_info(self) -> None:
         print("Energy info:")
-        passed = self.check()
-        if passed is False:
-            return
         print("    read op count: %d" % (self.read_num))
         print("    write op count: %d" % (self.write_num))
         print("    calculation op count: %d" % (self.calc_num))
@@ -161,12 +194,34 @@ class EnergyModule:
         print("    calculation energy cost: %f" % (self.calc_energy))
         print("    total energy cost: %f" % (self.read_energy + self.write_energy + self.calc_energy))
 
-    def get(self, net: nn.Module):
+    def get(self, net: nn.Module) -> None:
         for idx, (name, layer) in enumerate(self.net.named_modules()):
             pass
 
-
-    def check(self) -> boolean:
+    def get_average_write_energy(self) -> None:
+        voltage_square_mul_time = const.writeV / 2 * const.writeV / 2 * const.phyWrLatency
+        average_conductance = const.minConduct
+        average_write_energy = (const.writeParallelism + 1) * [.0]
+        for i in range(len(self.cell_pd)):
+            average_conductance = average_conductance + self.cell_pd[i] * i * const.deltaConduct
+        
+        # i cells in every writeParallelism cells need to write
+        for i in range(1, const.writeParallelism + 1):
+            # half selected row
+            conductance = (const.phyArrColSize - i) * average_conductance
+            # half selected col
+            conductance = conductance + i * (const.phyArrRowSize - 1) * average_conductance
+            # full selected cells
+            conductance = conductance + i * 4 * average_conductance 
+            # ref column need extra two cells
+            if const.mode == 1:
+                conductance = conductance + 2 * average_conductance
+            # per write contains two ops : SET and RESET (* 2)
+            average_write_energy[i] = voltage_square_mul_time * conductance * 2
+        
+        self.average_write_energy = average_write_energy
+            
+    def check(self) -> bool:
         passed = True
 
         if const.readUseProbability is True:

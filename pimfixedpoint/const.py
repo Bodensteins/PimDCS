@@ -33,6 +33,8 @@ minConduct = 1e-7
 maxConduct = 1e-5
 deltaConduct = (maxConduct - minConduct) / (cellLevels - 1)
 
+dac_latency = 1
+adc_latency = 6.25
 
 mode = 0 #0:p&n 1:ref
 times = 1 if mode == 1 else 2
@@ -66,7 +68,9 @@ writeColPeripheryEnergy = 0
 writeParallelism = 128
 writeUseProbability = False
 DACPower = 0.00390625
-ADCPower = 2
+ADCPower = 2.0
+DACEnergy = dac_latency * DACPower * 1e-3 # nJ
+ADCEnergy = adc_latency * ADCPower * 1e-3 # nJ
 computeRowPeripheryEnergy = 0 #
 computeColPeripheryEnergy = 0
 adderEnergy = 0  #add vertical out

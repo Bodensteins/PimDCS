@@ -13,7 +13,7 @@ class PerformanceManager:
     def __init__(self, net: nn.Module, h: int, w: int, batch_size: int = 1):
         self.shapes = utils.get_shape(h, w, net)
         self.area_module = AreaModule(net, self.shapes, batch_size)
-        self.energy_module = EnergyModule(net)
+        self.energy_module = EnergyModule(net, self.shapes, batch_size)
     
     def print(self):
         self.area_module.print_area_info()
@@ -145,8 +145,11 @@ class EnergyModule:
         self.shape = shapes
         self.epsilon = 1e-5
 
+        self.adc_energy = 0.
+        self.dac_energy = 0.
         self.read_energy = 0.
         self.write_energy = 0.
+        self.xbar_compute_energy = 0.
         self.calc_energy = 0.
         
         passed = self.check()
@@ -188,7 +191,10 @@ class EnergyModule:
         print("    read energy cost: %f" % (self.read_energy))
         print("    write energy cost: %f" % (self.write_energy))
         print("    memory energy cost: %f" % (self.read_energy + self.write_energy))
-        print("    calculation energy cost: %f" % (self.calc_energy))
+        print("    crossbar compute energy cost: %f" % (self.xbar_compute_energy))
+        print("    adc energy cost: %f" % (self.adc_energy))
+        print("    dac energy cost: %f" % (self.dac_energy))
+        print("    compute energy cost: %f" % (self.calc_energy))
         print("    total energy cost: %f" % (self.read_energy + self.write_energy + self.calc_energy))
 
     def get(self, net: nn.Module) -> None:
@@ -219,8 +225,8 @@ class EnergyModule:
 
     # forward:  1. write input matrix (training mode)
     #           2. mm (input X weight)
-    # backward: 1. get grad_input  -> mm (weight X grad_output)
-    #           2. get grad_weight -> mm (input X grad_output.t())
+    # backward: 1. get grad_input  -> mm (grad_output X weight.t())
+    #           2. get grad_weight -> mm (input.t() X grad_output)
     def calc_Linear(self, ) -> List[float]:
         pass
 
@@ -259,7 +265,6 @@ class EnergyModule:
             average_p_square = average_vol_square + const.inVPD[i] * i * i / const.inVLevels / const.inVLevels
         average_energy = voltage_square_mul_time * average_p_square * self.average_conductance
         return (average_energy *  const.phyArrColSize * const.phyArrRowSize) * row * col
-
 
 
     def get_average_write_energy(self) -> None:

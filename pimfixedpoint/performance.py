@@ -188,7 +188,7 @@ class EnergyModule:
 
     def print_energy_info(self) -> None:
         self.get_info(self.net)
-        print("Energy info:")
+        print("Energy info(nJ):")
         print("    read energy cost: %f" % (self.read_energy))
         print("    write energy cost: %f" % (self.write_energy))
         print("    memory energy cost: %f" % (self.read_energy + self.write_energy))
@@ -295,16 +295,25 @@ class EnergyModule:
 
         return energy
 
-
     def get_energy_per_mm(self, row: int, col: int) -> float:
-        average_vol_square = 0.
+        average_p_square = 0.
         # TODO: what does the lateny means?
         voltage_square_mul_time = const.computeUnitV * const.computeUnitV * const.phyMMLatency
         for i in range(const.inVLevels):
-            average_p_square = average_vol_square + const.inVPD[i] * (i + 1) * (i + 1) / const.inVLevels / const.inVLevels
-        average_energy = voltage_square_mul_time * average_p_square * self.average_conductance
-        return (average_energy *  const.phyArrColSize * const.phyArrRowSize) * row * col
+            average_p_square = average_p_square + const.inVPD[i] * (i + 1) * (i + 1) / const.inVLevels / const.inVLevels
+        average_energy = voltage_square_mul_time * average_p_square * self.average_conductance * const.inBits / const.inVBits
+        mm_energy = (average_energy *  const.phyArrColSize * const.phyArrRowSize) * row * col
 
+        # circuit energy
+        total_dac_energy = const.DACEnergy * row * const.inBits / const.inVBits
+        total_adc_energy = const.ADCEnergy * col * const.inBits / const.inVBits
+        periphery_energy = (const.computeRowPeripheryEnergy * row + const.computeColPeripheryEnergy * col) * const.inBits / const.inVBits
+        
+        self.adc_energy = self.adc_energy + total_adc_energy * self.batch_size
+        self.dac_energy = self.dac_energy + total_dac_energy * self.batch_size
+        self.calc_energy = self.calc_energy + (mm_energy + total_adc_energy + total_dac_energy + periphery_energy) * self.batch_size
+
+        return mm_energy
 
     def get_average_write_energy(self) -> None:
         # per write : some cells in one row

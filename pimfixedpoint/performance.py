@@ -149,7 +149,7 @@ class EnergyModule:
         self.dac_energy = 0.
         self.read_energy = 0.
         self.write_energy = 0.
-        self.xbar_compute_energy = 0.
+        self.mm_energy = 0.
         self.calc_energy = 0.
         
         passed = self.check()
@@ -187,57 +187,96 @@ class EnergyModule:
                 self.cell_pd[-1] = 1.0
 
     def print_energy_info(self) -> None:
+        self.get_info(self.net)
         print("Energy info:")
         print("    read energy cost: %f" % (self.read_energy))
         print("    write energy cost: %f" % (self.write_energy))
         print("    memory energy cost: %f" % (self.read_energy + self.write_energy))
-        print("    crossbar compute energy cost: %f" % (self.xbar_compute_energy))
+        print("    crossbar compute energy cost: %f" % (self.mm_energy))
         print("    adc energy cost: %f" % (self.adc_energy))
         print("    dac energy cost: %f" % (self.dac_energy))
         print("    compute energy cost: %f" % (self.calc_energy))
         print("    total energy cost: %f" % (self.read_energy + self.write_energy + self.calc_energy))
 
-    def get(self, net: nn.Module) -> None:
+    def get_info(self, net: nn.Module) -> None:
         for idx, (name, layer) in enumerate(self.net.named_modules()):
             if isinstance(layer, nn.Linear):
                 res = self.calc_Linear(layer)
                 self.read_energy = self.read_energy + res[0]
                 self.write_energy = self.write_energy + res[1]
-                self.calc_energy = self.calc_energy + res[2]
+                self.mm_energy = self.mm_energy + res[2]
 
             if isinstance(layer, nn.Conv2d):
                 res = self.calc_Conv(layer)
                 self.read_energy = self.read_energy + res[0]
                 self.write_energy = self.write_energy + res[1]
-                self.calc_energy = self.calc_energy + res[2]
+                self.mm_energy = self.mm_energy + res[2]
 
             if isinstance(layer, fp.Linear):
                 res = self.calc_fpLinear(layer)
                 self.read_energy = self.read_energy + res[0]
                 self.write_energy = self.write_energy + res[1]
-                self.calc_energy = self.calc_energy + res[2]
+                self.mm_energy = self.mm_energy + res[2]
 
             if isinstance(layer, fp.Conv2d):
                 res = self.calc_fpConv(layer)
                 self.read_energy = self.read_energy + res[0]
                 self.write_energy = self.write_energy + res[1]
-                self.calc_energy = self.calc_energy + res[2]
+                self.mm_energy = self.mm_energy + res[2]
 
     # forward:  1. write input matrix (training mode)
     #           2. mm (input X weight)
     # backward: 1. get grad_input  -> mm (grad_output X weight.t())
     #           2. get grad_weight -> mm (input.t() X grad_output)
-    def calc_Linear(self, ) -> List[float]:
-        pass
+    # update:   1. write weight.t()
+    #           2. read new weight
+    #           3. write weight
+    def calc_Linear(self, layer: nn.Module) -> List[float]:
+        _in, _out, _bias = layer.in_features, layer.out_features, layer.bias
+        if _bias is not None:
+            _in = _in + 1
+        row, col = utils.ceil(_in, const.phyArrRowSize), utils.ceil(_out, const.unitsPerPhyRow)
+        # forward
+        read_energy = 0.
+        write_energy = self.get_energy_per_write(1, _in) * self.batch_size
+        mm_energy = self.get_energy_per_mm(row, col) * self.batch_size
+        # backward
+        mm_energy = mm_energy + self.get_energy_per_mm(col, row) * self.batch_size
+        mm_energy = mm_energy + self.get_energy_per_mm(_in, 1) * self.batch_size
 
-    def calc_fpLinear(self, ) -> List[float]:
-        pass
+        # update (once)
+        write_energy = write_energy + self.get_energy_per_write(_out, _in)
+        read_energy = read_energy + self.get_energy_per_read(_out, const.phyArrColSize)
+        write_energy = write_energy + self.get_energy_per_write(_in, _out)
+        return [read_energy, write_energy, mm_energy]
 
+    def calc_fpLinear(self, layer: nn.Module) -> List[float]:
+        _in, _out, _bias = layer.in_features, layer.out_features, layer.hasBias
+        if _bias == True:
+            _in = _in + 1
+        row, col = utils.ceil(_in, const.phyArrRowSize), utils.ceil(_out, const.unitsPerPhyRow)
+        # forward
+        read_energy = 0.
+        write_energy = self.get_energy_per_write(1, _in) * self.batch_size
+        mm_energy = self.get_energy_per_mm(row, col) * self.batch_size
+        # backward
+        mm_energy = mm_energy + self.get_energy_per_mm(col, row) * self.batch_size
+        mm_energy = mm_energy + self.get_energy_per_mm(_in, 1) * self.batch_size
+
+        # update (once)
+        write_energy = write_energy + self.get_energy_per_write(_out, _in)
+        read_energy = read_energy + self.get_energy_per_read(_out, const.phyArrColSize)
+        write_energy = write_energy + self.get_energy_per_write(_in, _out)
+        return [read_energy, write_energy, mm_energy]
+
+    # forward:  1. 
+    # backward: 1. 
+    # update:   1. 
     def calc_Conv(self, ) -> List[float]:
-        pass
+        return [0., 0., 0.]
 
     def calc_fpConv(self, ) -> List[float]:
-        pass
+        return [0., 0., 0.]
 
     def get_energy_per_write(self, m: int, n: int) -> float:
         # write all cells
@@ -261,8 +300,8 @@ class EnergyModule:
         average_vol_square = 0.
         # TODO: what does the lateny means?
         voltage_square_mul_time = const.computeUnitV * const.computeUnitV * const.phyMMLatency
-        for i in range(const.inVLevels + 1):
-            average_p_square = average_vol_square + const.inVPD[i] * i * i / const.inVLevels / const.inVLevels
+        for i in range(const.inVLevels):
+            average_p_square = average_vol_square + const.inVPD[i] * (i + 1) * (i + 1) / const.inVLevels / const.inVLevels
         average_energy = voltage_square_mul_time * average_p_square * self.average_conductance
         return (average_energy *  const.phyArrColSize * const.phyArrRowSize) * row * col
 

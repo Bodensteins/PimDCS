@@ -112,13 +112,13 @@ class AreaModule:
 
             if const.runmode != const.PIMRunMode.train_transientInBuffer:
                 shape = self.shapes[idx]
-                row, col = utils.ceil(shape[0] * shape[1], const.phyArrRowSize), utils.ceil(_in_channel)
-                pe_size = pe_size + self.batch_size * utils.ceil(const.times * row * col, const.phyArrayNum)
+                row, col = utils.ceil(self.batch_size * shape[0] * shape[1], const.phyArrRowSize), utils.ceil(_in_channel, const.unitsPerPhyRow)
+                pe_size = pe_size + utils.ceil(const.times * row * col, const.phyArrayNum)
 
         return pe_size 
 
     def calc_fpConv(self, idx: int, layer: nn.Module) -> int:
-        _in_channel, _out_channel, _kernel, _bias = layer.in_channels, layer.out_channels, layer.kernel_size, layer.bias
+        _in_channel, _out_channel, _kernel, _bias = layer.in_channels, layer.out_channels, layer.kernel_size, layer.hasBias
         # choose a better allocation strategy
         _in = _kernel[0] * _kernel[1] * _in_channel
         if _bias == True:
@@ -127,22 +127,23 @@ class AreaModule:
         pe_size = utils.ceil(const.times * m * n, const.phyArrayNum)
 
         if const.runmode != const.PIMRunMode.inference:
-            x, y = utils.ceil(_kernel[0] * _kernel[1] * _out_channel, const.phyArrRowSize), utils.ceil(_in_channel, const.unitBits)
+            x, y = utils.ceil(_kernel[0] * _kernel[1] * _out_channel, const.phyArrRowSize), utils.ceil(_in_channel, const.unitsPerPhyRow)
             pe_size = pe_size + utils.ceil(const.times * x * y, const.phyArrayNum)
 
             if const.runmode != const.PIMRunMode.train_transientInBuffer:
                 shape = self.shapes[idx]
-                row, col = utils.ceil(shape[0] * shape[1], const.phyArrRowSize), utils.ceil(_in_channel)
-                pe_size = pe_size + self.batch_size * utils.ceil(const.times * row * col, const.phyArrayNum)
+                row, col = utils.ceil(self.batch_size * shape[0] * shape[1], const.phyArrRowSize), utils.ceil(_in_channel, const.unitsPerPhyRow)
+                pe_size = pe_size + utils.ceil(const.times * row * col, const.phyArrayNum)
 
         return pe_size 
+
 
 
 class EnergyModule:
     def __init__(self, net: nn.Module, shapes: List, batch_size: int = 1) -> None:
         self.net = net
         self.batch_size = batch_size
-        self.shape = shapes
+        self.shapes = shapes
         self.epsilon = 1e-5
 
         self.adc_energy = 0.
@@ -230,7 +231,7 @@ class EnergyModule:
     #           2. get grad_weight -> mm (input.t() X grad_output)
     # update:   1. write weight.t()
     #           2. read new weight
-    #           3. write weight
+    #           3. write weight for transpose
     def calc_Linear(self, layer: nn.Module) -> List[float]:
         _in, _out, _bias = layer.in_features, layer.out_features, layer.bias
         if _bias is not None:
@@ -246,7 +247,7 @@ class EnergyModule:
 
         # update (once)
         write_energy = write_energy + self.get_energy_per_write(_out, _in)
-        read_energy = read_energy + self.get_energy_per_read(_out, const.phyArrColSize)
+        read_energy = read_energy + self.get_energy_per_read(_out, utils.ceil(_in, const.phyArrColSize) * const.phyArrColSize)
         write_energy = write_energy + self.get_energy_per_write(_in, _out)
         return [read_energy, write_energy, mm_energy]
 
@@ -263,20 +264,56 @@ class EnergyModule:
         mm_energy = mm_energy + self.get_energy_per_mm(col, row) * self.batch_size
         mm_energy = mm_energy + self.get_energy_per_mm(_in, 1) * self.batch_size
 
-        # update (once)
+        # update (once a batch)
         write_energy = write_energy + self.get_energy_per_write(_out, _in)
-        read_energy = read_energy + self.get_energy_per_read(_out, const.phyArrColSize)
+        read_energy = read_energy + self.get_energy_per_read(_out, utils.ceil(_in, const.phyArrColSize) * const.phyArrColSize)
         write_energy = write_energy + self.get_energy_per_write(_in, _out)
         return [read_energy, write_energy, mm_energy]
 
-    # forward:  1. 
+    # forward:  1. write input matrix (training mode)
+    #           2. mm (unfold(input) X weight)
     # backward: 1. 
-    # update:   1. 
-    def calc_Conv(self, ) -> List[float]:
-        return [0., 0., 0.]
+    # update:   1. write weight
+    #           2. read new weight
+    #           3. write weight for transpose 
+    def calc_Conv(self, idx: int, layer: nn.Module) -> List[float]:
+        _in_channel, _out_channel, _kernel, _bias = layer.in_channels, layer.out_channels, layer.kernel_size, layer.bias
+        # choose a better allocation strategy
+        _in = _kernel[0] * _kernel[1] * _in_channel
+        if _bias == True:
+            _in = _in + 1
+        shape = self.shapes[idx]
+        # forward
+        write_energy = self.get_energy_per_write(shape[0] * shape[1], _in_channel) * self.batch_size
+        mm_energy = self.get_energy_per_mm(_in, _out_channel) * self.batch_size
+        # backward
 
-    def calc_fpConv(self, ) -> List[float]:
-        return [0., 0., 0.]
+        # update (once a batch)
+        write_energy = write_energy + self.get_energy_per_write(_in, _out_channel)
+        read_energy = self.get_energy_per_read(_in, utils.ceil(_out_channel, const.phyArrColSize) * const.phyArrColSize)
+        write_energy = write_energy + self.get_energy_per_write(_kernel[0] * _kernel[1] * _out_channel, utils.ceil(_in_channel, const.phyArrColSize) * const.phyArrColSize)
+
+        return [read_energy, write_energy, mm_energy]
+
+    def calc_fpConv(self, idx: int, layer: nn.Module) -> List[float]:
+        _in_channel, _out_channel, _kernel, _bias = layer.in_channels, layer.out_channels, layer.kernel_size, layer.hasBias
+        # choose a better allocation strategy
+        _in = _kernel[0] * _kernel[1] * _in_channel
+        if _bias == True:
+            _in = _in + 1
+        
+        shape = self.shapes[idx]
+        # forward
+        write_energy = self.get_energy_per_write(shape[0] * shape[1], _in_channel) * self.batch_size
+        mm_energy = self.get_energy_per_mm(_in, _out_channel) * self.batch_size
+        # backward
+
+        # update (once a batch)
+        write_energy = write_energy + self.get_energy_per_write(_in, _out_channel)
+        read_energy = self.get_energy_per_read(_in, utils.ceil(_out_channel, const.phyArrColSize) * const.phyArrColSize)
+        write_energy = write_energy + self.get_energy_per_write(_kernel[0] * _kernel[1] * _out_channel, utils.ceil(_in_channel, const.phyArrColSize) * const.phyArrColSize)
+
+        return [read_energy, write_energy, mm_energy]
 
     def get_energy_per_write(self, m: int, n: int) -> float:
         # write all cells

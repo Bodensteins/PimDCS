@@ -208,7 +208,7 @@ class EnergyModule:
                 self.mm_energy = self.mm_energy + res[2]
 
             if isinstance(layer, nn.Conv2d):
-                res = self.calc_Conv(layer)
+                res = self.calc_Conv(idx, layer)
                 self.read_energy = self.read_energy + res[0]
                 self.write_energy = self.write_energy + res[1]
                 self.mm_energy = self.mm_energy + res[2]
@@ -220,7 +220,7 @@ class EnergyModule:
                 self.mm_energy = self.mm_energy + res[2]
 
             if isinstance(layer, fp.Conv2d):
-                res = self.calc_fpConv(layer)
+                res = self.calc_fpConv(idx, layer)
                 self.read_energy = self.read_energy + res[0]
                 self.write_energy = self.write_energy + res[1]
                 self.mm_energy = self.mm_energy + res[2]
@@ -282,7 +282,7 @@ class EnergyModule:
         _in_channel, _out_channel, _kernel, _bias = layer.in_channels, layer.out_channels, layer.kernel_size, layer.bias
         # choose a better allocation strategy
         _in = _kernel[0] * _kernel[1] * _in_channel
-        if _bias == True:
+        if _bias is not None:
             _in = _in + 1
         input_shape = self.shapes[idx]
         output_shape = self.shapes[idx + 1]
@@ -427,8 +427,8 @@ class EnergyModule:
         return passed
 
 def test():
-    net = PimFcMnist()
-    manager = PerformanceManager(net, 1, 784)
+    net = ConvMnist()
+    manager = PerformanceManager(net, 28, 28)
     manager.print()
 
 test()

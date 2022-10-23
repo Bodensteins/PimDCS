@@ -107,13 +107,13 @@ class AreaModule:
         pe_size = utils.ceil(const.times * m * n, const.phyArrayNum)
 
         if const.runmode != const.PIMRunMode.inference:
-            x, y = utils.ceil(_kernel[0] * _kernel[1] * _out_channel, const.phyArrRowSize), utils.ceil(_in_channel, const.unitBits)
+            x, y = utils.ceil(_kernel[0] * _kernel[1] * _out_channel, const.phyArrRowSize), utils.ceil(_in_channel, const.unitsPerPhyRow)
             pe_size = pe_size + utils.ceil(const.times * x * y, const.phyArrayNum)
 
             if const.runmode != const.PIMRunMode.train_transientInBuffer:
                 shape = self.shapes[idx]
                 row, col = utils.ceil(shape[0] * shape[1], const.phyArrRowSize), utils.ceil(_in_channel)
-                pe_size = pe_size + self.batch_size * utils.ceil(const.times * row * col, const.phyArrRowSize)
+                pe_size = pe_size + self.batch_size * utils.ceil(const.times * row * col, const.phyArrayNum)
 
         return pe_size 
 
@@ -133,7 +133,7 @@ class AreaModule:
             if const.runmode != const.PIMRunMode.train_transientInBuffer:
                 shape = self.shapes[idx]
                 row, col = utils.ceil(shape[0] * shape[1], const.phyArrRowSize), utils.ceil(_in_channel)
-                pe_size = pe_size + self.batch_size * utils.ceil(const.times * row * col, const.phyArrRowSize)
+                pe_size = pe_size + self.batch_size * utils.ceil(const.times * row * col, const.phyArrayNum)
 
         return pe_size 
 

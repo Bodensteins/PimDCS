@@ -272,7 +272,9 @@ class EnergyModule:
 
     # forward:  1. write input matrix (training mode)
     #           2. mm (unfold(input) X weight)
-    # backward: 1. 
+    # backward: 1. get grad_input  -> Conv(input, grad_output)
+    #           2. get grad_weight -> Full-Conv(rot180(weight), grad_output)
+    #           TIPS: https://pavisj.medium.com/convolutions-and-backpropagations-46026a8f5d2c
     # update:   1. write weight
     #           2. read new weight
     #           3. write weight for transpose 

@@ -272,8 +272,8 @@ class EnergyModule:
 
     # forward:  1. write input matrix (training mode)
     #           2. mm (unfold(input) X weight)
-    # backward: 1. get grad_input  -> Conv(input, grad_output)
-    #           2. get grad_weight -> Full-Conv(rot180(weight), grad_output)
+    # backward: 1. get grad_input  -> Full-Conv(rot180(weight), grad_output)
+    #           2. get grad_weight -> Conv(input, grad_output)
     #           TIPS: https://pavisj.medium.com/convolutions-and-backpropagations-46026a8f5d2c
     # update:   1. write weight
     #           2. read new weight
@@ -284,12 +284,15 @@ class EnergyModule:
         _in = _kernel[0] * _kernel[1] * _in_channel
         if _bias == True:
             _in = _in + 1
-        shape = self.shapes[idx]
+        input_shape = self.shapes[idx]
+        output_shape = self.shapes[idx + 1]
+        unfold_L = output_shape[0] * output_shape[1]
         # forward
-        write_energy = self.get_energy_per_write(shape[0] * shape[1], _in_channel) * self.batch_size
-        mm_energy = self.get_energy_per_mm(_in, _out_channel) * self.batch_size
+        write_energy = self.get_energy_per_write(input_shape[0] * input_shape[1], _in_channel) * self.batch_size
+        mm_energy = self.get_energy_per_mm(_in, _out_channel) * unfold_L * self.batch_size 
         # backward
-
+        mm_energy = mm_energy + self.get_energy_per_mm(_out_channel, _in) * input_shape[0] * input_shape[1] * self.batch_size
+        mm_energy = mm_energy + self.get_energy_per_mm(input_shape[0] * input_shape[1], _in_channel) * _kernel[0] * _kernel[1] * self.batch_size
         # update (once a batch)
         write_energy = write_energy + self.get_energy_per_write(_in, _out_channel)
         read_energy = self.get_energy_per_read(_in, utils.ceil(_out_channel, const.phyArrColSize) * const.phyArrColSize)
@@ -303,13 +306,15 @@ class EnergyModule:
         _in = _kernel[0] * _kernel[1] * _in_channel
         if _bias == True:
             _in = _in + 1
-        
-        shape = self.shapes[idx]
+        input_shape = self.shapes[idx]
+        output_shape = self.shapes[idx + 1]
+        unfold_L = output_shape[0] * output_shape[1]
         # forward
-        write_energy = self.get_energy_per_write(shape[0] * shape[1], _in_channel) * self.batch_size
-        mm_energy = self.get_energy_per_mm(_in, _out_channel) * self.batch_size
+        write_energy = self.get_energy_per_write(input_shape[0] * input_shape[1], _in_channel) * self.batch_size
+        mm_energy = self.get_energy_per_mm(_in, _out_channel) * unfold_L * self.batch_size 
         # backward
-
+        mm_energy = mm_energy + self.get_energy_per_mm(_out_channel, _in) * input_shape[0] * input_shape[1] * self.batch_size
+        mm_energy = mm_energy + self.get_energy_per_mm(input_shape[0] * input_shape[1], _in_channel) * _kernel[0] * _kernel[1] * self.batch_size
         # update (once a batch)
         write_energy = write_energy + self.get_energy_per_write(_in, _out_channel)
         read_energy = self.get_energy_per_read(_in, utils.ceil(_out_channel, const.phyArrColSize) * const.phyArrColSize)

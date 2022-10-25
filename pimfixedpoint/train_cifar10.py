@@ -10,7 +10,7 @@ from fixedPoint import optim as fpOptim
 import torch.utils.data
 
 from fixedPoint.nn.fixedPointArithmetic import *
-from trainCommon import split_data_loader, train_model, test_model, create_layer_bit_width_list, \
+from trainCommon import split_data_loader, train_model, test_model, create_layer_weight_bit_width_list, \
     load_float_weight_for_fixed_point, draw_data_graph
 from VGG_cifar10_model import vgg16, FixedPointVGG8B, VGG8B, fp_vgg16, VGG16ForMotivation
 
@@ -161,7 +161,7 @@ def main():
         else:
             raise Exception('undefined net: ' + str(args.net))
 
-        bit_width_list = create_layer_bit_width_list(model)
+        bit_width_list = create_layer_weight_bit_width_list(model)
 
         optimizer = fpOptim.SGD(model.named_parameters(), bit_width_list, lr=args.lr, weight_decay=args.weight_decay,
                                 momentum=args.momentum)

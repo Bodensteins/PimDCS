@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torchvision import datasets, transforms
 from fixedPoint import optim as fpOptim
-from trainCommon import split_data_loader, train_model, test_model, create_layer_bit_width_list, \
+from trainCommon import split_data_loader, train_model, test_model, create_layer_weight_bit_width_list, \
     load_float_weight_for_fixed_point
 from mnist_model import PimFcMnist, FixedPointSimpleConvNet, FcMnist, ConvMnist, PimConvMnist
 
@@ -91,7 +91,7 @@ def main():
         else:
             raise Exception('undefined net: ' + str(args.net))
 
-        bit_width_list = create_layer_bit_width_list(model)
+        bit_width_list = create_layer_weight_bit_width_list(model)
 
         optimizer = fpOptim.SGD(model.named_parameters(), bit_width_list, lr=args.lr,
                                 momentum=args.momentum, weight_decay=args.weight_decay,

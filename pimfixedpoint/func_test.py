@@ -1,23 +1,25 @@
-import random
+# import random
+#
+# import torch.nn.functional
+#
+# from fixedPoint.nn.fixedPointArithmetic import *
+# import torchvision
+import matplotlib.pyplot as plt
+import numpy as np
+import math
 
-import torch.nn.functional
 
-from fixedPoint.nn.fixedPointArithmetic import *
-import torchvision
-
-
-def cal_expect(times):
-    gold = [0, 0, 0, 1, 2, 2, 3]
-    max_gold_sum = 0
-    for i in range(times):
-        temp = random.sample(gold, 3)
-        max_gold_sum += max(temp)
-
-    return max_gold_sum / times
+def f_t(t):
+    return np.power(t, 3)-math.exp(3)*np.power(t, 2)+(math.exp(3)-1)*t+1
 
 
 if __name__ == "__main__":
-    print("expect: ", cal_expect(10000000))
+    t = np.linspace(-1, 20, 10000)
+    x = f_t(t)-1
+    y = f_t(np.exp(3*t)-1)
+    plt.plot(x, y)
+    plt.show()
+    pass
 
 # row_size = 6
 # col_Size = 4

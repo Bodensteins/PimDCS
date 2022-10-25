@@ -293,7 +293,7 @@ def net_reset_parameters(model):
             layer.reset_parameters()
 
 
-def create_layer_bit_width_list(model):
+def create_layer_weight_bit_width_list(model):
     # for layer in model.modules():
     bit_width_list = []
     for layer in model.modules():

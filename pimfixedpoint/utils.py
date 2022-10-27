@@ -45,7 +45,7 @@ def get_shape(h: int, w: int, net: nn.Module) -> List:
                 shapes.append([channel, h_out, w_out])
         elif isinstance(layer, nn.Flatten):
             shapes.append([1, reduce(lambda x, y: x * y, input)])
-        elif isinstance(layer, nn.ReLU) or isinstance(layer, nn.Flatten):
+        elif isinstance(layer, nn.ReLU) or isinstance(layer, nn.Dropout):
             shapes.append(input)
     print(shapes)
     return shapes

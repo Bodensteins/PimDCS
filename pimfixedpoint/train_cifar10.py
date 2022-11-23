@@ -1,4 +1,5 @@
 import argparse
+import time
 
 import torch.nn as nn
 import torch.optim as optim
@@ -12,7 +13,7 @@ import torch.utils.data
 from fixedPoint.nn.fixedPointArithmetic import *
 from trainCommon import split_data_loader, train_model, test_model, create_layer_weight_bit_width_list, \
     load_float_weight_for_fixed_point, draw_data_graph
-from VGG_cifar10_model import vgg16, FixedPointVGG8B, VGG8B, fp_vgg16, VGG16ForMotivation
+from VGG_cifar10_model import vgg16, FixedPointVGG8B, VGG8B, fp_vgg16, VGG16ForMotivation, fp_vgg19, fp_vgg11, fp_vgg13
 
 
 def main():
@@ -22,7 +23,7 @@ def main():
                         help='input batch size for training (default: 64)')
     parser.add_argument('--test-batch-size', type=int, default=400, metavar='TEST_BATCH',
                         help='input batch size for testing (default: 1000)')
-    parser.add_argument('--epochs', type=int, default=20, metavar='N',
+    parser.add_argument('--epochs', type=int, default=300, metavar='N',
                         help='number of epochs to train (default: 14)')
     parser.add_argument('--lr', type=float, default=0.05, metavar='LR',
                         help='learning rate (default: 1.0)')
@@ -46,40 +47,22 @@ def main():
                         help='dir of load/save model')
     parser.add_argument('--trace-dir', default='trace', metavar='TD',
                         help='dir of load/save trace')
-    parser.add_argument('--load-model-type', type=int, default=0, metavar='LD',
+    parser.add_argument('--load-model-type', type=int, default=2, metavar='LD',
                         help='load mode type (0:no 1:float point model 2:fixed point model')
-    parser.add_argument('--load-filename', default='old_VGG_checkpoint.pt', metavar='LF',
+    parser.add_argument('--load-filename', default='FixedPointVGG_VGG19_half_checkpoint.pt', metavar='LF',
                         help='filename of load model')
-    parser.add_argument('--train', action='store_true', default=True,
+    parser.add_argument('--train', action='store_true', default=False,
                         help='train the model')
-    parser.add_argument('--save-trace', action='store_true', default=True,
+    parser.add_argument('--save-trace', action='store_true', default=False,
                         help='save all model in train process')
-    parser.add_argument('--fixed-point', action='store_true', default=False,
+    parser.add_argument('--fixed-point', action='store_true', default=True,
                         help='For use fixed point')
-    parser.add_argument('--conv-input-bit-width', type=int, default=16, metavar='CIBW',
-                        help='conv layer input bit width')
-    parser.add_argument('--conv-output-bit-width', type=int, default=16, metavar='COBW',
-                        help='conv layer output bit width')
-    parser.add_argument('--conv-weight-bit-width', type=int, default=16, metavar='CWBW',
-                        help='conv layer weight bit width')
-    parser.add_argument('--conv-grad-output-bit-width', type=int, default=16, metavar='CGOBW',
-                        help='conv layer grad output bit width')
-    parser.add_argument('--conv-next-grad-output-bit-width', type=int, default=16, metavar='CNGOBW',
-                        help='conv layer next layer grad output bit width')
-    parser.add_argument('--conv-compute-weight-bit-width', type=int, default=8, metavar='CCWBW',
-                        help='conv layer compute weight bit width')
-    parser.add_argument('--fc-output-bit-width', type=int, default=16, metavar='FOBW',
-                        help='fc layer output bit width')
-    parser.add_argument('--fc-weight-bit-width', type=int, default=16, metavar='FWBW',
-                        help='fc layer weight bit width')
-    parser.add_argument('--fc-grad-output-bit-width', type=int, default=16, metavar='FGOBW',
-                        help='fc layer grad output bit width')
-    parser.add_argument('--fc-compute-weight-bit-width', type=int, default=8, metavar='FCWBW',
-                        help='fc layer compute weight bit width')
+    parser.add_argument('--mix-precision', action='store_true', default=True,
+                        help='mix-precision or not')
     parser.add_argument('--half-float', action='store_true', default=True,
                         help='For use 16b float')
-    parser.add_argument('--net', type=int, default=0, metavar='NET',
-                        help='use which NN model (0:VGG 1:VGG8b 2:VGGTest)')
+    parser.add_argument('--net', default="VGG19", metavar='NET',
+                        help='use which NN model')
     parser.add_argument('--cuda', action='store_true', default=True,
                         help='use CUDA training')
     parser.add_argument('--cuda-use-num', type=int, default=2, metavar='CUDA',
@@ -138,43 +121,66 @@ def main():
     # }
 
     # show_data_img(labels_map, train_datasets)
+
+    if args.mix_precision:
+        # conv_input_bit_width
+        # conv_output_bit_width
+        # conv_weight_bit_width
+        # conv_grad_output_bit_width
+        # conv_next_grad_output_bit_width
+        # conv_compute_weight_bit_width
+        # fc_output_bit_width
+        # fc_weight_bit_width
+        # fc_grad_output_bit_width
+        # fc_compute_weight_bit_width
+        bit_width_tuple = (16, 16, 16, 16, 16, 8, 16, 16, 16, 8)
+        bit_width_type = "_half"
+    else:
+        bit_width_tuple = (16, 16, 16, 16, 16, 16, 16, 16, 16, 16)
+        bit_width_type = "_full16"
+
     if args.fixed_point:
-        if args.net == 0:
-            # model = fp_vgg19(args.train_batch_size, device=device, batch_norm=True).to(device)
-            model = fp_vgg16(
-                conv_input_bit_width=args.conv_input_bit_width,
-                conv_output_bit_width=args.conv_output_bit_width,
-                conv_weight_bit_width=args.conv_weight_bit_width,
-                conv_grad_output_bit_width=args.conv_grad_output_bit_width,
-                conv_next_grad_output_bit_width=args.conv_next_grad_output_bit_width,
-                conv_compute_weight_bit_width=args.conv_compute_weight_bit_width,
-                fc_output_bit_width=args.fc_output_bit_width,
-                fc_weight_bit_width=args.fc_weight_bit_width,
-                fc_grad_output_bit_width=args.fc_grad_output_bit_width,
-                fc_compute_weight_bit_width=args.fc_compute_weight_bit_width
-            )
+        if args.net == "VGG16":
+            model = fp_vgg16(*bit_width_tuple)
             model.to(device)
-            # model.double()
-            # model = FixedPointVGG13(args.train_batch_size, device=device).to(device)
-        elif args.net == 1:
-            model = FixedPointVGG8B(args.train_batch_size, device=device).to(device)
+        elif args.net == "VGG19":
+            model = fp_vgg19(*bit_width_tuple)
+            model.to(device)
+        elif args.net == "VGG11":
+            model = fp_vgg11(*bit_width_tuple)
+            model.to(device)
+        elif args.net == "VGG13":
+            model = fp_vgg13(*bit_width_tuple)
+            model.to(device)
         else:
             raise Exception('undefined net: ' + str(args.net))
 
-        bit_width_list = create_layer_weight_bit_width_list(model)
+        weight_bit_width_list = create_layer_weight_bit_width_list(model)
 
-        optimizer = fpOptim.SGD(model.named_parameters(), bit_width_list, lr=args.lr, weight_decay=args.weight_decay,
+        optimizer = fpOptim.SGD(model.named_parameters(), weight_bit_width_list, lr=args.lr, weight_decay=args.weight_decay,
                                 momentum=args.momentum)
     else:
-        if args.net == 0:
+        if args.net == "VGG16":
             model = vgg16().to(device)
             if args.half_float:
                 model.half()
-        elif args.net == 1:
+        elif args.net == "VGG13":
+            model = vgg16().to(device)
+            if args.half_float:
+                model.half()
+        elif args.net == "VGG11":
+            model = vgg16().to(device)
+            if args.half_float:
+                model.half()
+        elif args.net == "VGG19":
+            model = vgg16().to(device)
+            if args.half_float:
+                model.half()
+        elif args.net == "VGG8B":
             model = VGG8B().to(device)
             if args.half_float:
                 model.half()
-        elif args.net == 2:
+        elif args.net == "VGG16ForMotivation":
             model = VGG16ForMotivation().to(device)
             if args.half_float:
                 model.half()
@@ -187,7 +193,9 @@ def main():
 
     model_name = type(model).__name__
 
-    model_save_filename = args.model_dir + '/' + model_name + '_checkpoint.pt'
+    # time_str = time.strftime("_%Y%m%d_%H%M%S_")
+
+    model_save_filename = args.model_dir + '/' + model_name + '_' + args.net + bit_width_type + '_checkpoint.pt'
 
     model_load_filename = args.model_dir + '/' + args.load_filename
 
@@ -212,7 +220,7 @@ def main():
         criterion = nn.CrossEntropyLoss()
 
         if args.save_trace:
-            trace_filename = args.trace_dir + '/' + model_name + '/'
+            trace_filename = args.trace_dir + '/' + model_name + '_' + args.net + bit_width_type + '/'
         else:
             trace_filename = "trace/other_network/"
         # train_loss, valid_loss = train_model(model, device, train_loader, valid_loader, criterion, optimizer,
@@ -220,18 +228,18 @@ def main():
         #                                      scheduler=scheduler)
         train_loss_list, valid_loss_list, valid_acc_list\
             = train_model(model, device, train_loader, test_loader, criterion, optimizer, args.epochs,
-                          model_filename=model_save_filename, score_type='accuracy', patience=100, scheduler=scheduler,
+                          model_filename=model_save_filename, score_type='accuracy', patience=300, scheduler=scheduler,
                           half=args.half_float, save_trace=args.save_trace, trace_filename=trace_filename)
 
-        result_dir = args.result_dir + '/' + model_name + '_'
+        result_dir = args.result_dir + '/' + model_name + '_' + args.net + bit_width_type
 
-        with open(result_dir + 'train_loss.out', 'w') as FD:
+        with open(result_dir + '_train_loss.out', 'w') as FD:
             FD.write(json.dumps(train_loss_list))
 
-        with open(result_dir + 'valid_loss.out', 'w') as FD:
+        with open(result_dir + '_valid_loss.out', 'w') as FD:
             FD.write(json.dumps(valid_loss_list))
 
-        with open(result_dir + 'valid_acc.out', 'w') as FD:
+        with open(result_dir + '_valid_acc.out', 'w') as FD:
             FD.write(json.dumps(valid_acc_list))
 
         # print("retrain use full data")

@@ -230,9 +230,60 @@ def fixed_point_make_layers(cfg,
     return nn.Sequential(*layers)
 
 
-def fp_vgg11(batch_norm=False):
+def fp_vgg11(conv_input_bit_width,
+             conv_output_bit_width,
+             conv_weight_bit_width,
+             conv_grad_output_bit_width,
+             conv_next_grad_output_bit_width,
+             conv_compute_weight_bit_width,
+             fc_output_bit_width,
+             fc_weight_bit_width,
+             fc_grad_output_bit_width,
+             fc_compute_weight_bit_width,
+             batch_norm=False):
     """VGG 11-layer model (configuration "A")"""
-    return FixedPointVGG(fixed_point_make_layers(VGG_cfg['A'], batch_norm=batch_norm))
+    return FixedPointVGG(fixed_point_make_layers(
+        VGG_cfg['A'],
+        conv_input_bit_width=conv_input_bit_width,
+        conv_output_bit_width=conv_output_bit_width,
+        conv_weight_bit_width=conv_weight_bit_width,
+        conv_grad_output_bit_width=conv_grad_output_bit_width,
+        conv_next_grad_output_bit_width=conv_next_grad_output_bit_width,
+        conv_compute_weight_bit_width=conv_compute_weight_bit_width,
+        batch_norm=batch_norm),
+        fc_output_bit_width=fc_output_bit_width,
+        fc_weight_bit_width=fc_weight_bit_width,
+        fc_grad_output_bit_width=fc_grad_output_bit_width,
+        fc_compute_weight_bit_width=fc_compute_weight_bit_width
+    )
+
+
+def fp_vgg13(conv_input_bit_width,
+             conv_output_bit_width,
+             conv_weight_bit_width,
+             conv_grad_output_bit_width,
+             conv_next_grad_output_bit_width,
+             conv_compute_weight_bit_width,
+             fc_output_bit_width,
+             fc_weight_bit_width,
+             fc_grad_output_bit_width,
+             fc_compute_weight_bit_width,
+             batch_norm=False):
+    """VGG 13-layer model (configuration "B")"""
+    return FixedPointVGG(fixed_point_make_layers(
+        VGG_cfg['B'],
+        conv_input_bit_width=conv_input_bit_width,
+        conv_output_bit_width=conv_output_bit_width,
+        conv_weight_bit_width=conv_weight_bit_width,
+        conv_grad_output_bit_width=conv_grad_output_bit_width,
+        conv_next_grad_output_bit_width=conv_next_grad_output_bit_width,
+        conv_compute_weight_bit_width=conv_compute_weight_bit_width,
+        batch_norm=batch_norm),
+        fc_output_bit_width=fc_output_bit_width,
+        fc_weight_bit_width=fc_weight_bit_width,
+        fc_grad_output_bit_width=fc_grad_output_bit_width,
+        fc_compute_weight_bit_width=fc_compute_weight_bit_width
+    )
 
 
 def fp_vgg16(conv_input_bit_width,
@@ -265,9 +316,34 @@ def fp_vgg16(conv_input_bit_width,
     )
 
 
-def fp_vgg19(batch_norm=False):
+def fp_vgg19(conv_input_bit_width,
+             conv_output_bit_width,
+             conv_weight_bit_width,
+             conv_grad_output_bit_width,
+             conv_next_grad_output_bit_width,
+             conv_compute_weight_bit_width,
+             fc_output_bit_width,
+             fc_weight_bit_width,
+             fc_grad_output_bit_width,
+             fc_compute_weight_bit_width,
+             batch_norm=False):
     """VGG 19-layer model (configuration "E")"""
-    return FixedPointVGG(fixed_point_make_layers(VGG_cfg['E'], batch_norm=batch_norm))
+    return FixedPointVGG(
+        fixed_point_make_layers(
+            VGG_cfg['E'],
+            conv_input_bit_width=conv_input_bit_width,
+            conv_output_bit_width=conv_output_bit_width,
+            conv_weight_bit_width=conv_weight_bit_width,
+            conv_grad_output_bit_width=conv_grad_output_bit_width,
+            conv_next_grad_output_bit_width=conv_next_grad_output_bit_width,
+            conv_compute_weight_bit_width=conv_compute_weight_bit_width,
+            batch_norm=batch_norm
+        ),
+        fc_output_bit_width=fc_output_bit_width,
+        fc_weight_bit_width=fc_weight_bit_width,
+        fc_grad_output_bit_width=fc_grad_output_bit_width,
+        fc_compute_weight_bit_width=fc_compute_weight_bit_width
+    )
 
 
 class VGG16ForMotivation(nn.Module):

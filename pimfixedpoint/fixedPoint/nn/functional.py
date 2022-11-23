@@ -2,7 +2,7 @@ from torch.autograd import Function
 from . import fixedPointArithmetic as fpA
 from .commonConst import TensorType, torch_int, data_flow_bit_width
 import torch
-import pydevd
+# import pydevd
 
 debug_backward = False
 
@@ -19,8 +19,8 @@ class dequan(Function):
 
     @staticmethod
     def backward(ctx, grad_output):
-        if debug_backward is True:
-            pydevd.settrace(suspend=False, trace_only_current_thread=True)
+        # if debug_backward is True:
+        #     pydevd.settrace(suspend=False, trace_only_current_thread=True)
 
         fp_grad_output, fp_grad_output_cfg = fpA.quantization_tensor(grad_output, ctx.backBitWidth, TensorType.Normal)
 
@@ -35,8 +35,8 @@ class quan(Function):
 
     @staticmethod
     def backward(ctx, fp_grad_output, fp_grad_output_config):
-        if debug_backward is True:
-            pydevd.settrace(suspend=False, trace_only_current_thread=True)
+        # if debug_backward is True:
+        #     pydevd.settrace(suspend=False, trace_only_current_thread=True)
         return fpA.de_quantization((fp_grad_output, fp_grad_output_config)), None
 
 
@@ -50,8 +50,8 @@ class relu(Function):
 
     @staticmethod
     def backward(ctx, qgrad_output, qgrad_output_config):
-        if debug_backward is True:
-            pydevd.settrace(suspend=False, trace_only_current_thread=True)
+        # if debug_backward is True:
+        #     pydevd.settrace(suspend=False, trace_only_current_thread=True)
         neg_position, = ctx.saved_tensors
         qgrad_output[neg_position] = 0
 
@@ -74,8 +74,8 @@ class dropout(Function):
 
     @staticmethod
     def backward(ctx, fp_grad_output, fp_grad_output_cfg):
-        if debug_backward is True:
-            pydevd.settrace(suspend=False, trace_only_current_thread=True)
+        # if debug_backward is True:
+        #     pydevd.settrace(suspend=False, trace_only_current_thread=True)
         mask, = ctx.saved_tensors
         fp_grad_output[mask] = 0
         return fp_grad_output, fp_grad_output_cfg, None, None
@@ -102,8 +102,8 @@ class linear(Function):
 
     @staticmethod
     def backward(ctx, qgrad_output, qgrad_output_config):
-        if debug_backward is True:
-            pydevd.settrace(suspend=False, trace_only_current_thread=True)
+        # if debug_backward is True:
+        #     pydevd.settrace(suspend=False, trace_only_current_thread=True)
 
         qinputArr, qinputArr_config, qweight, qweight_config = ctx.saved_tensors
         hasBias = ctx.hasBias

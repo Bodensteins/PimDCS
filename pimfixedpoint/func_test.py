@@ -9,17 +9,13 @@ import numpy as np
 import math
 
 
-def f_t(t):
-    return np.power(t, 3)-math.exp(3)*np.power(t, 2)+(math.exp(3)-1)*t+1
+def f(a, b, c):
+    return a+2*b+3*c
 
 
 if __name__ == "__main__":
-    t = np.linspace(-1, 20, 10000)
-    x = f_t(t)-1
-    y = f_t(np.exp(3*t)-1)
-    plt.plot(x, y)
-    plt.show()
-    pass
+    x = (1, 2, 3)
+    print(f(*x))
 
 # row_size = 6
 # col_Size = 4

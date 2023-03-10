@@ -84,16 +84,17 @@ class dropout(Function):
 class linear(Function):
     @staticmethod
     def forward(ctx, fp_input, fp_input_config, fp_weight, fp_weight_config, has_bias: bool,
-                output_bit_width: int, grad_output_bit_width: int, compute_weight_bit_width: int):
+                output_bit_width: int, grad_output_bit_width: int, compute_weight_bit_width: int, training=True):
         if has_bias:
             fp_input, fp_input_config = fpA.add_additional_col_of_one((fp_input, fp_input_config))
 
         if compute_weight_bit_width is not None:
             fp_weight, fp_weight_config = fpA.get_clone((fp_weight, fp_weight_config), compute_weight_bit_width)
 
-        ctx.save_for_backward(fp_input, fp_input_config, fp_weight, fp_weight_config)
-        ctx.gradOutputBits = grad_output_bit_width
-        ctx.hasBias = has_bias
+        if training:
+            ctx.save_for_backward(fp_input, fp_input_config, fp_weight, fp_weight_config)
+            ctx.gradOutputBits = grad_output_bit_width
+            ctx.hasBias = has_bias
 
         qoutput, qoutput_config = fpA.fixed_point_matmul((fp_input, fp_input_config),
                                                          (fp_weight.t(), fp_weight_config), output_bit_width)
@@ -123,4 +124,4 @@ class linear(Function):
         fp_grad_weight = fpA.to_float(fp_delta_weight)
         fp_grad_weight_cfg = fpA.to_float(fp_delta_weight_cfg)
 
-        return fp_grad_input, fp_grad_input_cfg, fp_grad_weight, fp_grad_weight_cfg, None, None, None, None
+        return fp_grad_input, fp_grad_input_cfg, fp_grad_weight, fp_grad_weight_cfg, None, None, None, None, None

@@ -13,7 +13,7 @@ import torch.utils.data
 from fixedPoint.nn.fixedPointArithmetic import *
 from trainCommon import split_data_loader, train_model, test_model, create_layer_weight_bit_width_list, \
     load_float_weight_for_fixed_point, draw_data_graph
-from VGG_cifar10_model import vgg16, FixedPointVGG8B, VGG8B, fp_vgg16, VGG16ForMotivation, fp_vgg19, fp_vgg11, fp_vgg13
+from VGG_cifar10_model import vgg16, vgg11, vgg13, vgg19, FixedPointVGG8B, VGG8B, fp_vgg16, VGG16ForMotivation, fp_vgg19, fp_vgg11, fp_vgg13
 
 
 def main():
@@ -22,7 +22,7 @@ def main():
     parser.add_argument('--train-batch-size', type=int, default=128, metavar='TRAIN_BATCH',
                         help='input batch size for training (default: 64)')
     parser.add_argument('--test-batch-size', type=int, default=400, metavar='TEST_BATCH',
-                        help='input batch size for testing (default: 1000)')
+                        help='input batch size for testing (default: 400)')
     parser.add_argument('--epochs', type=int, default=300, metavar='N',
                         help='number of epochs to train (default: 14)')
     parser.add_argument('--lr', type=float, default=0.05, metavar='LR',
@@ -49,19 +49,21 @@ def main():
                         help='dir of load/save trace')
     parser.add_argument('--load-model-type', type=int, default=2, metavar='LD',
                         help='load mode type (0:no 1:float point model 2:fixed point model')
-    parser.add_argument('--load-filename', default='FixedPointVGG_VGG19_half_checkpoint.pt', metavar='LF',
+    parser.add_argument('--load-filename', default='FixedPointVGG_VGG16_full16_checkpoint.pt', metavar='LF',
                         help='filename of load model')
     parser.add_argument('--train', action='store_true', default=False,
                         help='train the model')
     parser.add_argument('--save-trace', action='store_true', default=False,
                         help='save all model in train process')
+    parser.add_argument('--save-result', action='store_true', default=False,
+                        help='save loss and acc')
     parser.add_argument('--fixed-point', action='store_true', default=True,
                         help='For use fixed point')
-    parser.add_argument('--mix-precision', action='store_true', default=True,
+    parser.add_argument('--mix-precision', action='store_true', default=False,
                         help='mix-precision or not')
     parser.add_argument('--half-float', action='store_true', default=True,
                         help='For use 16b float')
-    parser.add_argument('--net', default="VGG19", metavar='NET',
+    parser.add_argument('--net', default="VGG16", metavar='NET',
                         help='use which NN model')
     parser.add_argument('--cuda', action='store_true', default=True,
                         help='use CUDA training')
@@ -165,15 +167,15 @@ def main():
             if args.half_float:
                 model.half()
         elif args.net == "VGG13":
-            model = vgg16().to(device)
+            model = vgg13().to(device)
             if args.half_float:
                 model.half()
         elif args.net == "VGG11":
-            model = vgg16().to(device)
+            model = vgg11().to(device)
             if args.half_float:
                 model.half()
         elif args.net == "VGG19":
-            model = vgg16().to(device)
+            model = vgg19().to(device)
             if args.half_float:
                 model.half()
         elif args.net == "VGG8B":
@@ -233,14 +235,15 @@ def main():
 
         result_dir = args.result_dir + '/' + model_name + '_' + args.net + bit_width_type
 
-        with open(result_dir + '_train_loss.out', 'w') as FD:
-            FD.write(json.dumps(train_loss_list))
+        if args.save_result:
+            with open(result_dir + '_train_loss.out', 'w') as FD:
+                FD.write(json.dumps(train_loss_list))
 
-        with open(result_dir + '_valid_loss.out', 'w') as FD:
-            FD.write(json.dumps(valid_loss_list))
+            with open(result_dir + '_valid_loss.out', 'w') as FD:
+                FD.write(json.dumps(valid_loss_list))
 
-        with open(result_dir + '_valid_acc.out', 'w') as FD:
-            FD.write(json.dumps(valid_acc_list))
+            with open(result_dir + '_valid_acc.out', 'w') as FD:
+                FD.write(json.dumps(valid_acc_list))
 
         # print("retrain use full data")
         #

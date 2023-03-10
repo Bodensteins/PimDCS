@@ -41,6 +41,38 @@ class PimFcMnist(nn.Module):
         return x
 
 
+class PimDeepFcMnist(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.deepFc = fpnn.MulInputSequential(nn.Flatten(),
+                                              fpnn.Quan(),
+                                              fpnn.Linear(784, 128),
+                                              fpnn.ReLU(),
+                                              fpnn.Linear(128, 128),
+                                              fpnn.ReLU(),
+                                              fpnn.Linear(128, 128),
+                                              fpnn.ReLU(),
+                                              fpnn.Linear(128, 128),
+                                              fpnn.ReLU(),
+                                              fpnn.Linear(128, 128),
+                                              fpnn.ReLU(),
+                                              fpnn.Linear(128, 128),
+                                              fpnn.ReLU(),
+                                              fpnn.Linear(128, 128),
+                                              fpnn.ReLU(),
+                                              fpnn.Linear(128, 128),
+                                              fpnn.ReLU(),
+                                              fpnn.Linear(128, 128),
+                                              fpnn.ReLU(),
+                                              fpnn.Linear(128, 10),
+                                              fpnn.DeQuan())
+
+    def forward(self, x):
+        x = self.deepFc(x)
+
+        return x
+
+
 class ConvMnist(nn.Module):
     def __init__(self):
         super().__init__()

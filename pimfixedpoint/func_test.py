@@ -7,16 +7,44 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import math
+import fixedPoint.nn.fixedPointArithmetic as fpA
+import torch
 
 
-def f(a, b, c):
-    return a+2*b+3*c
+def calculate_relative_error(tensor, other):
+    int_source, source_cfg = tensor
+    int_other, other_cfg = other
+    source_s = source_cfg[0]
+    other_s = other_cfg[0]
+    # int_other.__ilshift__(other_s-source_s)
+    int_other = int_other.__lshift__(other_s-source_s)
+    delta_tensor = torch.sub(int_other, int_source).abs()
+    relative_error_tensor = torch.div(delta_tensor, int_source)
+    return relative_error_tensor
 
 
 if __name__ == "__main__":
-    x = (1, 2, 3)
-    print(f(*x))
+    test_layer_num = 16
+    test_epoch_num = 25
+    new_bit_width = 16
 
+    relative_error_layer_list = []
+    number_layer_list = []
+
+    for test_layer_index in range(test_layer_num):
+        for test_epoch_index in range(test_epoch_num):
+            file_name = "output_test/VGG16/layer" + str(test_layer_index) + "/epoch" + str(test_epoch_index)
+            output, output_cfg = torch.load(file_name)
+            output_clone = output.clone()
+            output_cfg_clone = output_cfg.clone()
+            fpA.set_bit_width_((output_clone, output_cfg_clone), new_bit_width) # bit_width_reduction
+            float_output = fpA.de_quantization((output, output_cfg))
+            re_quan_output, re_quan_cfg = fpA.quantization_tensor(float_output, new_bit_width, fpA.TensorType.Normal)
+            calculate_relative_error((output, output_cfg), (output_clone, output_cfg_clone))
+            # cmp_result = torch.not_equal(re_quan_output, output_clone)
+            # cmp_sum = torch.sum(cmp_result)
+
+            pass
 # row_size = 6
 # col_Size = 4
 # data_bit_width = 9

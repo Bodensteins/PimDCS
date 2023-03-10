@@ -6,7 +6,7 @@ from torchvision import datasets, transforms
 from fixedPoint import optim as fpOptim
 from trainCommon import split_data_loader, train_model, test_model, create_layer_weight_bit_width_list, \
     load_float_weight_for_fixed_point
-from mnist_model import PimFcMnist, FixedPointSimpleConvNet, FcMnist, ConvMnist, PimConvMnist
+from mnist_model import PimFcMnist, FixedPointSimpleConvNet, FcMnist, ConvMnist, PimConvMnist, PimDeepFcMnist
 
 
 def main():
@@ -46,11 +46,11 @@ def main():
                         help='For use fixed point')
     parser.add_argument('--half-float', action='store_true', default=False,
                         help='For use 16b float')
-    parser.add_argument('--net', type=int, default=1, metavar='NET',
-                        help='use which model (0:conv 1:fc)')
+    parser.add_argument('--net', type=int, default=2, metavar='NET',
+                        help='use which model (0:conv 1:fc 2:deepFc)')
     parser.add_argument('--cuda', action='store_true', default=True,
                         help='use CUDA training')
-    parser.add_argument('--cuda_use_num', type=int, default=2, metavar='CUDA',
+    parser.add_argument('--cuda_use_num', type=int, default=1, metavar='CUDA',
                         help='use which cuda (choice: 0-2)')
 
     args = parser.parse_args()
@@ -88,6 +88,8 @@ def main():
             # model.double()
         elif args.net == 1:
             model = PimFcMnist().to(device)
+        elif args.net == 2:
+            model = PimDeepFcMnist().to(device)
         else:
             raise Exception('undefined net: ' + str(args.net))
 

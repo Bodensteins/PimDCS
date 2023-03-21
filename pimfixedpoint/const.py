@@ -1,4 +1,5 @@
 from enum import Enum
+from math import floor
 
 #############################  basic info ################################
 
@@ -88,3 +89,55 @@ inVPDDefault = 0 #0:equal probabilty 1:100% max value
 phyMMLatency = 10
 phyRdLatency = 10
 phyWrLatency = 50
+
+# PE level
+buf_bitwidth = 8
+buf_cycle = 16
+
+# 舍弃了
+# pe_buf_write_latency = 20 //根据PE中的输入数据量indata得出
+# pe_buf_read_latency = 2 //根据PE中从缓冲区到iReg的数据量rdata得出
+
+default_inbuffer_size = 8 // MNSIM 中是从Model_latency 逐级传到PE_latency 
+default_outbuffer_size = 8
+
+read_row = 6
+read_column = 6
+
+dac_precision = 8
+PE_group_DAC_num = 4
+group_num = 2
+
+dac_latency = 1
+adc_latency = 6.25
+
+digital_period = 4
+# self.digital_period = 1/float(PEl_config.get('Digital module', 'Digital_Frequency'))*1e3
+decoder_latency = 2
+mux_latency = 3
+
+DAC_num = 4
+ADC_num = 1
+
+# Tile level
+intra_tile_bandwidth = 5
+tile_PE_num = 16
+
+# Operations that modify the delay time aren't locked.
+class pim_latency(object):
+    def __init__(self, s = 0, us = 0) -> None:
+        self.run_latency_s = s
+        self.run_latency_us = us
+    
+    def latency_add(self, time_ns) -> None:
+        self.run_latency_us += time_ns / 1000.0
+        add = floor(self.run_latency_us / 1e6)
+        self.run_latency_s += add
+        self.run_latency_us -= add * 1e6
+
+    def latency_add_parallal(self, other) -> None:
+        self.run_latency_s += other.run_latency_s
+        self.run_latency_us += other.run_latency_us
+    
+    def print_latency(self) -> None:
+        print("%d(s) %d(us)" % (self.run_latency_s, self.run_latency_us))

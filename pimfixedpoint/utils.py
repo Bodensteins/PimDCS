@@ -54,3 +54,5 @@ def test():
     net = ConvMnist()
     shapes = get_shape(28, 28, net)
     print(shapes)
+
+test()

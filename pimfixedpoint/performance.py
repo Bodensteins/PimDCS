@@ -14,11 +14,12 @@ class PerformanceManager:
         self.shapes = utils.get_shape(h, w, net)
         self.area_module = AreaModule(net, self.shapes, batch_size)
         self.energy_module = EnergyModule(net, self.shapes, batch_size)
+        self.latency_module = LatencyModule(net, self.shapes, batch_size)
     
     def print(self):
         self.area_module.print_area_info()
         self.energy_module.print_energy_info()
-
+        self.latency_module.print_latency_info()
 
 class AreaModule:
     def __init__(self, net: nn.Module, shapes: List, batch_size: int = 1) -> None:
@@ -425,6 +426,204 @@ class EnergyModule:
             print("    [Energy] params check passed")
 
         return passed
+
+
+class PE_latency():
+    def __init__(self, in_data = 0, r_data = 0, inprecision = 8) -> None:
+        
+        self.buf_bitwidth = const.buf_bitwidth
+        self.buf_cycle = const.buf_cycle
+        self.buf_wlatency = utils.ceil(in_data*8/self.buf_bitwidth)*self.buf_cycle
+        self.buf_rlatency = utils.ceil(r_data*8/self.buf_bitwidth)*self.buf_cycle
+        
+        self.pe_buf_write_latency = self.buf_wlatency # const.pe_buf_write_latency
+        self.pe_buf_read_latency = self.buf_rlatency # const.pe_buf_read_latency
+
+        self.read_row = const.read_row
+        self.read_column = const.read_column
+
+        self.dac_precision = const.dac_precision
+        self.PE_group_DAC_num = const.PE_group_DAC_num
+        self.group_num = const.group_num
+
+        self.multiple_time = utils.ceil(inprecision/self.dac_precision) * utils.ceil(self.read_row/self.PE_group_DAC_num) *\
+            utils.ceil(self.read_column / self.PE_group_DAC_num)
+
+        self.xbar_read_latency = const.xbar_read_latency
+        self.xbar_latency = self.multiple_time * self.xbar_read_latency
+        
+        self.DAC_num = const.DAC_num
+        self.ADC_num = const.ADC_num
+
+        self.single_dac_latency = const.dac_latency
+        self.dac_latency = self.multiple_time * self.single_dac_latency
+        self.single_adc_latency = const.adc_latency
+        self.adc_latency = self.multiple_time * self.single_adc_latency
+        
+        self.digital_period = const.digital_period
+        self.iReg_latency = utils.ceil(self.read_row/self.PE_group_DAC_num) * utils.ceil(self.read_column/self.PE_group_DAC_num) * self.digital_period +\
+            self.multiple_time * self.digital_period
+        self.shiftreg_latency = self.multiple_time * self.digital_period
+        
+        self.decoder_latency = const.decoder_latency
+        self.input_demux_latency = self.multiple_time * self.decoder_latency
+        self.adder_latency = utils.ceil(self.read_column/self.PE_group_DAC_num) * utils.ceil(math.log2(self.group_num)) * self.digital_period
+        self.output_mux_latency = self.multiple_time * const.mux_latency
+        
+        self.computing_latency = self.dac_latency + self.xbar_latency + self.adc_latency
+        self.oReg_latency = utils.ceil(self.read_column / self.PE_group_DAC_num) * self.digital_period
+        self.PE_digital_latency = self.iReg_latency + self.shiftreg_latency + self.input_demux_latency + \
+            self.adder_latency + self.output_mux_latency + self.oReg_latency
+        self.PE_latency = self.pe_buf_write_latency + self.pe_buf_read_latency + self.computing_latency + self.PE_digital_latency
+
+class Tile_latency(PE_latency):
+    def __init__(self, in_data = 0, r_data = 0, inprecision = 8, PE_num = 0) -> None:
+        PE_latency.__init__(self, in_data = in_data, r_data = r_data, inprecision = inprecision)
+        self.intra_tile_bandwidth = const.intra_tile_bandwidth
+        self.merge_time = utils.ceil(math.log2(PE_num))
+        self.tile_PE_num = const.tile_PE_num
+
+        # 这段需要理解和修改
+        if self.tile_PE_num[0] == 0:
+            self.tile_PE_num[0] = 4
+            self.tile_PE_num[1] = 4
+        assert self.tile_PE_num[0] > 0, "PE number in one PE < 0"
+        assert self.tile_PE_num[1] > 0, "PE number in one PE < 0"
+        # total_level 中用到了
+        self.tile_PE_total_num = self.tile_PE_num[0] * self.tile_PE_num[1]
+        assert PE_num <= self.tile_PE_total_num, "PE number exceeds the range"
+
+        self.read_column = const.read_column
+        
+        self.buf_wlatency = (self.PE.ADC_precision + self.merge_time) * self.read_column*PE_num/8
+
+        self.total_level = utils.ceil(math.log2(self.tile_PE_total_num))
+
+        self.jointmodule_latency = self.merge_time * self.digital_period
+        self.transfer_latency = (self.total_level * (self.PE.ADC_precision + self.merge_time) - self.merge_time * (merge_time + 1) / 2) \
+            * self.read_column / self.intra_tile_bandwidth
+        self.tile_buf_rlatency = 0
+        self.tile_buf_wlatency = self.buf_wlatency
+
+        self.tile_latency = self.PE_latency + self.jointmodule_latency + self.transfer_latency + self.tile_buf_wlatency
+
+class LatencyModule():
+    def __init__(self, net: nn.Module, shapes: List, batch_size: int = 1) -> None:
+        self.net = net
+        self.shapes = shapes
+        self.batch_size = batch_size
+
+        self.write_latency = 0.
+        self.mm_latency = 0.
+
+        self.adc_latency = 0.
+        self.dac_latency = 0.
+        self.adder_latency = 0.
+        
+        self.total_latency = 0.
+    
+    def print_latency_info(self) -> None:
+        self.calc_latency()
+        print("Latency info:")
+        print("     madel write latency : " % self.write_latency)
+        print("     model mm latency : " % self.mm_latency)
+        print("     adc latency : " % self.adc_latency)
+        print("     dac latency : " % self.dac_latency)
+        print("     adder latency : " % self.adder_latency)
+        print("     total latency : " % self.total_latency)
+
+    def get_info(self, net: nn.Module) -> None:
+        for idx, (name, layer) in enumerate(net.named_modules()):
+            if isinstance(layer, nn.Linear):
+                res = self.calc_Linear_latency(layer)
+
+    def calc_Linear_latency(self, layer: nn.Module) -> List[float]:
+        _in_channel, _out_channel, _kernel, _bias = layer.in_channels, layer.out_channels, layer.kernel_size, layer.hasBias
+        temp_tile_latency = Tile_latency(_in_channel, _out_channel, inprecision = 8, PE_num = 0)
+        temp_tile_latency.outbuf.calculate_buf_read_latency(rdata=(self.graph.layer_tileinfo[layer_id]['max_column'] *
+                                   outputbit * self.graph.layer_tileinfo[layer_id]['max_PE'] / 8))
+        temp_tile_latency.tile_buf_rlatency = temp_tile_latency.outbuf.buf_rlatency
+        merge_time = temp_tile_latency.tile_buf_rlatency + self.graph.inLayer_distance[0][layer_id] * \
+                            (temp_tile_latency.digital_period + self.graph.layer_tileinfo[layer_id]['max_column'] *
+                            self.graph.layer_tileinfo[layer_id]['max_PE'] * outputbit / self.inter_tile_bandwidth)
+        # Todo: update merge time (adder tree) and transfer data volume
+        transfer_time = self.graph.transLayer_distance[0][layer_id] * (
+                        output_size * outputbit / self.inter_tile_bandwidth)
+        max_prelayer_time = 0
+        temp_Inputindex = self.graph.layer_tileinfo[layer_id]['Inputindex']
+        for idx in temp_Inputindex:
+            tmp_time = self.finish_time[layer_id+idx][-1]
+            if tmp_time > max_prelayer_time:
+                max_prelayer_time = tmp_time
+        begin_time = max_prelayer_time
+        compute_time = temp_tile_latency.tile_latency + merge_time + transfer_time + begin_time
+        return compute_time
+
+    def calc_Convolution_latency(self, layer: nn.Module) -> List[float]:
+        _in_channel, _out_channel, _kernel, _bias = layer.in_channels, layer.out_channels, layer.kernel_size, layer.hasBias
+        temp_tile_latency = Tile_latency(_in_channel, _out_channel, inprecision = 8, PE_num = 0)
+        compute_time_end = 0
+        for i in range(output_size[0]):
+            for j in range(output_size[1]):
+                if (i == 0) & (j == 0):
+                    # the first output
+                    indata = input_channel_PE * (input_size[1] * max(kernelsize - padding - 1, 0) + max(
+                        kernelsize - padding, 0)) * inputbit / 8
+                    # fill the line buffer
+                    rdata = self.graph.layer_tileinfo[layer_id]['max_row'] * inputbit / 8
+                    # from the line buffer to the input reg
+                    temp_tile_latency.update_tile_latency(indata=indata, rdata=rdata)
+                    '''和layer_id = 0 相比多出的部分,上'''
+                    temp_Inputindex = self.graph.layer_tileinfo[layer_id]['Inputindex']
+                    last_layer_finish_time = 0
+                    # the finish time of all the required input data (in all input layers)
+                    for idx in temp_Inputindex:
+                        tmp_time = self.finish_time[layer_id + idx][-1]
+                        if tmp_time > last_layer_finish_time:
+                            last_layer_finish_time = tmp_time
+                    '''和layer_id = 0 相比多出的部分,下'''
+                    # layer_id = 0时begin_time=0, 并且compute_time不需要加上begin_time,
+                    begin_time = last_layer_finish_time
+                    compute_time = temp_tile_latency.tile_latency + merge_time + transfer_time + \
+                                    begin_time
+                    compute_time_end = max(compute_time_end, compute_time)
+                    # consider the input data generation time
+        return compute_time_end
+
+    def cal_latency(self, arrX_size: int, arrY_size: int, type: int) -> None:
+        if type == 0:
+            num = min(arrX_size * arrY_size, const.phyArrayNum)
+            sclar_da = (1.0 * const.phyArrayNum / const.dac_shared_ratio)
+            sclar_ad = (1.0 * const.phyArrayNum / const.adc_shared_ratio)
+            outI_latency = utils.ceil(num/sclar_da)*(const.dac_latency+const.phyMMLatency)
+            adc_latency = utils.ceil(num/sclar_ad)*const.adc_latency
+            add_all_latency = (num-1)*const.adder_latency
+            return (outI_latency+adc_latency+add_all_latency)*const.inPluses
+        elif type == 1:
+            num = min(arrX_size * arrY_size, const.phyArrayNum)
+            if num /const.parWrPhyNum+1 :
+                num = num % const.parWrPhyNum
+            else:
+                num = num/const.parWrPhyNum
+            return num * const.latencyWrSinglePhyArr
+        elif type >= 3 and type <= 5 :
+            num = min(arrX_size * arrY_size, const.phyArrayNum)
+            sclar_da = (1.0 * const.phyArrayNum / const.dac_shared_ratio)
+            sclar_ad = (1.0 * const.phyArrayNum / const.adc_shared_ratio)
+            outI_latency = utils.ceil(num/sclar_da)*(const.dac_latency+const.phyMMLatency)
+            adc_latency = utils.ceil(num/sclar_ad)*const.adc_latency
+            add_all_latency = (num-1)*const.adder_latency
+            if type == 3:
+                return adc_latency * const.inPluses
+            elif type == 4:
+                return outI_latency * const.inPluses
+            else:
+                return add_all_latency * const.inPluses
+        else:
+            return 0
+    
+    def pipe_cal_latency(self, arrX_size: int, arrY_size: int, type: int) -> None:
+        pass
 
 def test():
     net = ConvMnist()

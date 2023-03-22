@@ -59,7 +59,7 @@ class Linear(Module):
     def forward(self, qinput, qinput_config):
         qoutput, qoutput_config \
             = fpF.linear.apply(qinput, qinput_config, self.fp_weight, self.fp_weight_cfg, self.hasBias,
-                               self.outputBits, self.gradOutputBits, self.computeWeightBits)
+                               self.outputBits, self.gradOutputBits, self.computeWeightBits, self.training)
 
         return qoutput, qoutput_config
 

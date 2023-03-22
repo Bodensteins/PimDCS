@@ -4,6 +4,10 @@ import math
 from .commonConst import torch_int, torch_float, system_bit_width, data_flow_bit_width, TensorType, \
     RightShiftMode, WeightUpdateStrategy
 
+test_epoch_index = 0
+test_layer_index = 0
+test_num_layer = 16
+
 
 def to_float(tensor):
     return tensor.view(dtype=torch_float)
@@ -62,7 +66,7 @@ def _round_rshift(int_tensor, shift: int):
 
     if shift > system_bit_width - 1:
         raise Exception("warning! right shift too many bits: " + str(shift))
-        return torch.zeros_like(int_tensor)
+        # return torch.zeros_like(int_tensor)
 
     round_bit = int_tensor.bitwise_and(1 << (shift - 1))
     return int_tensor.add(round_bit).__rshift__(shift)
@@ -254,7 +258,7 @@ def get_clone(fp_tensor_tuple: tuple, new_bit_width: int, mode: RightShiftMode =
     return to_float(clone_tensor), to_float(clone_para)
 
 
-def add_additional_col_of_one(fp_tensor_tuple: tuple) -> Tensor:
+def add_additional_col_of_one(fp_tensor_tuple: tuple):
     int_tensor, quantization_para = _parse_tensor_tuple_to_int(fp_tensor_tuple)
     s, tensor_type = _parse_quantization_para(quantization_para)
 
@@ -306,6 +310,14 @@ def fixed_point_matmul(input_tensor_tuple: tuple, other_tensor_tuple: tuple,
     matmul_result_para = _creat_quantization_para(device=normal_int_tensor.device, s=normal_s + static_s,
                                                   tensor_type=TensorType.Normal)
 
+    global test_layer_index, test_num_layer, test_epoch_index
+    file_name = "output_test/VGG16/layer" + str(test_layer_index) + "/epoch" + str(test_epoch_index)
+    test_layer_index += 1
+    if test_layer_index == test_num_layer:
+        test_epoch_index += 1
+        test_layer_index = 0
+    torch.save((matmul_result, matmul_result_para), file_name)
+    # temp = torch.load(file_name)
     set_bit_width_((matmul_result, matmul_result_para), result_bit_width)
     return matmul_result, matmul_result_para
 

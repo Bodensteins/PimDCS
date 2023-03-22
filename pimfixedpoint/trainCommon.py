@@ -1,6 +1,6 @@
 import torch
 from matplotlib import pyplot as plt
-from torch import Generator, optim
+from torch import Generator
 from torch.utils.data import DataLoader, random_split
 from fixedPoint.nn.earlystopping import EarlyStopping
 
@@ -35,8 +35,9 @@ def split_data_loader(train_datasets, test_datasets, train_kwargs, test_kwargs, 
     return train_loader, test_loader, valid_loader
 
 
-def train_model(model, device, train_loader, valid_loader, criterion, optimizer, n_epochs,
-                patience=20, filename='checkpoint.pt', verbose=True, score_type='loss', scheduler=None, half=False):
+def train_model(model, device, train_loader, valid_loader, criterion, optimizer, n_epochs, patience=20,
+                model_filename='model/network_checkpoint.pt', verbose=True, score_type='loss', scheduler=None,
+                half=False, save_trace=False, trace_filename="trace/other_network/"):
     # to track the training loss as the model trains
     train_losses = []
     # to track the validation loss as the model trains
@@ -49,7 +50,9 @@ def train_model(model, device, train_loader, valid_loader, criterion, optimizer,
     valid_acc_list = []
 
     # initialize the early_stopping object
-    early_stopping = EarlyStopping(filename=filename, patience=patience, verbose=verbose, score_type=score_type)
+    early_stopping = EarlyStopping(filename=model_filename, patience=patience, verbose=verbose, score_type=score_type)
+
+    mid_batch_of_epoch = train_loader.__len__() // 2
 
     for epoch in range(1, n_epochs + 1):
         ###################
@@ -73,6 +76,12 @@ def train_model(model, device, train_loader, valid_loader, criterion, optimizer,
             optimizer.step()
             # record training loss
             train_losses.append(loss.item())
+
+            if save_trace:
+                if batch == mid_batch_of_epoch:
+                    torch.save(model.state_dict(), trace_filename + "epoch_" + str(epoch) + "_before_mid.pt")
+                elif batch == mid_batch_of_epoch + 1:
+                    torch.save(model.state_dict(), trace_filename + "epoch_" + str(epoch) + "_after_mid.pt")
 
         ######################
         # validate the model #
@@ -119,7 +128,10 @@ def train_model(model, device, train_loader, valid_loader, criterion, optimizer,
         if scheduler is not None:
             scheduler.step()
 
-        # early_stopping needs the validation loss to check if it has decresed,
+        # if save_trace is True:
+        #     torch.save(model.state_dict(), "epoch" + str(epoch) + filename)
+
+        # early_stopping needs the validation loss to check if it has decreased,
         # and if it has, it will make a checkpoint of the current model
         if score_type == 'accuracy':
             early_stopping(valid_acc, model)
@@ -131,7 +143,7 @@ def train_model(model, device, train_loader, valid_loader, criterion, optimizer,
             break
 
     # load the last checkpoint with the best model
-    model.load_state_dict(torch.load(filename))
+    model.load_state_dict(torch.load(model_filename))
 
     return avg_train_losses, avg_valid_losses, valid_acc_list
 
@@ -249,29 +261,29 @@ def show_data_img(labels_map, data, figure_size=(32, 32), cols=3, rows=3, random
     plt.show()
 
 
-# only for sgd
-def get_optimal_learning_rate(model, device, train_loader, valid_loader, criterion, filename='model/temp.pt',
-                              initial_lr=0.0009765625, epoch=5, n=10, score_type='loss'):
-    lr = initial_lr
-    global_valid_loss_min = float('inf')
-    lr_optimal = None
-    i = 1
-
-    while i <= n:
-        optimizer = optim.SGD(model.parameters(), lr=lr)
-        print(f"now lr is: {lr}, we try train {epoch} epochs")
-        _, valid_loss, _ = train_model(model, device, train_loader, valid_loader, criterion, optimizer, epoch,
-                                       patience=epoch+1, filename=filename + '_' + str(lr), verbose=False)
-        local_valid_loss_min = min(valid_loss)
-        if local_valid_loss_min < global_valid_loss_min:
-            lr_optimal = lr
-            global_valid_loss_min = local_valid_loss_min
-        print(f"lr: {lr}, valid loss {local_valid_loss_min}")
-        lr *= 2
-        i += 1
-        net_reset_parameters(model)
-
-    return lr_optimal
+# # only for sgd
+# def get_optimal_learning_rate(model, device, train_loader, valid_loader, criterion, filename='model/temp.pt',
+#                               initial_lr=0.0009765625, epoch=5, n=10, score_type='loss'):
+#     lr = initial_lr
+#     global_valid_loss_min = float('inf')
+#     lr_optimal = None
+#     i = 1
+#
+#     while i <= n:
+#         optimizer = optim.SGD(model.parameters(), lr=lr)
+#         print(f"now lr is: {lr}, we try train {epoch} epochs")
+#         _, valid_loss, _ = train_model(model, device, train_loader, valid_loader, criterion, optimizer, epoch,
+#                                        patience=epoch+1, filename=filename + '_' + str(lr), verbose=False)
+#         local_valid_loss_min = min(valid_loss)
+#         if local_valid_loss_min < global_valid_loss_min:
+#             lr_optimal = lr
+#             global_valid_loss_min = local_valid_loss_min
+#         print(f"lr: {lr}, valid loss {local_valid_loss_min}")
+#         lr *= 2
+#         i += 1
+#         net_reset_parameters(model)
+#
+#     return lr_optimal
 
 
 def net_reset_parameters(model):
@@ -281,7 +293,7 @@ def net_reset_parameters(model):
             layer.reset_parameters()
 
 
-def create_layer_bit_width_list(model):
+def create_layer_weight_bit_width_list(model):
     # for layer in model.modules():
     bit_width_list = []
     for layer in model.modules():
@@ -305,4 +317,15 @@ def load_float_weight_for_fixed_point(model_load_filename, model):
                 bias = param_list.pop(0)
 
             layer.reset_parameters_from_float_parameters(weight, bias)
-    pass
+
+
+def draw_data_graph(x_list, y_lists, x_label, y_label, title):
+
+    for y_list, para in y_lists:
+        plt.plot(x_list, y_list, **para)
+
+    plt.legend()
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
+    plt.title(title)
+    plt.show()

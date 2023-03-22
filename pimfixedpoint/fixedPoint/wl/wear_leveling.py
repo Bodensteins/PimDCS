@@ -468,4 +468,4 @@ class PimWearLeveling:
     pe_id = self.pid2lidDataFrame.loc[self.pid2lidDataFrame['pid'] == dst_pid, 'pe_id'][0]
     self.updateWriteCountByDifference(dst_pid, pe_id, diff, isFinalWL)
     self.updateCellCurrentTensor(dst_pid, self.cellCurrentTensorDict[src_pid])
-    self.updateCellCurrentTensor(srcTensor, srcTensor)
+    self.updateCellCurrentTensor(src_pid, srcTensor)

@@ -100,7 +100,7 @@ class Conv2d(Module):
         # re-use linear function to get the answer
         qoutput, qoutput_config \
             = fpF.linear.apply(fp_input, fp_input_cfg, self.fp_weight, self.fp_weight_cfg, self.hasBias,
-                               self.outputBits, self.gradOutputBits, self.computeWeightBits)
+                               self.outputBits, self.gradOutputBits, self.computeWeightBits, self.training)
 
         # reshape the output to the conv-shape
         # Here, for simplicity, we use dequan & fold & quan to simulate fixed-point fold

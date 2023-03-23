@@ -4,9 +4,9 @@ import math
 from .commonConst import torch_int, torch_float, system_bit_width, data_flow_bit_width, TensorType, \
     RightShiftMode, WeightUpdateStrategy
 
-test_epoch_index = 0
-test_layer_index = 0
-test_num_layer = 16
+# test_epoch_index = 0
+# test_layer_index = 0
+# test_num_layer = 16
 
 
 def to_float(tensor):
@@ -310,13 +310,13 @@ def fixed_point_matmul(input_tensor_tuple: tuple, other_tensor_tuple: tuple,
     matmul_result_para = _creat_quantization_para(device=normal_int_tensor.device, s=normal_s + static_s,
                                                   tensor_type=TensorType.Normal)
 
-    global test_layer_index, test_num_layer, test_epoch_index
-    file_name = "output_test/VGG16/layer" + str(test_layer_index) + "/epoch" + str(test_epoch_index)
-    test_layer_index += 1
-    if test_layer_index == test_num_layer:
-        test_epoch_index += 1
-        test_layer_index = 0
-    torch.save((matmul_result, matmul_result_para), file_name)
+    # global test_layer_index, test_num_layer, test_epoch_index
+    # file_name = "output_test/VGG16/layer" + str(test_layer_index) + "/epoch" + str(test_epoch_index)
+    # test_layer_index += 1
+    # if test_layer_index == test_num_layer:
+    #     test_epoch_index += 1
+    #     test_layer_index = 0
+    # torch.save((matmul_result, matmul_result_para), file_name)
     # temp = torch.load(file_name)
     set_bit_width_((matmul_result, matmul_result_para), result_bit_width)
     return matmul_result, matmul_result_para

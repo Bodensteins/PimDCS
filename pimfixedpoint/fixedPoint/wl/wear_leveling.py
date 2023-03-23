@@ -8,17 +8,31 @@ import uuid
 
 
 class WearLevelingType(Enum):
-  NotUse = 0
-  ColumnShift = 1
-  RowShift = 2
-  RowSwapping = 3
-  ColumnSwapping = 4
-  RowColumnShift = 5
+  NotUse = "not-use"
+  ColumnShift = "column-shift"
+  RowShift = "row-shift"
+  RowSwap = "row-swap"
+  ColumnSwap = "column-swap"
+  RowColumnShift = "row-column_shift"
 
+  def __str__(self):
+    return self.value
 
 class WearLevelingConfig():
   def __init__(self, intraWlType, useTIWL, intraPEShift, wlInterval, swapRatioOfTIWL, swapRatioOfArray, overlapUpdate,
                shiftNum=1):
+    """
+    Wear-leveling config.
+    @param intraWlType: The intra-crossbar wear-leveling scheme.
+    @param useTIWL: Uses TIWL or not.
+    @param intraPEShift: Shifts crossbar within a PE or not.
+    @param wlInterval: The interval of performing wear-leveling operation.
+    @param swapRatioOfTIWL: PE Swaps ratio of TIWL.
+    @param swapRatioOfArray: Physical array swap ratio of intra-crossbar wear-leveling schemes.
+    @param overlapUpdate: Performs wear-leveling when writing new data to physical arrays. The additional writes
+    introduced by wear-leveling would be ignored when using overlap update.
+    @param shiftNum: The granularity of shifting schemes.
+    """
     if not isinstance(intraWlType, WearLevelingType):
       raise TypeError("wlType must be an instance of WearLevelingType(Enum)")
     assert swapRatioOfTIWL > 0 and swapRatioOfTIWL <= 1
@@ -37,6 +51,17 @@ class WearLevelingConfig():
 class LogicalArray:
   def __init__(self, unique_key, logicalArraySize: tuple, physicalArraySize: tuple, splitBits: bool,
                bitWidth: int, cellBits: int):
+    """
+    The logical array is a virtual reference of a matrix. If the size of logical array is larger than
+    the size of physical array, the logical array would be divided into multiple sub-blocks and be
+    stored into multiple physical array.
+    @param unique_key: The unique key of logical array.
+    @param logicalArraySize: The size of logical array.
+    @param physicalArraySize: The size of physical array.
+    @param splitBits: Splits data by bits and distributes them to different physical arrays.
+    @param bitWidth: Bits width of data.
+    @param cellBits: Cell bits.
+    """
     self.unique_key = unique_key
     self.logicalArraySize = logicalArraySize
     self.physicalArraySize = physicalArraySize
@@ -49,7 +74,7 @@ class LogicalArray:
       c = math.ceil(logicalArraySize[1] / physicalArraySize[1]) * cellNum
     else:
       c = math.ceil(logicalArraySize[1] * bitWidth / (physicalArraySize[1] * cellBits))
-    self.pidMap2D = np.full([r, c], np.nan, dtype='int64')
+    self.pidMap2D = np.full([r, c], np.iinfo(np.int64).max, dtype='int64')
 
 
 class PhysicalArray:
@@ -61,6 +86,17 @@ class PimWearLeveling:
   def __init__(self, wlConfig: WearLevelingConfig, physicalArraySize: tuple,
                cellBits: int = 1, splitBits: bool = False, arraysPerPE: int = 16, PEsPerTile: int = 32,
                tilesPerBank: int = 1, banksPerChip: int = 1):
+    """
+    Initiates a PIM wear-leveling manager.
+    @param wlConfig: Wear-leveling config.
+    @param physicalArraySize: The size of physical array.
+    @param cellBits: Cell bits.
+    @param splitBits: Splits data by bits and distributes them to different physical arrays.
+    @param arraysPerPE: The number of physical arrays in a PE.
+    @param PEsPerTile: The number of PEs in a tile.
+    @param tilesPerBank: The number of tiles in a bank. (Not support yet!)
+    @param banksPerChip: The number of banks in a chip. (Not support yet!)
+    """
     self.stepCount = 0
     self.wlConfig = wlConfig
 
@@ -168,16 +204,14 @@ class PimWearLeveling:
     @return:
     """
     # write logic array. record new data to get additional writes when performing wear-leveling
-    self.stepCount += 1
     for param_name in old_data_dict:
       self.writeLogicArray(param_name, old_data_dict[param_name], new_data_dict[param_name],
                            record_new_data=True if self.stepCount % self.wlConfig.wlInterval == 0 else False)
-
     if self.stepCount % self.wlConfig.wlInterval == 0:
       # intra wear-leveling
       if self.wlConfig.intraWlType == WearLevelingType.ColumnShift or self.wlConfig.intraWlType == WearLevelingType.RowShift:
         self.shifting(not (self.wlConfig.useTIWL + self.wlConfig.intraPEShift))
-      elif self.wlConfig.intraWlType == WearLevelingType.ColumnSwapping or self.wlConfig.intraWlType == WearLevelingType.RowSwapping:
+      elif self.wlConfig.intraWlType == WearLevelingType.ColumnSwap or self.wlConfig.intraWlType == WearLevelingType.RowSwap:
         self.swapping(not (self.wlConfig.useTIWL + self.wlConfig.intraPEShift))
       elif self.wlConfig.intraWlType == WearLevelingType.RowColumnShift:
         self.rowColumnShift(not (self.wlConfig.useTIWL + self.wlConfig.intraPEShift))
@@ -190,6 +224,8 @@ class PimWearLeveling:
       # reset IWC
       self.pid2lidDataFrame['iwc'].values[:] = 0
       self.peDataFrame['pe_iwc'].values[:] = 0
+
+    self.stepCount += 1
 
   def writeLogicArray(self, logical_key, old_data, new_data, record_new_data=False):
     """
@@ -311,39 +347,33 @@ class PimWearLeveling:
     @param isFinalWL: If this is the final wera-leveling operation, update the IWC and TWC.
     @return:
     """
-    byColumn = True if self.wlConfig.intraWlType == WearLevelingType.ColumnSwapping else False
+    byColumn = True if self.wlConfig.intraWlType == WearLevelingType.ColumnSwap else False
+    idxLen = self.physicalArraySize[1] if byColumn else self.physicalArraySize[0]
     for pid in self.pid2lidDataFrame['pid'].tolist():
-      if not self.wlConfig.overlapUpdate:
-        swappedTensor = self.cellCurrentTensorDict[pid].copy()
-      if byColumn:
-        swapNum = (self.physicalArraySize[1] * self.wlConfig.swapRatioOfArray) // 2
-        oldIdx = np.stack([np.arange(self.physicalArraySize[1]), self.cellWriteCountDict[pid].sum(dim=0)], axis=1,
-                          dtype=np.int64)
-        sortSum = oldIdx[oldIdx[:, 1].argsort()]
-
-        for col in swapNum:
-          oldIdx[:, [sortSum[col][0], sortSum[-col - 1][0]]] = oldIdx[:, [sortSum[-col - 1][0], sortSum[col][0]]]
-          if not self.wlConfig.overlapUpdate:
-            swappedTensor[:, [sortSum[col][0], sortSum[-col - 1][0]]] = swappedTensor[:,
-                                                                        [sortSum[-col - 1][0], sortSum[col][0]]]
-      else:
-        swapNum = (self.physicalArraySize[0] * self.wlConfig.swapRatioOfArray) // 2
-        oldIdx = np.stack([np.arange(self.physicalArraySize[0]), self.cellWriteCountDict[pid].sum(dim=1)], axis=1,
-                          dtype=np.int64)
-        sortSum = oldIdx[oldIdx[:, 1].argsort()]
-        for row in swapNum:
-          oldIdx[[sortSum[row][0], sortSum[-row - 1][0]]] = oldIdx[[sortSum[-row - 1][0], sortSum[row][0]]]
-          if not self.wlConfig.overlapUpdate:
-            swappedTensor[[sortSum[row][0], sortSum[-row - 1][0]]] = swappedTensor[
-              [sortSum[-row - 1][0], sortSum[row][0]]]
+      swapNum = int((idxLen * self.wlConfig.swapRatioOfArray) / 2)
+      oldIdx = np.stack([np.arange(idxLen), self.cellWriteCountDict[pid].sum(axis=0 if byColumn else 1)], axis=1,
+        dtype=np.int64)
+      sortSum = oldIdx[oldIdx[:, 1].argsort()]
+      for idx in range(swapNum):
+        oldIdx[[sortSum[idx][0], sortSum[-idx - 1][0]]] = oldIdx[[sortSum[-idx - 1][0], sortSum[idx][0]]]
 
       if not self.wlConfig.overlapUpdate:
+        swappedTensor = self.cellCurrentTensorDict[pid]
+        if byColumn:
+          swappedTensor = np.take_along_axis(swappedTensor, np.expand_dims(oldIdx[:, 0], axis=0), axis=1)
+        else:
+          swappedTensor = np.take_along_axis(swappedTensor, np.expand_dims(oldIdx[:, 0], axis=1), axis=0)
         diff = swappedTensor ^ self.cellCurrentTensorDict[pid]
         pe_id = self.pid2lidDataFrame.loc[self.pid2lidDataFrame['pid'] == pid, 'pe_id'][0]
         self.updateWriteCountByDifference(pid, pe_id, diff, isFinalWL)
         self.updateCellCurrentTensor(pid, swappedTensor)
-      self.cellWriteCountDict[pid] = torch.index_select(self.cellWriteCountDict[pid], dim=1 if byColumn else 0,
-                                                        index=torch.LongTensor(oldIdx))
+
+      if byColumn:
+        self.cellWriteCountDict[pid] = np.take_along_axis(self.cellWriteCountDict[pid],
+                                                          np.expand_dims(oldIdx[:, 0], axis=0), axis=1)
+      else:
+        self.cellWriteCountDict[pid] = np.take_along_axis(self.cellWriteCountDict[pid],
+                                                          np.expand_dims(oldIdx[:, 0], axis=1), axis=0)
 
   def TIWLByPE(self, isFinalWL):
     """
@@ -351,25 +381,32 @@ class PimWearLeveling:
     @param isFinalWL: If this is the final wera-leveling operation, update the IWC and TWC.
     @return:
     """
+
     def swapPhysicalArray(pid_a, pid_b):
       logical_key_a = self.pid2lidDataFrame[self.pid2lidDataFrame['pid'] == pid_a]['logical_key'][0]
       logical_key_b = self.pid2lidDataFrame[self.pid2lidDataFrame['pid'] == pid_b]['logical_key'][0]
       self.pid2lidDataFrame.loc[self.pid2lidDataFrame['pid'] == pid_a, 'logical_key'] = logical_key_b
       self.pid2lidDataFrame.loc[self.pid2lidDataFrame['pid'] == pid_b, 'logical_key'] = logical_key_a
       idx_a = np.where(self.logicalArrayDict[logical_key_a].pidMap2D == pid_a)
-      idx_b = np.where(self.logicalArrayDict[logical_key_a].pidMap2D == pid_b)
+      idx_b = np.where(self.logicalArrayDict[logical_key_b].pidMap2D == pid_b)
       self.logicalArrayDict[logical_key_a].pidMap2D[idx_a] = pid_b
       self.logicalArrayDict[logical_key_a].pidMap2D[idx_b] = pid_a
       if not self.wlConfig.overlapUpdate:
-        self.swapPhysicalArray(pid_a, pid_b, isFinalWL)
-        self.swapPhysicalArray(pid_b, pid_a, isFinalWL)
+        srcTensor = self.cellCurrentTensorDict[pid_a]
+        diff = srcTensor ^ self.cellCurrentTensorDict[pid_b]
+        pe_id_a = self.pid2lidDataFrame.loc[self.pid2lidDataFrame['pid'] == pid_a, 'pe_id'][0]
+        pe_id_b = self.pid2lidDataFrame.loc[self.pid2lidDataFrame['pid'] == pid_b, 'pe_id'][0]
+        self.updateWriteCountByDifference(pid_a, pe_id_a, diff, isFinalWL)
+        self.updateWriteCountByDifference(pid_b, pe_id_b, diff, isFinalWL)
+        self.updateCellCurrentTensor(pid_a, self.cellCurrentTensorDict[pid_b])
+        self.updateCellCurrentTensor(pid_b, srcTensor)
+
 
     def swapPE(pe_id_a, pe_id_b):
       # step 1: find pid_list of pe
       pid_list_a = self.peDataFrame[self.peDataFrame['pe_id'] == pe_id_a]['pid_list'][0]
       pid_list_b = self.peDataFrame[self.peDataFrame['pe_id'] == pe_id_b]['pid_list'][0]
       # step 2: record new logical_key mapping for two pe
-      print("[Swap PE]: %d <-> %d" % (pe_id_a, pe_id_b))
       for pid_a, pid_b in zip(pid_list_a, pid_list_b):
         swapPhysicalArray(pid_a, pid_b)
 
@@ -392,17 +429,24 @@ class PimWearLeveling:
     @param isFinalWL: If this is the final wera-leveling operation, update the IWC and TWC.
     @return:
     """
-    for pid_list in self.peDataFrame['pid_list']:
+    for pe_id, pid_list in zip(self.peDataFrame['pe_id'], self.peDataFrame['pid_list']):
       shift_pid_list = np.roll(pid_list, shift=(1), axis=(0))
       # backup the final one
       cellWriteCount = self.cellWriteCountDict[pid_list[-1]]
+      cellCurrentTensor = self.cellCurrentTensorDict[pid_list[-1]]
+
       for pid_idx in range(len(shift_pid_list) - 1):
         self.cellWriteCountDict[shift_pid_list[pid_idx]] = self.cellWriteCountDict[pid_list[pid_idx]]
         if not self.wlConfig.overlapUpdate:
-          self.swapPhysicalArray(shift_pid_list[pid_idx], pid_list[pid_idx], isFinalWL)
+          diff = self.cellCurrentTensorDict[shift_pid_list[pid_idx]] ^ self.cellCurrentTensorDict[pid_list[pid_idx]]
+          self.updateWriteCountByDifference(shift_pid_list[pid_idx], pe_id, diff, isFinalWL)
+          self.updateCellCurrentTensor(shift_pid_list[pid_idx], self.cellCurrentTensorDict[pid_list[pid_idx]])
+
       self.cellWriteCountDict[shift_pid_list[-1]] = cellWriteCount
       if not self.wlConfig.overlapUpdate:
-        self.swapPhysicalArray(shift_pid_list[-1], pid_list[-1], isFinalWL)
+        diff = self.cellCurrentTensorDict[shift_pid_list[-1]] ^ cellCurrentTensor
+        self.updateWriteCountByDifference(shift_pid_list[-1], pe_id, diff, isFinalWL)
+        self.updateCellCurrentTensor(shift_pid_list[-1], cellCurrentTensor)
 
   def updateWriteCountDict(self, pid, writeCnt):
     """
@@ -434,8 +478,9 @@ class PimWearLeveling:
     if cellDataTensor.shape[0] < self.physicalArraySize[0] or cellDataTensor.shape[1] < self.physicalArraySize[1]:
       pad = np.zeros(self.physicalArraySize, dtype=np.int64)
       pad[:cellDataTensor.shape[0], :cellDataTensor.shape[1]] = cellDataTensor
-      cellDataTensor = pad
-    self.cellCurrentTensorDict[pid] = cellDataTensor
+      self.cellCurrentTensorDict[pid] = pad
+    else:
+      self.cellCurrentTensorDict[pid] = cellDataTensor
 
   def updateWriteCountByDifference(self, pid, pe_id, diff, isFinalWL):
     """
@@ -446,26 +491,12 @@ class PimWearLeveling:
     @param isFinalWL: If this is the final wera-leveling operation, update the IWC and TWC.
     @return:
     """
-    for i in range(self.cellBits):
-      wrtCnt = diff & 1
-      diff = diff >> 1
-      self.cellWriteCountDict[pid] += wrtCnt
-      wrtCntSum = wrtCnt.sum()
-      if isFinalWL:
-        self.pid2lidDataFrame.loc[self.pid2lidDataFrame['pid'] == pid, 'twc'] += wrtCntSum
-        self.peDataFrame.loc[self.peDataFrame['pe_id'] == pe_id, 'pe_twc'] += wrtCntSum
-
-  def swapPhysicalArray(self, dst_pid, src_pid, isFinalWL):
-    """
-    Swaps two physical arrases (dst_pid <- src_pid).
-    @param dst_pid: PID of destination array.
-    @param src_pid: PID of source array.
-    @param isFinalWL: If this is the final wera-leveling operation, update the IWC and TWC.
-    @return:
-    """
-    srcTensor = self.cellCurrentTensorDict[dst_pid].copy()
-    diff = srcTensor ^ self.cellCurrentTensorDict[src_pid]
-    pe_id = self.pid2lidDataFrame.loc[self.pid2lidDataFrame['pid'] == dst_pid, 'pe_id'][0]
-    self.updateWriteCountByDifference(dst_pid, pe_id, diff, isFinalWL)
-    self.updateCellCurrentTensor(dst_pid, self.cellCurrentTensorDict[src_pid])
-    self.updateCellCurrentTensor(src_pid, srcTensor)
+    if diff.sum() != 0:
+      for i in range(self.cellBits):
+        wrtCnt = diff & 1
+        diff = diff >> 1
+        self.cellWriteCountDict[pid] += wrtCnt
+        wrtCntSum = wrtCnt.sum()
+        if isFinalWL:
+          self.pid2lidDataFrame.loc[self.pid2lidDataFrame['pid'] == pid, 'twc'] += wrtCntSum
+          self.peDataFrame.loc[self.peDataFrame['pe_id'] == pe_id, 'pe_twc'] += wrtCntSum

@@ -44,9 +44,10 @@ class relu(Function):
     @staticmethod
     def forward(ctx, qinput, qinput_config):
         neg_position = fpA.fixed_point_less((qinput, qinput_config), 0)
-        qinput[neg_position] = 0  # The zero in ieee754 is all zero as well.
+        qinput_ = qinput.clone()
+        qinput_[neg_position] = 0  # The zero in ieee754 is all zero as well.
         ctx.save_for_backward(neg_position)
-        return qinput, qinput_config
+        return qinput_, qinput_config
 
     @staticmethod
     def backward(ctx, qgrad_output, qgrad_output_config):

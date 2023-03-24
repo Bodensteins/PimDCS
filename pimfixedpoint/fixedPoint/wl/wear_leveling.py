@@ -13,7 +13,7 @@ class WearLevelingType(Enum):
   RowShift = "row-shift"
   RowSwap = "row-swap"
   ColumnSwap = "column-swap"
-  RowColumnShift = "row-column_shift"
+  RowColumnShift = "row-column-shift"
 
   def __str__(self):
     return self.value
@@ -129,17 +129,22 @@ class PimWearLeveling:
     if not self.wlConfig.overlapUpdate:
       warnings.warn("You're training DNN module, please turn on overlapUpdate.")
       self.wlConfig.overlapUpdate = True
-    for name, layer in dnn_module.named_parameters():
-      if hasattr(layer, 'weightBits') and hasattr(layer, 'fp_weight'):
+    for name, layer in dnn_module.named_modules():
+      if hasattr(layer, 'fp_weight'):
         sz = layer.fp_weight.size()
         self.allocLogicalArray(name, sz, layer.weightBits)
     if self.arraysPerPE > 0 and not self.peDataFrame.loc[self.peDataFrame['is_full'] == False].empty:
       # filled pe
-      free_num = self.arraysPerPE - len(self.peDataFrame.loc[self.peDataFrame['is_full'] == False, 'pid_list'].tolist())
+      free_num = self.arraysPerPE - len(self.peDataFrame.loc[self.peDataFrame['is_full'] == False, 'pid_list'][0])
       for i in range(free_num):
+        unique_key = uuid.uuid4()
+        self.logicalArrayDict[unique_key] = LogicalArray(unique_key, (1, 1), self.physicalArraySize, self.splitBits,
+                                                         self.physicalArraySize[1], self.cellBits)
         pid, pe_id = self.allocPhysicalArray()
-        new_array = pd.DataFrame([[pid, "", pe_id, 0, 0]], columns=["pid", "logical_key", "pe_id", "iwc", "twc"])
+        self.cellCurrentTensorDict[pid] = np.zeros(self.physicalArraySize, dtype=np.int64)
+        new_array = pd.DataFrame([[pid, uuid.uuid4(), pe_id, 0, 0]], columns=["pid", "logical_key", "pe_id", "iwc", "twc"])
         self.pid2lidDataFrame = pd.concat([self.pid2lidDataFrame, new_array])
+
 
   def init_by_tensor_list(self, tensor_list, bitWidth):
     """
@@ -152,11 +157,16 @@ class PimWearLeveling:
       self.allocLogicalArray(str(idx), tensor.shape, bitWidth=bitWidth)
     if not self.arraysPerPE > 0 and not self.peDataFrame.loc[self.peDataFrame['is_full'] == False].empty:
       # filled pe
-      free_num = self.arraysPerPE - len(self.peDataFrame.loc[self.peDataFrame['is_full'] == False, 'pid_list'].tolist())
+      free_num = self.arraysPerPE - len(self.peDataFrame.loc[self.peDataFrame['is_full'] == False, 'pid_list'][0])
       for i in range(free_num):
+        unique_key = uuid.uuid4()
+        self.logicalArrayDict[unique_key] = LogicalArray(unique_key, (1, 1), self.physicalArraySize, self.splitBits,
+                                                         self.physicalArraySize[1], self.cellBits)
         pid, pe_id = self.allocPhysicalArray()
-        new_array = pd.DataFrame([[pid, "", pe_id, 0, 0]], columns=["pid", "logical_key", "pe_id", "iwc", "twc"])
+        self.cellCurrentTensorDict[pid] = np.zeros(self.physicalArraySize, dtype=np.int64)
+        new_array = pd.DataFrame([[pid, uuid.uuid4(), pe_id, 0, 0]], columns=["pid", "logical_key", "pe_id", "iwc", "twc"])
         self.pid2lidDataFrame = pd.concat([self.pid2lidDataFrame, new_array])
+
 
   def allocPhysicalArray(self):
     """
@@ -387,10 +397,12 @@ class PimWearLeveling:
       logical_key_b = self.pid2lidDataFrame[self.pid2lidDataFrame['pid'] == pid_b]['logical_key'][0]
       self.pid2lidDataFrame.loc[self.pid2lidDataFrame['pid'] == pid_a, 'logical_key'] = logical_key_b
       self.pid2lidDataFrame.loc[self.pid2lidDataFrame['pid'] == pid_b, 'logical_key'] = logical_key_a
-      idx_a = np.where(self.logicalArrayDict[logical_key_a].pidMap2D == pid_a)
-      idx_b = np.where(self.logicalArrayDict[logical_key_b].pidMap2D == pid_b)
-      self.logicalArrayDict[logical_key_a].pidMap2D[idx_a] = pid_b
-      self.logicalArrayDict[logical_key_a].pidMap2D[idx_b] = pid_a
+      if logical_key_a in self.logicalArrayDict:
+        idx_a = np.where(self.logicalArrayDict[logical_key_a].pidMap2D == pid_a)
+        self.logicalArrayDict[logical_key_a].pidMap2D[idx_a] = pid_b
+      if logical_key_b in self.logicalArrayDict:
+        idx_b = np.where(self.logicalArrayDict[logical_key_b].pidMap2D == pid_b)
+        self.logicalArrayDict[logical_key_b].pidMap2D[idx_b] = pid_a
       if not self.wlConfig.overlapUpdate:
         srcTensor = self.cellCurrentTensorDict[pid_a]
         diff = srcTensor ^ self.cellCurrentTensorDict[pid_b]

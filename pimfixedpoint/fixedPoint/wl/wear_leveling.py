@@ -141,8 +141,9 @@ class PimWearLeveling:
         self.logicalArrayDict[unique_key] = LogicalArray(unique_key, (1, 1), self.physicalArraySize, self.splitBits,
                                                          self.physicalArraySize[1], self.cellBits)
         pid, pe_id = self.allocPhysicalArray()
+        self.logicalArrayDict[unique_key].pidMap2D[0, 0] = pid
         self.cellCurrentTensorDict[pid] = np.zeros(self.physicalArraySize, dtype=np.int64)
-        new_array = pd.DataFrame([[pid, uuid.uuid4(), pe_id, 0, 0]], columns=["pid", "logical_key", "pe_id", "iwc", "twc"])
+        new_array = pd.DataFrame([[pid, unique_key, pe_id, 0, 0]], columns=["pid", "logical_key", "pe_id", "iwc", "twc"])
         self.pid2lidDataFrame = pd.concat([self.pid2lidDataFrame, new_array])
 
 
@@ -155,7 +156,7 @@ class PimWearLeveling:
     """
     for idx, tensor in enumerate(tensor_list):
       self.allocLogicalArray(str(idx), tensor.shape, bitWidth=bitWidth)
-    if not self.arraysPerPE > 0 and not self.peDataFrame.loc[self.peDataFrame['is_full'] == False].empty:
+    if (self.arraysPerPE > 1) and (not self.peDataFrame.loc[self.peDataFrame['is_full'] == False].empty):
       # filled pe
       free_num = self.arraysPerPE - len(self.peDataFrame.loc[self.peDataFrame['is_full'] == False, 'pid_list'][0])
       for i in range(free_num):
@@ -163,8 +164,9 @@ class PimWearLeveling:
         self.logicalArrayDict[unique_key] = LogicalArray(unique_key, (1, 1), self.physicalArraySize, self.splitBits,
                                                          self.physicalArraySize[1], self.cellBits)
         pid, pe_id = self.allocPhysicalArray()
+        self.logicalArrayDict[unique_key].pidMap2D[0, 0] = pid
         self.cellCurrentTensorDict[pid] = np.zeros(self.physicalArraySize, dtype=np.int64)
-        new_array = pd.DataFrame([[pid, uuid.uuid4(), pe_id, 0, 0]], columns=["pid", "logical_key", "pe_id", "iwc", "twc"])
+        new_array = pd.DataFrame([[pid, unique_key, pe_id, 0, 0]], columns=["pid", "logical_key", "pe_id", "iwc", "twc"])
         self.pid2lidDataFrame = pd.concat([self.pid2lidDataFrame, new_array])
 
 
@@ -385,6 +387,7 @@ class PimWearLeveling:
         self.cellWriteCountDict[pid] = np.take_along_axis(self.cellWriteCountDict[pid],
                                                           np.expand_dims(oldIdx[:, 0], axis=1), axis=0)
 
+
   def TIWLByPE(self, isFinalWL):
     """
     Performs table-based inter-crossbar wear-leveling scheme (TIWL).
@@ -397,12 +400,10 @@ class PimWearLeveling:
       logical_key_b = self.pid2lidDataFrame[self.pid2lidDataFrame['pid'] == pid_b]['logical_key'][0]
       self.pid2lidDataFrame.loc[self.pid2lidDataFrame['pid'] == pid_a, 'logical_key'] = logical_key_b
       self.pid2lidDataFrame.loc[self.pid2lidDataFrame['pid'] == pid_b, 'logical_key'] = logical_key_a
-      if logical_key_a in self.logicalArrayDict:
-        idx_a = np.where(self.logicalArrayDict[logical_key_a].pidMap2D == pid_a)
-        self.logicalArrayDict[logical_key_a].pidMap2D[idx_a] = pid_b
-      if logical_key_b in self.logicalArrayDict:
-        idx_b = np.where(self.logicalArrayDict[logical_key_b].pidMap2D == pid_b)
-        self.logicalArrayDict[logical_key_b].pidMap2D[idx_b] = pid_a
+      idx_a = np.where(self.logicalArrayDict[logical_key_a].pidMap2D == pid_a)
+      idx_b = np.where(self.logicalArrayDict[logical_key_b].pidMap2D == pid_b)
+      self.logicalArrayDict[logical_key_a].pidMap2D[idx_a] = pid_b
+      self.logicalArrayDict[logical_key_a].pidMap2D[idx_b] = pid_a
       if not self.wlConfig.overlapUpdate:
         srcTensor = self.cellCurrentTensorDict[pid_a]
         diff = srcTensor ^ self.cellCurrentTensorDict[pid_b]
@@ -441,24 +442,37 @@ class PimWearLeveling:
     @param isFinalWL: If this is the final wera-leveling operation, update the IWC and TWC.
     @return:
     """
-    for pe_id, pid_list in zip(self.peDataFrame['pe_id'], self.peDataFrame['pid_list']):
-      shift_pid_list = np.roll(pid_list, shift=(1), axis=(0))
-      # backup the final one
-      cellWriteCount = self.cellWriteCountDict[pid_list[-1]]
-      cellCurrentTensor = self.cellCurrentTensorDict[pid_list[-1]]
+    old_pid2lidDataFrame = self.pid2lidDataFrame.copy()
+    for pe_id, old_pid_list in zip(self.peDataFrame['pe_id'], self.peDataFrame['pid_list']):
+      new_pid_list = np.roll(old_pid_list, shift=(1), axis=(0))
 
-      for pid_idx in range(len(shift_pid_list) - 1):
-        self.cellWriteCountDict[shift_pid_list[pid_idx]] = self.cellWriteCountDict[pid_list[pid_idx]]
+      # backup the final one of old_pid_list
+      last_logical_key_old = old_pid2lidDataFrame[old_pid2lidDataFrame['pid'] == old_pid_list[-1]]['logical_key'][0]
+      pidMap2D_idx = np.where(self.logicalArrayDict[last_logical_key_old].pidMap2D == old_pid_list[-1])
+      cellCurrentTensor = self.cellCurrentTensorDict[old_pid_list[-1]]
+
+      for pid_idx in range(len(new_pid_list) - 1):
+        # update self.pid2lidDataFrame
+        old_logical_key = old_pid2lidDataFrame[old_pid2lidDataFrame['pid'] == old_pid_list[pid_idx]]['logical_key'][0]
+        old_idx = np.where(self.logicalArrayDict[old_logical_key].pidMap2D == old_pid_list[pid_idx])
+
+        # update self.logicalArrayDict
+        self.pid2lidDataFrame.loc[self.pid2lidDataFrame['pid'] == new_pid_list[pid_idx], 'logical_key'] = old_logical_key
+        self.logicalArrayDict[old_logical_key].pidMap2D[old_idx] = new_pid_list[pid_idx]
+
         if not self.wlConfig.overlapUpdate:
-          diff = self.cellCurrentTensorDict[shift_pid_list[pid_idx]] ^ self.cellCurrentTensorDict[pid_list[pid_idx]]
-          self.updateWriteCountByDifference(shift_pid_list[pid_idx], pe_id, diff, isFinalWL)
-          self.updateCellCurrentTensor(shift_pid_list[pid_idx], self.cellCurrentTensorDict[pid_list[pid_idx]])
+          diff = self.cellCurrentTensorDict[new_pid_list[pid_idx]] ^ self.cellCurrentTensorDict[old_pid_list[pid_idx]]
+          self.updateWriteCountByDifference(new_pid_list[pid_idx], pe_id, diff, isFinalWL)
+          self.updateCellCurrentTensor(new_pid_list[pid_idx], self.cellCurrentTensorDict[old_pid_list[pid_idx]])
 
-      self.cellWriteCountDict[shift_pid_list[-1]] = cellWriteCount
+      self.pid2lidDataFrame.loc[self.pid2lidDataFrame['pid'] == new_pid_list[-1], 'logical_key'] = last_logical_key_old
+      self.logicalArrayDict[last_logical_key_old].pidMap2D[pidMap2D_idx] = new_pid_list[-1]
+
       if not self.wlConfig.overlapUpdate:
-        diff = self.cellCurrentTensorDict[shift_pid_list[-1]] ^ cellCurrentTensor
-        self.updateWriteCountByDifference(shift_pid_list[-1], pe_id, diff, isFinalWL)
-        self.updateCellCurrentTensor(shift_pid_list[-1], cellCurrentTensor)
+        diff = self.cellCurrentTensorDict[new_pid_list[-1]] ^ cellCurrentTensor
+        self.updateWriteCountByDifference(new_pid_list[-1], pe_id, diff, isFinalWL)
+        self.updateCellCurrentTensor(new_pid_list[-1], cellCurrentTensor)
+
 
   def updateWriteCountDict(self, pid, writeCnt):
     """

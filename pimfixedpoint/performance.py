@@ -21,6 +21,7 @@ class PerformanceManager:
         self.energy_module.print_energy_info()
         self.latency_module.print_latency_info()
 
+
 class AreaModule:
     def __init__(self, net: nn.Module, shapes: List, batch_size: int = 1) -> None:
         self.net = net
@@ -137,7 +138,6 @@ class AreaModule:
                 pe_size = pe_size + utils.ceil(const.times * row * col, const.phyArrayNum)
 
         return pe_size 
-
 
 
 class EnergyModule:
@@ -476,6 +476,7 @@ class PE_latency():
             self.adder_latency + self.output_mux_latency + self.oReg_latency
         self.PE_latency = self.pe_buf_write_latency + self.pe_buf_read_latency + self.computing_latency + self.PE_digital_latency
 
+
 class Tile_latency(PE_latency):
     def __init__(self, in_data = 0, r_data = 0, inprecision = 8, PE_num = 0) -> None:
         PE_latency.__init__(self, in_data = in_data, r_data = r_data, inprecision = inprecision)
@@ -506,6 +507,7 @@ class Tile_latency(PE_latency):
         self.tile_buf_wlatency = self.buf_wlatency
 
         self.tile_latency = self.PE_latency + self.jointmodule_latency + self.transfer_latency + self.tile_buf_wlatency
+
 
 class LatencyModule():
     def __init__(self, net: nn.Module, shapes: List, batch_size: int = 1) -> None:

@@ -23,7 +23,7 @@ unitsPerPhyRow = phyArrColSize / cellsPerUnit
 cellLevels = 1 << cellBits
 cellsPerUnit = unitBits / cellBits
 # there may be some cells unused in a row
-unitsPerPhyRow = phyArrColSize / cellsPerUnit
+# unitsPerPhyRow = phyArrColSize / cellsPerUnit
 usedCellsPerPhyRow = unitsPerPhyRow * cellsPerUnit
 inLevels = 1 << inBits
 inVLevels = 1 << inVBits
@@ -98,7 +98,7 @@ buf_cycle = 16
 # pe_buf_write_latency = 20 //根据PE中的输入数据量indata得出
 # pe_buf_read_latency = 2 //根据PE中从缓冲区到iReg的数据量rdata得出
 
-default_inbuffer_size = 8 // MNSIM 中是从Model_latency 逐级传到PE_latency 
+default_inbuffer_size = 8 #// MNSIM 中是从Model_latency 逐级传到PE_latency
 default_outbuffer_size = 8
 
 read_row = 6

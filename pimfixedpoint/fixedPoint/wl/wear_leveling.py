@@ -400,10 +400,12 @@ class PimWearLeveling:
       logical_key_b = self.pid2lidDataFrame[self.pid2lidDataFrame['pid'] == pid_b]['logical_key'][0]
       self.pid2lidDataFrame.loc[self.pid2lidDataFrame['pid'] == pid_a, 'logical_key'] = logical_key_b
       self.pid2lidDataFrame.loc[self.pid2lidDataFrame['pid'] == pid_b, 'logical_key'] = logical_key_a
-      idx_a = np.where(self.logicalArrayDict[logical_key_a].pidMap2D == pid_a)
-      idx_b = np.where(self.logicalArrayDict[logical_key_b].pidMap2D == pid_b)
-      self.logicalArrayDict[logical_key_a].pidMap2D[idx_a] = pid_b
-      self.logicalArrayDict[logical_key_a].pidMap2D[idx_b] = pid_a
+      if logical_key_a in self.logicalArrayDict:
+        idx_a = np.where(self.logicalArrayDict[logical_key_a].pidMap2D == pid_a)
+        self.logicalArrayDict[logical_key_a].pidMap2D[idx_a] = pid_b
+      if logical_key_b in self.logicalArrayDict:
+        idx_b = np.where(self.logicalArrayDict[logical_key_b].pidMap2D == pid_b)
+        self.logicalArrayDict[logical_key_b].pidMap2D[idx_b] = pid_a
       if not self.wlConfig.overlapUpdate:
         srcTensor = self.cellCurrentTensorDict[pid_a]
         diff = srcTensor ^ self.cellCurrentTensorDict[pid_b]

@@ -37,6 +37,8 @@ def _matmul_int_cuda(int_tensor1, int_tensor2):
 
 
 def _get_fixed_point_position(max_abs: float, bit_width: int, tensor_type=TensorType.Normal) -> int:
+    if math.isclose(max_abs, 0.0):
+        max_abs = 1e-12
     if tensor_type == TensorType.Normal:
         return math.ceil(math.log2(max_abs / ((1 << (bit_width - 1)) - 1)))
     elif tensor_type == TensorType.PN:

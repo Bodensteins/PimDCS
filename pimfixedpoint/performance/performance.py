@@ -1,12 +1,9 @@
 from typing import List
-from xmlrpc.client import boolean
-from numpy import average
 import torch.nn as nn
-import const
-import utils
+from performance import const, utils
 import fixedPoint as fp
 
-from mnist_model import ConvMnist, FcMnist, PimFcMnist
+from mnist_model import ConvMnist
 
 
 class PerformanceManager:
@@ -347,12 +344,13 @@ class EnergyModule:
         for i in range(const.inVLevels):
             average_p_square = average_p_square + const.inVPD[i] * (i + 1) * (i + 1) / const.inVLevels / const.inVLevels
         average_energy = voltage_square_mul_time * average_p_square * self.average_conductance * const.inBits / const.inVBits
-        mm_energy = (average_energy *  const.phyArrColSize * const.phyArrRowSize) * row * col
+        mm_energy = (average_energy * const.phyArrColSize * const.phyArrRowSize) * row * col
 
         # circuit energy
         total_dac_energy = const.DACEnergy * row * const.inBits / const.inVBits
         total_adc_energy = const.ADCEnergy * col * const.inBits / const.inVBits
-        periphery_energy = (const.computeRowPeripheryEnergy * row + const.computeColPeripheryEnergy * col) * const.inBits / const.inVBits
+        periphery_energy = (
+                                       const.computeRowPeripheryEnergy * row + const.computeColPeripheryEnergy * col) * const.inBits / const.inVBits
         
         self.adc_energy = self.adc_energy + total_adc_energy * self.batch_size
         self.dac_energy = self.dac_energy + total_dac_energy * self.batch_size
@@ -433,8 +431,8 @@ class PE_latency():
         
         self.buf_bitwidth = const.buf_bitwidth
         self.buf_cycle = const.buf_cycle
-        self.buf_wlatency = utils.ceil(in_data*8/self.buf_bitwidth)*self.buf_cycle
-        self.buf_rlatency = utils.ceil(r_data*8/self.buf_bitwidth)*self.buf_cycle
+        self.buf_wlatency = utils.ceil(in_data * 8 / self.buf_bitwidth) * self.buf_cycle
+        self.buf_rlatency = utils.ceil(r_data * 8 / self.buf_bitwidth) * self.buf_cycle
         
         self.pe_buf_write_latency = self.buf_wlatency # const.pe_buf_write_latency
         self.pe_buf_read_latency = self.buf_rlatency # const.pe_buf_read_latency
@@ -446,8 +444,8 @@ class PE_latency():
         self.PE_group_DAC_num = const.PE_group_DAC_num
         self.group_num = const.group_num
 
-        self.multiple_time = utils.ceil(inprecision/self.dac_precision) * utils.ceil(self.read_row/self.PE_group_DAC_num) *\
-            utils.ceil(self.read_column / self.PE_group_DAC_num)
+        self.multiple_time = utils.ceil(inprecision / self.dac_precision) * utils.ceil(self.read_row / self.PE_group_DAC_num) * \
+                             utils.ceil(self.read_column / self.PE_group_DAC_num)
 
         self.xbar_read_latency = const.xbar_read_latency
         self.xbar_latency = self.multiple_time * self.xbar_read_latency
@@ -461,13 +459,13 @@ class PE_latency():
         self.adc_latency = self.multiple_time * self.single_adc_latency
         
         self.digital_period = const.digital_period
-        self.iReg_latency = utils.ceil(self.read_row/self.PE_group_DAC_num) * utils.ceil(self.read_column/self.PE_group_DAC_num) * self.digital_period +\
-            self.multiple_time * self.digital_period
+        self.iReg_latency = utils.ceil(self.read_row / self.PE_group_DAC_num) * utils.ceil(self.read_column / self.PE_group_DAC_num) * self.digital_period + \
+                            self.multiple_time * self.digital_period
         self.shiftreg_latency = self.multiple_time * self.digital_period
         
         self.decoder_latency = const.decoder_latency
         self.input_demux_latency = self.multiple_time * self.decoder_latency
-        self.adder_latency = utils.ceil(self.read_column/self.PE_group_DAC_num) * utils.ceil(math.log2(self.group_num)) * self.digital_period
+        self.adder_latency = utils.ceil(self.read_column / self.PE_group_DAC_num) * utils.ceil(math.log2(self.group_num)) * self.digital_period
         self.output_mux_latency = self.multiple_time * const.mux_latency
         
         self.computing_latency = self.dac_latency + self.xbar_latency + self.adc_latency
@@ -597,24 +595,24 @@ class LatencyModule():
             num = min(arrX_size * arrY_size, const.phyArrayNum)
             sclar_da = (1.0 * const.phyArrayNum / const.dac_shared_ratio)
             sclar_ad = (1.0 * const.phyArrayNum / const.adc_shared_ratio)
-            outI_latency = utils.ceil(num/sclar_da)*(const.dac_latency+const.phyMMLatency)
-            adc_latency = utils.ceil(num/sclar_ad)*const.adc_latency
-            add_all_latency = (num-1)*const.adder_latency
-            return (outI_latency+adc_latency+add_all_latency)*const.inPluses
+            outI_latency = utils.ceil(num / sclar_da) * (const.dac_latency + const.phyMMLatency)
+            adc_latency = utils.ceil(num / sclar_ad) * const.adc_latency
+            add_all_latency = (num-1) * const.adder_latency
+            return (outI_latency+adc_latency+add_all_latency) * const.inPluses
         elif type == 1:
             num = min(arrX_size * arrY_size, const.phyArrayNum)
-            if num /const.parWrPhyNum+1 :
+            if num / const.parWrPhyNum+1 :
                 num = num % const.parWrPhyNum
             else:
-                num = num/const.parWrPhyNum
+                num = num / const.parWrPhyNum
             return num * const.latencyWrSinglePhyArr
         elif type >= 3 and type <= 5 :
             num = min(arrX_size * arrY_size, const.phyArrayNum)
             sclar_da = (1.0 * const.phyArrayNum / const.dac_shared_ratio)
             sclar_ad = (1.0 * const.phyArrayNum / const.adc_shared_ratio)
-            outI_latency = utils.ceil(num/sclar_da)*(const.dac_latency+const.phyMMLatency)
-            adc_latency = utils.ceil(num/sclar_ad)*const.adc_latency
-            add_all_latency = (num-1)*const.adder_latency
+            outI_latency = utils.ceil(num / sclar_da) * (const.dac_latency + const.phyMMLatency)
+            adc_latency = utils.ceil(num / sclar_ad) * const.adc_latency
+            add_all_latency = (num-1) * const.adder_latency
             if type == 3:
                 return adc_latency * const.inPluses
             elif type == 4:

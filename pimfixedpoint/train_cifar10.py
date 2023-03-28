@@ -1,8 +1,7 @@
 import argparse
-import time
 
 import torch.nn as nn
-import systemParameter as sysPara
+from performance import systemParameter as sysPara
 import torch.optim as optim
 from torchvision import transforms
 import torchvision
@@ -13,8 +12,8 @@ import torch.utils.data
 
 from fixedPoint.nn.fixedPointArithmetic import *
 from trainCommon import split_data_loader, train_model, test_model, create_layer_weight_bit_width_list, \
-    load_float_weight_for_fixed_point, draw_data_graph
-from VGG_cifar10_model import vgg16, vgg11, vgg13, vgg19, FixedPointVGG8B, VGG8B, fp_vgg16, VGG16ForMotivation, \
+    load_float_weight_for_fixed_point
+from VGG_cifar10_model import vgg16, vgg11, vgg13, vgg19, VGG8B, fp_vgg16, VGG16ForMotivation, \
     fp_vgg19, fp_vgg11, fp_vgg13
 
 

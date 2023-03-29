@@ -46,7 +46,7 @@ def main():
                         help='For use fixed point')
     parser.add_argument('--half-float', action='store_true', default=False,
                         help='For use 16b float')
-    parser.add_argument('--net', type=int, default=2, metavar='NET',
+    parser.add_argument('--net', type=int, default=1, metavar='NET',
                         help='use which model (0:conv 1:fc 2:deepFc)')
     parser.add_argument('--cuda', action='store_true', default=True,
                         help='use CUDA training')

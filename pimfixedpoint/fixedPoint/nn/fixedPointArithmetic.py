@@ -56,10 +56,13 @@ def _get_neg_bit_width(neg_int: int):
 
 
 def _round_rshift_(int_tensor, shift: int):
-    if shift <= 0 or shift > system_bit_width - 1:
+    if shift <= 0:
         raise Exception("Inappropriate shift value: " + str(shift))
-    round_bit = int_tensor.bitwise_and(1 << (shift - 1))
-    int_tensor.add_(round_bit).__irshift__(shift)
+    elif shift > system_bit_width - 1:
+        int_tensor.zero_()
+    else:
+        round_bit = int_tensor.bitwise_and(1 << (shift - 1))
+        int_tensor.add_(round_bit).__irshift__(shift)
 
 
 def _round_rshift(int_tensor, shift: int):
@@ -402,10 +405,19 @@ def fixed_point_add_(source_tensor_tuple: tuple, other_tensor_tuple: tuple, sour
         else:
             mul_num_bit_width = _get_effective_bit_width((mul_num_int_tensor, mul_num_quantization_para))
             if mul_num_bit_width - shift > system_bit_width:
-                raise Exception("left shift too many bits, mul_num_bit_width: " + str(mul_num_bit_width) +
-                                ", left shift: " + str(-shift))
-            mul_num_int_tensor.__ilshift__(-shift)
-            source_int_tensor.add_(mul_num_int_tensor)
+                # raise Exception("left shift too many bits, mul_num_bit_width: " + str(mul_num_bit_width) +
+                #                 ", left shift: " + str(-shift))
+                if mode == RightShiftMode.Abandon:
+                    source_int_tensor.__irshift__(-shift)
+                elif mode == RightShiftMode.Round:
+                    _round_rshift_(source_int_tensor, -shift)
+                else:
+                    raise Exception("We don't support this right shift mode!", mode)
+
+                source_quantization_para[0] = mul_num_s
+                source_int_tensor.add_(mul_num_int_tensor)
+            else:
+                source_int_tensor.add_(mul_num_int_tensor.__lshift__(-shift))
 
         if strategy == WeightUpdateStrategy.StaticRange:
             neg_levels = 1 << (source_bit_width - 1)

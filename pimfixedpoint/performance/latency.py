@@ -12,26 +12,23 @@ class latencyModule:
         self.net = net
         self.all_latency = 0.0
         self.stage_latency_list = self.produce_stage_latency_list()
+        self.normal_iter_compute_latency = self.calculate_iter_compute_latency(para.batch_size)
+        self.last_iter_compute_latency = self.calculate_iter_compute_latency(para.last_iter_data_size)
         self.calculate_latency()
 
     def calculate_latency(self):
         for epoch_index in range(para.epochs):
             for iter_index in range(para.iterations):
-                self.all_latency += self.calculate_iter_latency(epoch_index, iter_index)
+                is_last_iter = (iter_index == para.iterations - 1)
+                self.all_latency += self.calculate_iter_latency(epoch_index, iter_index, is_last_iter)
 
-    def calculate_iter_latency(self, epoch_index, iter_index):
-        latency = 0
-        iter_data_size = para.data_size_in_iter[iter_index]
+    def calculate_iter_latency(self, epoch_index, iter_index, is_last_iter=False):
+        latency = 0.
 
-        # stage_latency_list = self.produce_stage_latency_list()
-
-        if para.compute_mode == 'pipeline':
-            max_stage_latency = max(self.stage_latency_list)
-            latency += (len(self.stage_latency_list) + iter_data_size - 1) * max_stage_latency
-        elif para.compute_mode == 'sequential':
-            latency += sum(self.stage_latency_list) * iter_data_size
+        if is_last_iter:
+            latency += self.last_iter_compute_latency
         else:
-            raise Exception('illegal compute mode: ' + para.compute_mode)
+            latency += self.normal_iter_compute_latency
 
         if para.training:
             update_latency = self.calculate_update_latency(epoch_index, iter_index)
@@ -120,17 +117,32 @@ class latencyModule:
 
             return 2.
 
+    def calculate_iter_compute_latency(self, iter_data_size):
+        latency = 0.
+
+        if para.compute_mode == 'pipeline':
+            max_stage_latency = max(self.stage_latency_list)
+            latency += (len(self.stage_latency_list) + iter_data_size - 1) * max_stage_latency
+        elif para.compute_mode == 'sequential':
+            latency += sum(self.stage_latency_list) * iter_data_size
+        else:
+            raise Exception('illegal compute mode: ' + para.compute_mode)
+
+        return latency
+
+
     def calculate_loss_latency(self):
         # todo: to be completed
         # transfer to cpu or need hardware do this? calculate loss and error
         loss_latency = 0.
         loss_latency += 1
+
         if para.training:
             loss_latency += 1
 
         return loss_latency
 
-    def calculate_update_latency(self, epoch_index, iter_index):
+    def calculate_update_latency(self, epoch_index, iter_index, other=None):
         if para.training:
             # todo:
             return 1.

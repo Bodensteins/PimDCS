@@ -1,7 +1,7 @@
 import argparse
 
 import torch.nn as nn
-from performance import systemParameter as sysPara
+from systemParameter import systemParameter as sysPara
 import torch.optim as optim
 from torchvision import transforms
 import torchvision

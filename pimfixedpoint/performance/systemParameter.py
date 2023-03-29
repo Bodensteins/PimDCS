@@ -19,4 +19,3 @@ batch_size = 64
 iterations = (data_size + batch_size - 1) // batch_size
 last_iter_data_size = data_size % batch_size
 data_size_in_iter = [batch_size] * (iterations - 1) + [last_iter_data_size]
-

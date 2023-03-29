@@ -1,27 +1,19 @@
+import torch
 import torch.nn as nn
 import systemParameter as para
-
+import sys
+sys.path.append("..")
+from VGG_cifar10_model import fp_vgg16
 
 class latencyModule:
     def __init__(self, net: nn.Module):
-        self.layer_num = 0
-        for layer in net.modules():
-            if hasattr(layer, 'weightBits'):
-                self.layer_num += 1
+        # self.layer_num = 0
+        # for layer in net.modules():
+        #     if hasattr(layer, 'weightBits'):
+        #         self.layer_num += 1
 
         self.net = net
-        # self.layer_latency_list = []
-        # self.read_array_latency = 0.0
-        # self.read_buffer_latency = 0.0
-        #
-        # self.write_array_latency = 0.0
-        # self.write_buffer_latency = 0.0
-        #
-        # self.mm_array_latency = 0.0
-        # self.mm_dac_latency = 0.0
-        # self.mm_adc_latency = 0.0
         self.all_latency = 0.0
-        # self.epoch_layer_latency_list = []
         self.calculate_latency()
 
     def calculate_latency(self):
@@ -32,45 +24,82 @@ class latencyModule:
     def calculate_iter_latency(self, iter_index):
         iter_data_size = para.data_size_in_iter[iter_index]
 
-        layer_latency_list = self.produce_layer_latency_list()
+        stage_latency_list = self.produce_stage_latency_list()
 
         if para.compute_mode == 'pipeline':
-            max_layer_latency = max(layer_latency_list)
-            self.all_latency += (len(layer_latency_list) + iter_data_size - 1) * max_layer_latency
+            max_stage_latency = max(stage_latency_list)
+            self.all_latency += (len(stage_latency_list) + iter_data_size - 1) * max_stage_latency
         elif para.compute_mode == 'sequential':
-            self.all_latency += sum(layer_latency_list) * iter_data_size
+            self.all_latency += sum(stage_latency_list) * iter_data_size
         else:
             raise Exception('illegal compute mode: ' + para.compute_mode)
         return iter_index
 
-    def produce_layer_latency_list(self):
-        layer_latency_list = []
+    def produce_stage_latency_list(self):
+        stage_latency_list = []
 
+        previous_stage = []  # may include multiple layers: cnn/fc + relu(op) + pool(op)
+
+        # forward
         for layer in self.net.modules():
             if hasattr(layer, 'weightBits'):
-                layer_latency_list.append(self.calculate_layer_latency(layer))
+                stage_latency = self.calculate_stage_latency(previous_stage)
 
-        layer_latency_list.append(self.calculate_loss_latency())
+                if stage_latency != 0:  # latency = 0 means not a real stage
+                    stage_latency_list.append(stage_latency)
 
+                previous_stage.clear()
+
+            previous_stage.append(layer)
+
+        # process the last stage
+        stage_latency = self.calculate_stage_latency(previous_stage)
+        if stage_latency == 0:
+            raise Exception("the last stage should not be virtual stage")
+        stage_latency_list.append(stage_latency)
+
+        # calculate loss and err
+        stage_latency_list.append(self.calculate_loss_latency())
+
+        # backward
+        # todo: to be completed
         if para.training:
+            previous_stage = []
             for layer in self.net.modules():
-                if hasattr(layer, 'weightBits'):
-                    layer_latency_list.append(self.calculate_layer_latency(layer, backward=True))
+                pass
+                # if hasattr(layer, 'weightBits'):
+                #     if isinstance(next(layer), nn.ReLU):
+                #         pass
+                # else:
+                #     previous_layers.append(layer)
+                # stage_latency_list.append(self.calculate_stage_latency(layer, backward=True))
 
-        return layer_latency_list
+        return stage_latency_list
 
-    def calculate_layer_latency(self, layer, backward=False):
+    def calculate_stage_latency(self, stage, backward=False):
         if backward:
             # backward latency:
             # Todo:
             return 1.
         else:
             # forward latency:
+            # read data from array level buffer
+            # dac latency
+            # mvm latency
+            # s&h latency
+            # adc latency
+            # shifter and adder latency for different bit slice(include different input and different weight)
+            # relu latency(op)
+            # pool latency(op)
+            # transfer activation latency (to next layer, for backward)
             # Todo:
+            for layer in stage:
+                pass
             return 2.
 
     def calculate_loss_latency(self):
         # todo: to be completed
+        # transfer to cpu? calculate loss and error
         loss_latency = 0.
         loss_latency += 1
         if para.training:
@@ -84,3 +113,15 @@ class latencyModule:
             return 1.
         else:
             raise Exception('Inference without update latency')
+
+
+def test():
+    model = fp_vgg16(*para.bit_width_tuple)
+    device = torch.device("cuda:2")
+    model.to(device)
+    lm = latencyModule(model)
+    pass
+
+
+if __name__ == "__main__":
+    test()

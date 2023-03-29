@@ -1,8 +1,8 @@
 import math
 
-import torch
+# import torch
 import torch.nn as nn
-import fixedPoint as fp
+# import fixedPoint as fp
 import fixedPoint.nn as fpnn
 from fixedPoint.nn import torch_float
 
@@ -42,43 +42,43 @@ class VGG8B(nn.Module):
         return x
 
 
-class FixedPointVGG8B(nn.Module):
-    def __init__(self, batch_size, device: torch.device = torch.device("cpu")):
-        super(FixedPointVGG8B, self).__init__()
-        self.device = device
-
-        self.conv = \
-            fpnn.MulInputSequential(fpnn.Conv2d([3, 32, 32], 128, (3, 3), padding=1),
-                                    nn.ReLU(),
-                                    fpnn.Conv2d([128, 32, 32], 256, (3, 3), padding=1),
-                                    nn.ReLU(),
-                                    nn.MaxPool2d(kernel_size=(2, 2), stride=2),
-                                    fpnn.Conv2d([256, 16, 16], 256, (3, 3), padding=1),
-                                    nn.ReLU(),
-                                    fpnn.Conv2d([256, 16, 16], 512, (3, 3), padding=1),
-                                    nn.ReLU(),
-                                    nn.MaxPool2d(kernel_size=(2, 2), stride=2),
-                                    fpnn.Conv2d([512, 8, 8], 512, (3, 3), padding=1),
-                                    nn.ReLU(),
-                                    nn.MaxPool2d(kernel_size=(2, 2), stride=2),
-                                    fpnn.Conv2d([512, 4, 4], 512, (3, 3), padding=1),
-                                    nn.ReLU(),
-                                    nn.MaxPool2d(kernel_size=(2, 2), stride=2),
-                                    nn.Flatten(),
-                                    fpnn.Quan(),
-                                    fpnn.Linear(2048, 1024),
-                                    fpnn.ReLU(),
-                                    fpnn.Dropout(p=0.2),
-                                    fpnn.Linear(1024, 10),
-                                    fpnn.Dropout(p=0.2),
-                                    fpnn.DeQuan()
-                                    )
-
-    def forward(self, x):
-        # conv layer
-        x = self.conv(x)
-
-        return x
+# class FixedPointVGG8B(nn.Module):
+#     def __init__(self, batch_size, device: torch.device = torch.device("cpu")):
+#         super(FixedPointVGG8B, self).__init__()
+#         self.device = device
+#
+#         self.conv = \
+#             fpnn.MulInputSequential(fpnn.Conv2d([3, 32, 32], 128, (3, 3), padding=1),
+#                                     nn.ReLU(),
+#                                     fpnn.Conv2d([128, 32, 32], 256, (3, 3), padding=1),
+#                                     nn.ReLU(),
+#                                     nn.MaxPool2d(kernel_size=(2, 2), stride=2),
+#                                     fpnn.Conv2d([256, 16, 16], 256, (3, 3), padding=1),
+#                                     nn.ReLU(),
+#                                     fpnn.Conv2d([256, 16, 16], 512, (3, 3), padding=1),
+#                                     nn.ReLU(),
+#                                     nn.MaxPool2d(kernel_size=(2, 2), stride=2),
+#                                     fpnn.Conv2d([512, 8, 8], 512, (3, 3), padding=1),
+#                                     nn.ReLU(),
+#                                     nn.MaxPool2d(kernel_size=(2, 2), stride=2),
+#                                     fpnn.Conv2d([512, 4, 4], 512, (3, 3), padding=1),
+#                                     nn.ReLU(),
+#                                     nn.MaxPool2d(kernel_size=(2, 2), stride=2),
+#                                     nn.Flatten(),
+#                                     fpnn.Quan(),
+#                                     fpnn.Linear(2048, 1024),
+#                                     fpnn.ReLU(),
+#                                     fpnn.Dropout(p=0.2),
+#                                     fpnn.Linear(1024, 10),
+#                                     fpnn.Dropout(p=0.2),
+#                                     fpnn.DeQuan()
+#                                     )
+#
+#     def forward(self, x):
+#         # conv layer
+#         x = self.conv(x)
+#
+#         return x
 
 
 class VGG(nn.Module):

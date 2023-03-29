@@ -1,9 +1,11 @@
 import torch
 import torch.nn as nn
+import fixedPoint.nn as fpnn
 import systemParameter as para
 import sys
 sys.path.append("..")
 from VGG_cifar10_model import fp_vgg16
+
 
 class latencyModule:
     def __init__(self, net: nn.Module):
@@ -37,7 +39,6 @@ class latencyModule:
 
     def produce_stage_latency_list(self):
         stage_latency_list = []
-
         previous_stage = []  # may include multiple layers: cnn/fc + relu(op) + pool(op)
 
         # forward
@@ -59,7 +60,8 @@ class latencyModule:
         stage_latency_list.append(stage_latency)
 
         # calculate loss and err
-        stage_latency_list.append(self.calculate_loss_latency())
+        stage_latency = self.calculate_loss_latency()
+        stage_latency_list.append(stage_latency)
 
         # backward
         # todo: to be completed
@@ -77,6 +79,7 @@ class latencyModule:
         return stage_latency_list
 
     def calculate_stage_latency(self, stage, backward=False):
+        latency = 0
         if backward:
             # backward latency:
             # Todo:
@@ -94,12 +97,19 @@ class latencyModule:
             # transfer activation latency (to next layer, for backward)
             # Todo:
             for layer in stage:
+                if isinstance(layer, nn.Flatten):
+                    pass
+                elif isinstance(layer, fpnn.Quan):
+                    pass
+                elif isinstance(layer, fpnn.Linear):
+                    latency += 1.
+                    pass
                 pass
             return 2.
 
     def calculate_loss_latency(self):
         # todo: to be completed
-        # transfer to cpu? calculate loss and error
+        # transfer to cpu or need hardware do this? calculate loss and error
         loss_latency = 0.
         loss_latency += 1
         if para.training:

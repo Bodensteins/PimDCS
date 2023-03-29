@@ -86,7 +86,7 @@ class PerformanceManager:
 
             # map according to given map_strategy
             for i in range(times * map_times):
-                array_name = "layer{id}_{mode}{modeid}_copy{copyid}_{type}".format(id = str(idx - 2), mode = mode_name, modeid = str(i%2),\
+                array_name = "layer{id}_{mode}{modeid}_copy{copyid}_{type}".format(id = str(idx - 2), mode = mode_name, modeid = str(i%times),\
                                                                                   copyid = str(i//times), type="forward")
                 self.map_strategy.allocLogicalArray(array_name, [_in, _out], self.bit_width)
                 layer_config.array_names.append(array_name)
@@ -95,7 +95,7 @@ class PerformanceManager:
             if self.runMode != archConst.PIMRunMode.inference:
                 # traing mode
                 for i in range(times * map_times):
-                    array_name = "layer{id}_{mode}{modeid}_copy{copyid}_{type}".format(id = str(idx - 2), mode = mode_name, modeid = str(i%2),\
+                    array_name = "layer{id}_{mode}{modeid}_copy{copyid}_{type}".format(id = str(idx - 2), mode = mode_name, modeid = str(i%times),\
                                                                                   copyid = str(i//times), type="backward")
                     self.map_strategy.allocLogicalArray(array_name, [_out, _in], self.bit_width)
                     layer_config.array_names.append(array_name)
@@ -117,7 +117,7 @@ class PerformanceManager:
 
             # map according to given map_strategy
             for i in range(times * map_times):
-                array_name = "layer{id}_{mode}{modeid}_copy{copyid}_{type}".format(id = str(idx - 2), mode = mode_name, modeid = str(i%2),\
+                array_name = "layer{id}_{mode}{modeid}_copy{copyid}_{type}".format(id = str(idx - 2), mode = mode_name, modeid = str(i%times),\
                                                                                   copyid = str(i//times), type="forward")
                 self.map_strategy.allocLogicalArray(array_name, [_in, _out_channel], self.bit_width)
                 layer_config.array_names.append(array_name)
@@ -128,7 +128,7 @@ class PerformanceManager:
                 _in = _kernel[0] * _kernel[1] * _out_channel
                 
                 for i in range(times * map_times):
-                    array_name = "layer{id}_{mode}{modeid}_copy{copyid}_{type}".format(id = str(idx - 2), mode = mode_name, modeid = str(i%2),\
+                    array_name = "layer{id}_{mode}{modeid}_copy{copyid}_{type}".format(id = str(idx - 2), mode = mode_name, modeid = str(i%times),\
                                                                                   copyid = str(i//times), type="backward")
                     self.map_strategy.allocLogicalArray(array_name, [_in, _out_channel], self.bit_width)
                     layer_config.array_names.append(array_name)

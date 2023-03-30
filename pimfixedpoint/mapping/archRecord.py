@@ -40,7 +40,7 @@ class Arch:
     # num == 1 --> get crx id in the pe
     # num == 2 --> get pe id in the tile, and others are similar
     def _get_local_id(self, pid, num = 1):
-        mask = (1 << self._mask_size_list[num]) -1
+        mask = (1 << self._mask_size_list[num]) - 1
         local_id = (pid & mask) >> self._mask_size_list[num-1]
         return local_id
 
@@ -52,16 +52,16 @@ class Arch:
         pid = reduce(lambda x, y: x+y, map(lambda x, y: x << y, Arch_id.get_arch_id_list(), self._mask_size_list[0:-1]))
         return pid
 
-    def from_same_pe(self, pid1, pid2) -> bool :
+    def from_same_pe(self, pid1, pid2) -> bool:
         return self.is_same_level(pid1, pid2, ArchLevel.pe_level)
 
-    def from_same_tile(self, pid1, pid2) -> bool :
+    def from_same_tile(self, pid1, pid2) -> bool:
         return self.is_same_level(pid1, pid2, ArchLevel.tile_level)
 
-    def from_same_bank(self, pid1, pid2) -> bool :
+    def from_same_bank(self, pid1, pid2) -> bool:
         return self.is_same_level(pid1, pid2, ArchLevel.bank_level)
 
-    def from_same_chip(self, pid1, pid2) -> bool :
+    def from_same_chip(self, pid1, pid2) -> bool:
         return self.is_same_level(pid1, pid2, ArchLevel.chip_level)
 
     def is_same_level(self, pid1, pid2, level: ArchLevel) -> bool:
@@ -70,7 +70,7 @@ class Arch:
                 return False
         return True
 
-    def get_same_level_pid_list(self, pid, level : ArchLevel):
+    def get_same_level_pid_list(self, pid, level: ArchLevel):
         mask = (1 << self._mask_size_list[level-1])-1
         stPid = pid - (pid & mask)
         edPid = stPid + (1 << self._mask_size_list[level-1])
@@ -87,7 +87,7 @@ class Arch:
 
 
 class ArchCrxUsageRecord:
-    def __init__(self, arch : Arch = None):
+    def __init__(self, arch: Arch = None):
         if arch is None:
             self.arch = Arch(*archConst.arch_n_list)
         else:

@@ -108,7 +108,7 @@ class DefaultMapStrategy(MapStrategyBase):
                                                                archConst.splitBits, bitWidth, archConst.cellBits)
 
         # 保证PE的数据来自同一logical Array
-        if self.archRecord.check_pe_used(self.current_pid) != usageStatus.free:
+        while self.archRecord.check_pe_used(self.current_pid) != usageStatus.free:
             self.current_pid = self.archRecord.next_pid_of_level(self.current_pid, ArchLevel.pe_level)
 
         pid_list = self.allocPhysicalArray(now.needPhyArrayN)
@@ -120,6 +120,7 @@ class DefaultMapStrategy(MapStrategyBase):
     def allocPhysicalArray(self, number):
         pid_list = range(self.current_pid, self.current_pid+number)
         self.archRecord.set_pid_slice_used(slice(self.current_pid, self.current_pid + number))
+        self.current_pid += number
         return pid_list
 
     def getLogicalArrayMap(self, unique_key):

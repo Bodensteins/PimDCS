@@ -1,13 +1,14 @@
 import math
 import numpy as np
-from functools import reduce
+# from functools import reduce
 from archConst import archConst
 from archRecord import ArchCrxUsageRecord, Arch
 from archFunctional import ArchLevel, usageStatus
 
+
 class LogicalArray:
     def __init__(self, unique_key, logicalArraySize: tuple, physicalArraySize: tuple, splitBits: bool,
-               bitWidth: int, cellBits: int):
+                 bitWidth: int, cellBits: int):
         self.unique_key = unique_key
         self.logicalArraySize = logicalArraySize
         self.physicalArraySize = physicalArraySize
@@ -27,8 +28,8 @@ class LogicalArray:
         return self.pidMap2D.__str__()
 
 
-class MapStrategyBase():
-    def __init__(self, arch = None):
+class MapStrategyBase:
+    def __init__(self, arch=None):
         if arch is None:
             self.arch = Arch(*archConst.arch_n_list)
         else:
@@ -36,10 +37,10 @@ class MapStrategyBase():
         self.archRecord = ArchCrxUsageRecord(arch)
         self.logicalArrayDict = {}
 
-    def allocLogicalArray(self):
+    def allocLogicalArray(self, *args):
         pass
 
-    def getLogicalArrayMap(self):
+    def getLogicalArrayMap(self, *args):
         pass
 
     def printByLevel(self, pid: int, archLevel: ArchLevel) -> None:
@@ -48,13 +49,13 @@ class MapStrategyBase():
         because you can easily check one xbar by "check_crx_used()", so this func doesn't support ArchLevel.crx_level.
         """
         assert(archLevel > ArchLevel.crx_level)
-        pids = self.arch.get_same_level_pidsList(pid, archLevel)
+        pids = self.arch.get_same_level_pid_list(pid, archLevel)
         assert(len(pids) > 0)
         pid_start, pid_end = pids[0], pids[-1]
         step = 1 << self.arch._mask_size_list[archLevel - 2]
         pid_t = pid_start
         pidList = []
-        while(pid_t <= pid_end):
+        while pid_t <= pid_end:
             pidList.append(pid_t)
             pid_t += step
         
@@ -72,9 +73,9 @@ class MapStrategyBase():
         line = "|usage |"
         for pid in pidList:
             status = self.archRecord.check_crx_type(pid, archLevel - 1)
-            if (status == usageStatus.free):
+            if status == usageStatus.free:
                 line += "  Free |"
-            elif (status == usageStatus.full):
+            elif status == usageStatus.full:
                 line += "  Full |"
             else:
                 line += "  used |"
@@ -93,10 +94,9 @@ class MapStrategyBase():
             print(aid)
 
 
-
-#默认的mapping策略十分简单
-#只保证一个pe里面都是来自同一个logicalArray的数据
-#因此，它没有保证一个logicalArray数据一定在同一tile的pe等等
+# 默认的mapping策略十分简单
+# 只保证一个pe里面都是来自同一个logicalArray的数据
+# 因此，它没有保证一个logicalArray数据一定在同一tile的pe等等
 class DefaultMapStrategy(MapStrategyBase):
     def __init__(self, arch : Arch = None):
         super().__init__(arch)
@@ -105,27 +105,28 @@ class DefaultMapStrategy(MapStrategyBase):
     def allocLogicalArray(self, unique_key, logicalArraySize, bitWidth):
         assert unique_key not in self.logicalArrayDict
         now = self.logicalArrayDict[unique_key] = LogicalArray(unique_key, logicalArraySize, archConst.phyArraySize,
-                                                     archConst.splitBits, bitWidth, archConst.cellBits)
+                                                               archConst.splitBits, bitWidth, archConst.cellBits)
 
-        #保证PE的数据来自同一logical Array        
+        # 保证PE的数据来自同一logical Array
         if self.archRecord.check_pe_used(self.current_pid) != usageStatus.free:
             self.current_pid = self.archRecord.next_pid_of_level(self.current_pid, ArchLevel.pe_level)
 
         pid_list = self.allocPhysicalArray(now.needPhyArrayN)
 
-        for i, (row, col) in enumerate(np.ndindex(now.pidMap2D.shape)):
+        for i, (row, col) in enumerate(np.ndindex(*now.pidMap2D.shape)):
             pid = pid_list[i]
             now.pidMap2D[row, col] = pid
     
     def allocPhysicalArray(self, number):
         pid_list = range(self.current_pid, self.current_pid+number)
-        self.archRecord.set_pidSlice_used(slice(self.current_pid, self.current_pid+number))
+        self.archRecord.set_pid_slice_used(slice(self.current_pid, self.current_pid + number))
         return pid_list
 
     def getLogicalArrayMap(self, unique_key):
         return self.logicalArrayDict[unique_key]
 
-if __name__=="__main__":
+
+if __name__ == "__main__":
     ac = Arch(4, 16, 8, 1, 128)
     pid = int("11000100001", 2)
     print(pid)
@@ -136,13 +137,12 @@ if __name__=="__main__":
     print(ac.is_same_level(64, 65, ArchLevel.tile_level))
     
     dmap = DefaultMapStrategy(ac)
-    dmap.current_pid= 99
+    dmap.current_pid = 99
     dmap.allocLogicalArray(5, (9, 9), 8)
     temp = dmap.getLogicalArrayMap(5)
     print(temp)
     dmap.printByLevel(99, archLevel=ArchLevel.pe_level)
-    print(dmap.archRecord.get_free_pe_pidlist(64, ArchLevel.bank_level))
-
+    print(dmap.archRecord.get_free_pe_pid_list(64, ArchLevel.bank_level))
 
     # tree = segmentTree(16)
     # num = int(input())

@@ -1,7 +1,7 @@
 import argparse
-import time
 
 import torch.nn as nn
+from systemParameter import systemParameter as sysPara
 import torch.optim as optim
 from torchvision import transforms
 import torchvision
@@ -12,8 +12,9 @@ import torch.utils.data
 
 from fixedPoint.nn.fixedPointArithmetic import *
 from trainCommon import split_data_loader, train_model, test_model, create_layer_weight_bit_width_list, \
-    load_float_weight_for_fixed_point, draw_data_graph
-from VGG_cifar10_model import vgg16, vgg11, vgg13, vgg19, FixedPointVGG8B, VGG8B, fp_vgg16, VGG16ForMotivation, fp_vgg19, fp_vgg11, fp_vgg13
+    load_float_weight_for_fixed_point
+from VGG_cifar10_model import vgg16, vgg11, vgg13, vgg19, VGG8B, fp_vgg16, VGG16ForMotivation, \
+    fp_vgg19, fp_vgg11, fp_vgg13
 
 
 def main():
@@ -124,6 +125,8 @@ def main():
 
     # show_data_img(labels_map, train_datasets)
 
+    bit_width_tuple = sysPara.bit_width_tuple
+
     if args.mix_precision:
         # conv_input_bit_width
         # conv_output_bit_width
@@ -135,10 +138,10 @@ def main():
         # fc_weight_bit_width
         # fc_grad_output_bit_width
         # fc_compute_weight_bit_width
-        bit_width_tuple = (16, 16, 16, 16, 16, 8, 16, 16, 16, 8)
+        # bit_width_tuple = (16, 16, 16, 16, 16, 8, 16, 16, 16, 8)
         bit_width_type = "_half"
     else:
-        bit_width_tuple = (16, 16, 16, 16, 16, 16, 16, 16, 16, 16)
+        # bit_width_tuple = (16, 16, 16, 16, 16, 16, 16, 16, 16, 16)
         bit_width_type = "_full16"
 
     if args.fixed_point:

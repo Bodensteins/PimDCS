@@ -1,4 +1,6 @@
-.vscode/
-**/__pycache__/
+build
+data
 cmake-build-debug-wsl/
+.vscode/
+*/__pycache__/
 *.idea/

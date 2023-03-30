@@ -41,7 +41,7 @@ class AreaModule:
 
     def get_pe_size(self) -> int:
         total_pe_n = self.map_strategy.archRecord.arch.total_pe_n
-        free_pe_pidlist = self.map_strategy.archRecord.get_free_pe_pidlist(0, ArchLevel.chip_level)
+        free_pe_pidlist = self.map_strategy.archRecord.get_free_pe_pid_list(0, ArchLevel.chip_level)
         free_pe_n = len(free_pe_pidlist)
 
         print("total pe: %d" % (total_pe_n))

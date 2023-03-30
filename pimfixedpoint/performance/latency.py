@@ -118,6 +118,7 @@ class latencyModule:
             return 2.
 
     def calculate_iter_compute_latency(self, iter_data_size):
+        # just don't include weight update latency
         latency = 0.
 
         if para.compute_mode == 'pipeline':

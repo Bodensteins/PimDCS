@@ -1,7 +1,6 @@
-.idea
-.vscode
 build
 data
-model_params
-pimfixedpoint/*__pycache__/
 cmake-build-debug-wsl/
+.vscode/
+*/__pycache__/
+*.idea/

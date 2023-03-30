@@ -127,14 +127,28 @@ class SGD(Optimizer):
                         else:
                             momentum_buffer_list.append(state['momentum_buffer'])
 
-                F.sgd(params_with_grad,
-                      d_p_list,
-                      momentum_buffer_list,
-                      weight_decay=weight_decay,
-                      momentum=momentum,
-                      lr=lr,
-                      dampening=dampening,
-                      nesterov=nesterov)
+                try:
+                    F.sgd(params_with_grad,
+                        d_p_list,
+                        momentum_buffer_list,
+                        weight_decay=weight_decay,
+                        momentum=momentum,
+                        lr=lr,
+                        dampening=dampening,
+                        nesterov=nesterov)
+                except TypeError as e:
+                    if "maximize" in str(e):
+                        F.sgd(params_with_grad,
+                            d_p_list,
+                            momentum_buffer_list,
+                            weight_decay=weight_decay,
+                            momentum=momentum,
+                            lr=lr,
+                            dampening=dampening,
+                            nesterov=nesterov,
+                            maximize = False)
+                    else:
+                        raise TypeError(e)
 
                 # update momentum_buffers in state
                 for p, momentum_buffer in zip(params_with_grad, momentum_buffer_list):

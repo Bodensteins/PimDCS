@@ -1,9 +1,9 @@
-from typing import List
-
-
-import sys
-sys.path.append("../mapping")
-from mapping.archMapping import  MapStrategyBase
+# from typing import List
+#
+#
+# import sys
+# sys.path.append("../mapping")
+from mapping.archMapping import MapStrategyBase
 from mapping.archConst import archConst
 from mapping.archFunctional import ArchLevel
 

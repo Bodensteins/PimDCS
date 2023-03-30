@@ -15,7 +15,7 @@ from mnist_model import ConvMnist, FcMnist, PimFcMnist, PimConvMnist
 
 class LayerConfig:
     def __init__(self, mode=archConst.mode, map_times=1) -> None:
-        self.mode = mode # 0 for p&n, 1 for ref
+        self.mode = mode  # 0 for p&n, 1 for ref
         self.times = 1 if self.mode == 1 else 2
         self.map_times = map_times
         self.array_names = []
@@ -23,12 +23,12 @@ class LayerConfig:
     def print(self) -> None:
         print("Layer config: ")
         print("    mode: %s." % ("ref" if self.mode == 1 else "p&n"))
-        print("    map this layer for %d times." % (self.map_times))
+        print("    map this layer for %d times." % self.map_times)
  
 
 class PerformanceManager:
-    def __init__(self, net: nn.Module, input: List, bit_width: int, runMode: archConst.PIMRunMode, \
-                 map_strategy: MapStrategyBase, net_map_times : List = None):
+    def __init__(self, net: nn.Module, input: List, bit_width: int, runMode: archConst.PIMRunMode,
+                 map_strategy: MapStrategyBase, net_map_times: List = None):
         """
         net: nn.Module
         input: (batch_size, h, w)
@@ -44,7 +44,7 @@ class PerformanceManager:
         self.map_strategy = map_strategy
         self.runMode = runMode
         self.shapes, self.layer_names = utils.get_shape(h, w, net)
-        self.layer_names = self.layer_names[1:] # input is not layer 
+        self.layer_names = self.layer_names[1:]  # input is not layer
 
         self.layer_record = {}
         self.set_default_layer_config(self.shapes, net_map_times)
@@ -57,18 +57,16 @@ class PerformanceManager:
 
         # TODO: other module
 
-    def set_default_layer_config(self, shapes: dict, net_map_times) -> List:
+    def set_default_layer_config(self, shapes: dict, net_map_times):
         for i, (key, _) in enumerate(shapes.items()):
             if net_map_times is not None:
                 config = LayerConfig(map_times=net_map_times[i])
             else:
                 config = LayerConfig()
             self.layer_record[key] = config
-    
-    
+
     def set_layer_config(self, key: str, layer_config: LayerConfig) -> None:
         self.layer_record[key] = layer_config
-        
 
     def map_nn(self, net: nn.Module) -> None:
         '''
@@ -78,7 +76,7 @@ class PerformanceManager:
         def map_Linear(idx: int, layer: nn.Module, layer_config: LayerConfig) -> None:
             # shape of logic_array: [_in, _out]
             _in, _out, _bias = layer.in_features, layer.out_features, layer.hasBias
-            if _bias == True:
+            if _bias:
                 _in = _in + 1
 
             mode, times, map_times = layer_config.mode, layer_config.times, layer_config.map_times
@@ -86,17 +84,18 @@ class PerformanceManager:
 
             # map according to given map_strategy
             for i in range(times * map_times):
-                array_name = "layer{id}_{mode}{modeid}_copy{copyid}_{type}".format(id = str(idx - 2), mode = mode_name, modeid = str(i%times),\
-                                                                                  copyid = str(i//times), type="forward")
+                array_name = "layer{id}_{mode}{modeid}_copy{copyid}_{type}".\
+                    format(id=str(idx - 2), mode=mode_name, modeid=str(i % times), copyid=str(i//times), type="forward")
                 self.map_strategy.allocLogicalArray(array_name, [_in, _out], self.bit_width)
                 layer_config.array_names.append(array_name)
 
             # running mode
             if self.runMode != archConst.PIMRunMode.inference:
-                # traing mode
+                # training mode
                 for i in range(times * map_times):
-                    array_name = "layer{id}_{mode}{modeid}_copy{copyid}_{type}".format(id = str(idx - 2), mode = mode_name, modeid = str(i%times),\
-                                                                                  copyid = str(i//times), type="backward")
+                    array_name = "layer{id}_{mode}{modeid}_copy{copyid}_{type}".\
+                        format(id=str(idx - 2), mode=mode_name, modeid=str(i % times), copyid=str(i//times),
+                               type="backward")
                     self.map_strategy.allocLogicalArray(array_name, [_out, _in], self.bit_width)
                     layer_config.array_names.append(array_name)
 
@@ -104,10 +103,10 @@ class PerformanceManager:
 
             self.layer_record[str(layer)] = layer_config
 
-
-        def map_Conv2d(idx, layer: nn.Module, layer_config : LayerConfig) -> None:
+        def map_Conv2d(idx, layer: nn.Module, layer_config: LayerConfig) -> None:
             # shape of logic_array: [_in, _out]
-            _in_channel, _out_channel, _kernel, _bias = layer.in_channels, layer.out_channels, layer.kernel_size, layer.hasBias
+            _in_channel, _out_channel, _kernel, _bias \
+                = layer.in_channels, layer.out_channels, layer.kernel_size, layer.hasBias
             _in = _kernel[0] * _kernel[1] * _in_channel
             if _bias is not None:
                 _in = _in + 1
@@ -117,19 +116,20 @@ class PerformanceManager:
 
             # map according to given map_strategy
             for i in range(times * map_times):
-                array_name = "layer{id}_{mode}{modeid}_copy{copyid}_{type}".format(id = str(idx - 2), mode = mode_name, modeid = str(i%times),\
-                                                                                  copyid = str(i//times), type="forward")
+                array_name = "layer{id}_{mode}{modeid}_copy{copyid}_{type}".\
+                    format(id=str(idx - 2), mode=mode_name, modeid=str(i % times), copyid=str(i//times), type="forward")
                 self.map_strategy.allocLogicalArray(array_name, [_in, _out_channel], self.bit_width)
                 layer_config.array_names.append(array_name)
 
-            # runing mode
+            # running mode
             if self.runMode != archConst.PIMRunMode.inference:
-                # traing mode
+                # training mode
                 _in = _kernel[0] * _kernel[1] * _out_channel
                 
                 for i in range(times * map_times):
-                    array_name = "layer{id}_{mode}{modeid}_copy{copyid}_{type}".format(id = str(idx - 2), mode = mode_name, modeid = str(i%times),\
-                                                                                  copyid = str(i//times), type="backward")
+                    array_name = "layer{id}_{mode}{modeid}_copy{copyid}_{type}".\
+                            format(id=str(idx - 2), mode=mode_name, modeid=str(i % times), copyid=str(i//times),
+                                   type="backward")
                     self.map_strategy.allocLogicalArray(array_name, [_in, _out_channel], self.bit_width)
                     layer_config.array_names.append(array_name)
 
@@ -145,7 +145,6 @@ class PerformanceManager:
 
             if isinstance(layer, fpnn.Conv2d):
                 map_Conv2d(idx, layer, self.layer_record[str(layer)])
-
 
 
 if __name__ == "__main__":

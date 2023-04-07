@@ -14,6 +14,7 @@ class WearLevelingType(Enum):
   RowSwap = "row-swap"
   ColumnSwap = "column-swap"
   RowColumnShift = "row-column-shift"
+  ZShift = "z-shift"
 
   def __str__(self):
     return self.value
@@ -227,6 +228,11 @@ class PimWearLeveling:
         self.swapping(not (self.wlConfig.useTIWL + self.wlConfig.intraPEShift))
       elif self.wlConfig.intraWlType == WearLevelingType.RowColumnShift:
         self.rowColumnShift(not (self.wlConfig.useTIWL + self.wlConfig.intraPEShift))
+      elif self.wlConfig.intraWlType == WearLevelingType.ZShift:
+        if self.stepCount % self.physicalArraySize[0] == 0:
+          self.rowColumnShift(not (self.wlConfig.useTIWL + self.wlConfig.intraPEShift))
+        else:
+          self.shifting(not (self.wlConfig.useTIWL + self.wlConfig.intraPEShift))
       # inter wear-leveling
       if self.wlConfig.useTIWL:
         self.TIWLByPE(not self.wlConfig.intraPEShift)

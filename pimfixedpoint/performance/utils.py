@@ -10,6 +10,12 @@ import fixedPoint as fp
 from mnist_model import ConvMnist, FcMnist, PimFcMnist
 
 
+def int_div_ceil(a: int, b: int):
+    if a < 0 or b <= 0:
+        raise Exception("illegal input, a:" + str(a) + ", b:" + str(b))
+    return (a + b - 1)//b
+
+
 def ceil(x: int, y: int) -> int:
     return int(math.ceil(float(x) / y))
 

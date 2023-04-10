@@ -1,6 +1,7 @@
 from enum import Enum
 import torch
 
+
 class archConst:
     chip_n = 1
     bank_n = 8

@@ -4,10 +4,10 @@ import torch
 import torch.nn as nn
 import fixedPoint.nn as fpnn
 import systemParameter as sysPara
+from utils import int_div_ceil, analyze_network
 import sys
 sys.path.append("..")
 from VGG_cifar10_model import fp_vgg16
-from utils import int_div_ceil
 
 
 class latencyModule:
@@ -19,15 +19,15 @@ class latencyModule:
         self.compute_mode = sysPara.compute_mode
 
         self.input_data_shape = sysPara.input_data_shape
-        self.layer_type_list = []
-        self.data_shape_list = []
+        self.layer_type_list, self.data_shape_list = analyze_network(self.net, self.input_data_shape)
 
-        self.analyze_network()
+        # self.analyze_network()
+        # analyze_network(self.net, self.input_data_shape)
 
         print("layers: ", self.layer_type_list)
-        # print(len(self.layer_type_list))
-        # print(self.data_shape_list)
-        # print(len(self.data_shape_list))
+        print(len(self.layer_type_list))
+        print(self.data_shape_list)
+        print(len(self.data_shape_list))
 
         self.activation_unit_num = sysPara.activation_unit_num
         self.activation_unit_latency = sysPara.activation_unit_latency
@@ -48,7 +48,7 @@ class latencyModule:
             if children_num == 0:  # leaf node
                 if isinstance(module, fpnn.Linear):
                     layer_type_list.append("Linear")
-                    if len(data_shape) != 1 or data_shape[0] != module.in_features:
+                    if data_shape[0] != module.in_features:
                         raise Exception("illegal shape, input data shape: " + str(data_shape) + ", but in features: " + str(module.in_features))
                     data_shape = (module.out_features,)
                     data_shape_list.append(data_shape)
@@ -60,11 +60,11 @@ class latencyModule:
                     data_shape_list.append(data_shape)
                 elif isinstance(module, nn.MaxPool2d):
                     layer_type_list.append("MaxPool2d")
-                    data_shape = (data_shape[0] // 2, data_shape[1] // 2, data_shape[2])
+                    data_shape = (data_shape[0], data_shape[1] // 2, data_shape[2] // 2)
                     data_shape_list.append(data_shape)
                 elif isinstance(module, fpnn.Conv2d):
                     layer_type_list.append("Conv2d")
-                    data_shape = (data_shape[0], data_shape[1], module.out_channels)
+                    data_shape = (module.out_channels, data_shape[1], data_shape[2])
                     data_shape_list.append(data_shape)
                 elif isinstance(module, nn.Flatten):
                     data_shape = (math.prod(data_shape),)

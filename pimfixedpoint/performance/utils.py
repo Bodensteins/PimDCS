@@ -3,11 +3,15 @@ from typing import List
 from functools import reduce
 from torch import dropout
 import torch.nn as nn
-
-import sys
-sys.path.append("..")
 import fixedPoint as fp
+import fixedPoint.nn as fpnn
+from mapping.archConst import *
+import sys
+
+sys.path.append("..")
+
 from mnist_model import ConvMnist, FcMnist, PimFcMnist
+
 
 
 def int_div_ceil(a: int, b: int):
@@ -75,6 +79,78 @@ def get_shape(h: int, w: int, net: nn.Module):
         print(mat.format("|-- ", name, str(shapes[name])))
 
     return shapes, names
+
+
+def analyze_network(net, input_data_shape):
+    index = 0
+    data_shape = input_data_shape
+    layer_type_list = ["input_" + str(index)]
+    data_shape_list = [data_shape]
+
+    for name, module in net.named_modules():
+        children_num = sum(1 for _ in module.children())
+        if children_num == 0:  # leaf node
+            if isinstance(module, fpnn.Linear):
+                index += 1
+                layer_type_list.append("Linear" + "_" + str(index))
+                if len(data_shape) != 2 or data_shape[0] != 1 or data_shape[1] != module.in_features:
+                    raise Exception("illegal shape, input data shape: " + str(data_shape) + ", but in features: " + str(module.in_features))
+                data_shape = (1, module.out_features)
+                data_shape_list.append(data_shape)
+            elif isinstance(module, fpnn.ReLU) or isinstance(module, nn.ReLU):
+                index += 1
+                layer_type_list.append("ReLU" + "_" + str(index))
+                data_shape_list.append(data_shape)
+            elif isinstance(module, fpnn.Dropout):
+                index += 1
+                layer_type_list.append("Dropout" + "_" + str(index))
+                data_shape_list.append(data_shape)
+            elif isinstance(module, nn.MaxPool2d):
+                index += 1
+                layer_type_list.append("MaxPool2d" + "_" + str(index))
+
+                _kernel, _padding, _dilation, _stride = module.kernel_size, module.padding, module.dilation, module.stride
+                channel, h_in, w_in = 0, 0, 0
+                if len(data_shape) == 2:
+                    h_in, w_in = data_shape[0], data_shape[1]
+                else:
+                    channel, h_in, w_in = data_shape[0], data_shape[1], data_shape[2]
+                h_out = floor((h_in + 2 * _padding - _dilation * (_kernel[0] - 1) - 1), _stride) + 1
+                w_out = floor((w_in + 2 * _padding - _dilation * (_kernel[1] - 1) - 1), _stride) + 1
+                if channel == 0:
+                    data_shape = (h_out, w_out)
+                else:
+                    data_shape = (channel, h_out, w_out)
+
+                data_shape_list.append(data_shape)
+            elif isinstance(module, fpnn.Conv2d):
+                index += 1
+                layer_type_list.append("Conv2d" + "_" + str(index))
+
+                _kernel, _padding, _dilation, _stride, out_channels \
+                    = module.kernel_size, module.padding, module.dilation, module.stride, module.out_channels
+
+                if len(data_shape) == 2:
+                    h_in, w_in = data_shape[0], data_shape[1]
+                else:
+                    _, h_in, w_in = data_shape[0], data_shape[1], data_shape[2]
+                h_out = floor((h_in + 2 * _padding[0] - _dilation[0] * (_kernel[0] - 1) - 1), _stride[0]) + 1
+                w_out = floor((w_in + 2 * _padding[1] - _dilation[1] * (_kernel[1] - 1) - 1), _stride[1]) + 1
+
+                data_shape = (out_channels, h_out, w_out)
+                data_shape_list.append(data_shape)
+            elif isinstance(module, nn.Flatten):
+                data_shape = (1, math.prod(data_shape))
+                # layer_type_list.append("Flatten")
+                pass
+            elif not isinstance(module, fpnn.Quan) and not isinstance(module, fpnn.DeQuan):
+                raise Exception("illegal module: " + name)
+
+            print("layer index: " + str(index))
+            print("layer name: " + name)
+            print("layer shape: " + str(data_shape))
+
+    return layer_type_list, data_shape_list
 
 
 def test():

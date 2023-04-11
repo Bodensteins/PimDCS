@@ -103,7 +103,10 @@ class DefaultMapStrategy(MapStrategyBase):
         self.current_pid = 0
     
     def allocLogicalArray(self, unique_key, logicalArraySize, bitWidth):
-        assert unique_key not in self.logicalArrayDict
+        # assert unique_key not in self.logicalArrayDict
+        if unique_key in self.logicalArrayDict:
+            raise Exception(unique_key + "is not an unique key, it has been added to logic array dict.")
+
         now = self.logicalArrayDict[unique_key] = LogicalArray(unique_key, logicalArraySize, archConst.phyArraySize,
                                                                archConst.splitBits, bitWidth, archConst.cellBits)
 

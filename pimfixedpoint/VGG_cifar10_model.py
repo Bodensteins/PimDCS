@@ -7,39 +7,39 @@ import fixedPoint.nn as fpnn
 from fixedPoint.nn import torch_float
 
 
-class VGG8B(nn.Module):
-    def __init__(self):
-        super(VGG8B, self).__init__()
-
-        self.conv = nn.Sequential(nn.Conv2d(3, 128, (3, 3), padding=1),
-                                  nn.ReLU(),
-                                  nn.Conv2d(128, 256, (3, 3), padding=1),
-                                  nn.ReLU(),
-                                  nn.MaxPool2d(kernel_size=(2, 2), stride=2),
-                                  nn.Conv2d(256, 256, (3, 3), padding=1),
-                                  nn.ReLU(),
-                                  nn.Conv2d(256, 512, (3, 3), padding=1),
-                                  nn.ReLU(),
-                                  nn.MaxPool2d(kernel_size=(2, 2), stride=2),
-                                  nn.Conv2d(512, 512, (3, 3), padding=1),
-                                  nn.ReLU(),
-                                  nn.MaxPool2d(kernel_size=(2, 2), stride=2),
-                                  nn.Conv2d(512, 512, (3, 3), padding=1),
-                                  nn.ReLU(),
-                                  nn.MaxPool2d(kernel_size=(2, 2), stride=2),
-                                  nn.Flatten(),
-                                  nn.Linear(2048, 1024),
-                                  nn.ReLU(),
-                                  nn.Dropout(p=0.2),
-                                  nn.Linear(1024, 10),
-                                  nn.Dropout(p=0.2)
-                                  )
-
-    def forward(self, x):
-        # conv layer
-        x = self.conv(x)
-
-        return x
+# class VGG8B(nn.Module):
+#     def __init__(self):
+#         super(VGG8B, self).__init__()
+#
+#         self.conv = nn.Sequential(nn.Conv2d(3, 128, (3, 3), padding=1),
+#                                   nn.ReLU(),
+#                                   nn.Conv2d(128, 256, (3, 3), padding=1),
+#                                   nn.ReLU(),
+#                                   nn.MaxPool2d(kernel_size=(2, 2), stride=2),
+#                                   nn.Conv2d(256, 256, (3, 3), padding=1),
+#                                   nn.ReLU(),
+#                                   nn.Conv2d(256, 512, (3, 3), padding=1),
+#                                   nn.ReLU(),
+#                                   nn.MaxPool2d(kernel_size=(2, 2), stride=2),
+#                                   nn.Conv2d(512, 512, (3, 3), padding=1),
+#                                   nn.ReLU(),
+#                                   nn.MaxPool2d(kernel_size=(2, 2), stride=2),
+#                                   nn.Conv2d(512, 512, (3, 3), padding=1),
+#                                   nn.ReLU(),
+#                                   nn.MaxPool2d(kernel_size=(2, 2), stride=2),
+#                                   nn.Flatten(),
+#                                   nn.Linear(2048, 1024),
+#                                   nn.ReLU(),
+#                                   nn.Dropout(p=0.2),
+#                                   nn.Linear(1024, 10),
+#                                   nn.Dropout(p=0.2)
+#                                   )
+#
+#     def forward(self, x):
+#         # conv layer
+#         x = self.conv(x)
+#
+#         return x
 
 
 # class FixedPointVGG8B(nn.Module):

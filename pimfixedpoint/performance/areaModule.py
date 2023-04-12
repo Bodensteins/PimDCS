@@ -1,9 +1,9 @@
-from typing import List
-
-
-import sys
-sys.path.append("../mapping")
-from mapping.archMapping import  MapStrategyBase
+# from typing import List
+#
+#
+# import sys
+# sys.path.append("../mapping")
+from mapping.archMapping import MapStrategyBase
 from mapping.archConst import archConst
 from mapping.archFunctional import ArchLevel
 
@@ -16,8 +16,7 @@ class AreaModule:
         self.map_strategy = map_strategy
 
         # pe level
-        self.array_area = archConst.phyArraySize[0] * archConst.phyArraySize[1] * \
-                        archConst.PE.single_cell_area * archConst.PE.crx_n
+        self.array_area = archConst.phyArraySize[0] * archConst.phyArraySize[1] * archConst.PE.single_cell_area * archConst.PE.crx_n
         self.adc_area = archConst.PE.single_adc_area * archConst.PE.ADC_n
         self.dac_area = archConst.PE.single_dac_area * archConst.PE.DAC_n
         self.SH_area = archConst.PE.single_SH_area * archConst.PE.SH_n
@@ -37,7 +36,6 @@ class AreaModule:
         # chip level
         # TODO: Peripheral circuits
         self.chip_area = self.bank_area * archConst.bank_n
-
 
     def get_pe_size(self) -> int:
         total_pe_n = self.map_strategy.archRecord.arch.total_pe_n
@@ -63,7 +61,7 @@ class AreaModule:
 
     def printArch(self) -> None:
         print("Area info of entire Arch:")
-        print("    total area of this chip is : %f mm^2" % (self.chip_area /1e6))
+        print("    total area of this chip is : %f mm^2" % (self.chip_area / 1e6))
         print("    one chip has %d banks, area of each bank is  : %f mm^2" % (self.map_strategy.arch.bank_n, self.bank_area / 1e6))
         print("    one bank has %d tiles, area of each tile is  : %f mm^2" % (self.map_strategy.arch.tile_n, self.tile_area / 1e6))
         print("    one tile has %d pes  , area of each pe   is  : %f mm^2" % (self.map_strategy.arch.pe_n, self.pe_area / 1e6))

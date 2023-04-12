@@ -1,5 +1,5 @@
 from enum import Enum
-import torch
+
 
 class archConst:
     chip_n = 1
@@ -10,9 +10,9 @@ class archConst:
 
     arch_n_list = (crx_n, pe_n, tile_n, bank_n, chip_n)
 
-    phyArraySize = (8, 8)
+    phyArraySize = (16, 64)
 
-    splitBits = True
+    splitBits = False
     cellBits = 1
 
     class PE:
@@ -31,11 +31,12 @@ class archConst:
         SH_n = 4
         SA_n = 1
 
+    array_mode = 0  # 0:p&n 1:ref
+    # times = 1 if array_mode == 1 else 2
 
-    mode = 0  # 0:p&n 1:ref
-    times = 1 if mode == 1 else 2
     class PIMRunMode(Enum):
-        # nomal training, transient data used for backward is also stored in phy pim array. refers to Pipelayer (hpca2017), or Time (dac17) architecture.
+        # normal training, transient data used for backward is also stored in phy pim array.
+        # refers to Pipelayer(hpca 2017), or Time (dac17) architecture.
         train = 0
         fast_mode_train = 1  # backend is digital
         inference = 2

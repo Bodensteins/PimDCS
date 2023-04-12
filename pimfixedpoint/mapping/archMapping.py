@@ -1,9 +1,9 @@
 import math
 import numpy as np
 # from functools import reduce
-from archConst import archConst
-from archRecord import ArchCrxUsageRecord, Arch
-from archFunctional import ArchLevel, usageStatus
+from .archConst import archConst
+from .archRecord import ArchCrxUsageRecord, Arch
+from .archFunctional import ArchLevel, usageStatus
 
 
 class LogicalArray:
@@ -98,12 +98,15 @@ class MapStrategyBase:
 # 只保证一个pe里面都是来自同一个logicalArray的数据
 # 因此，它没有保证一个logicalArray数据一定在同一tile的pe等等
 class DefaultMapStrategy(MapStrategyBase):
-    def __init__(self, arch : Arch = None):
+    def __init__(self, arch: Arch = None):
         super().__init__(arch)
         self.current_pid = 0
     
     def allocLogicalArray(self, unique_key, logicalArraySize, bitWidth):
-        assert unique_key not in self.logicalArrayDict
+        # assert unique_key not in self.logicalArrayDict
+        if unique_key in self.logicalArrayDict:
+            raise Exception(unique_key + "is not an unique key, it has been added to logic array dict.")
+
         now = self.logicalArrayDict[unique_key] = LogicalArray(unique_key, logicalArraySize, archConst.phyArraySize,
                                                                archConst.splitBits, bitWidth, archConst.cellBits)
 

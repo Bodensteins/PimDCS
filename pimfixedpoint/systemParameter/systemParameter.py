@@ -18,3 +18,15 @@ data_size = 50000
 batch_size = 64
 iterations = (data_size + batch_size - 1) // batch_size
 last_iter_data_size = data_size % batch_size
+
+net_map_times = [4, 2, 3]
+
+# C, H, W
+input_data_shape = (1, 28, 28)
+# relu is just a 64bit 2:1 MUX, sign bit is the signal
+
+# performance para
+activation_unit_num = 16
+
+# latency para
+activation_unit_latency = 1  # ns

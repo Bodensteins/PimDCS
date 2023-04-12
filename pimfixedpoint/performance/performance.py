@@ -1,8 +1,9 @@
 import torch.nn as nn
 import math
 
-from areaModule import AreaModule
+from .areaModule import AreaModule
 from fixedPoint import nn as fpnn
+# from
 from mapping.archMapping import MapStrategyBase, DefaultMapStrategy
 from mapping.archConst import archConst
 from mapping.archRecord import Arch

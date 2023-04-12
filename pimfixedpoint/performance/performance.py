@@ -16,28 +16,28 @@ from mnist_model import ConvMnist, FcMnist, PimFcMnist, PimConvMnist
 
 # only for layer with weight
 class LayerConfig:
-    def __init__(self, mode=archConst.mode, map_times=1) -> None:
+    def __init__(self, map_times=1) -> None:
         # 0 for p&n, 1 for ref
         # Todo: pn is not for single layer qzy todo
-        # Todo: add weight bit width for single layer, Cheng Huan should modify fixpoint
-        if mode == 1:
-            self.mode = "ref"
-            self.pn_replication_degree = 1
-        else:
-            self.mode = "pn"
-            self.pn_replication_degree = 2
+        # Todo: add weight bit width for single layer, Cheng Huan should modify fixpoint package
+        # if mode == 1:
+        #     self.mode = "ref"
+        #     self.pn_replication_degree = 1
+        # else:
+        #     self.mode = "pn"
+        #     self.pn_replication_degree = 2
 
         self.weight_replication_degree = map_times
         self.array_names = []
 
     def print(self) -> None:
         print("Layer config: ")
-        print("    mode: %s." % ("ref" if self.mode == 1 else "p&n"))
+        # print("    mode: %s." % ("ref" if self.mode == 1 else "p&n"))
         print("    map this layer for %d times." % self.weight_replication_degree)
 
 
 class PerformanceManager:
-    def __init__(self, net: nn.Module, bit_width: int, runMode: archConst.PIMRunMode, map_strategy: MapStrategyBase):
+    def __init__(self, net: nn.Module, bit_width: int, runMode: archConst.PIMRunMode, map_strategy: MapStrategyBase, array_mode=archConst.array_mode):
         """
         net: nn.Module
         bit_width: bits of weight
@@ -49,7 +49,8 @@ class PerformanceManager:
 
         self.bit_width = bit_width
         self.map_strategy = map_strategy
-        self.runMode = runMode
+        self.run_mode = runMode
+        self.array_mode = array_mode
 
         self.layer_record = {}
         self.net_map_times = sysPara.net_map_times
@@ -68,8 +69,8 @@ class PerformanceManager:
     def produce_layer_config(self, layer_with_weight_index):
         if self.net_map_times is not None:
             if len(self.net_map_times) <= layer_with_weight_index:
-                raise Exception("Illegal length of net map times list! list length: " + str(len(self.net_map_times))
-                                + ", layer index: " + str(layer_with_weight_index))
+                raise Exception("Illegal length of net map times list! list length: " + str(len(self.net_map_times)) + ", layer index: "
+                                + str(layer_with_weight_index))
 
             config = LayerConfig(map_times=self.net_map_times[layer_with_weight_index])
         else:
@@ -82,21 +83,24 @@ class PerformanceManager:
         layer_config = self.produce_layer_config(layer_index)
         self.layer_record[layer_name] = layer_config
 
-        mode, times, map_times = layer_config.mode, layer_config.pn_replication_degree, layer_config.weight_replication_degree
+        if self.array_mode == 0:
+            array_mode = "pn"
+            pn_replication_degree = 2
+        else:
+            array_mode = "ref"
+            pn_replication_degree = 1
 
         # map according to given map_strategy
-        for i in range(times * map_times):
-            array_name = "{layer_name}_{mode}{modeid}_copy{copyid}_{type}". \
-                format(layer_name=layer_name, mode=mode, modeid=str(i % times), copyid=str(i // times), type="forward")
+        for i in range(pn_replication_degree * layer_config.weight_replication_degree):
+            array_name = f"{layer_name}_{array_mode}{i % pn_replication_degree}_copy{i // pn_replication_degree}_forward"
             self.map_strategy.allocLogicalArray(array_name, [_in, _out], self.bit_width)
             layer_config.array_names.append(array_name)
 
         # running mode
-        if self.runMode != archConst.PIMRunMode.inference:
+        if self.run_mode != archConst.PIMRunMode.inference:
             # training mode
-            for i in range(times * map_times):
-                array_name = "{layer_name}_{mode}{modeid}_copy{copyid}_{type}". \
-                    format(layer_name=layer_name, mode=mode, modeid=str(i % times), copyid=str(i // times), type="backward")
+            for i in range(pn_replication_degree * layer_config.weight_replication_degree):
+                array_name = f"{layer_name}_{array_mode}{i % pn_replication_degree}_copy{i // pn_replication_degree}_backward"
                 self.map_strategy.allocLogicalArray(array_name, [_out, _in], self.bit_width)
                 layer_config.array_names.append(array_name)
 

@@ -12,7 +12,7 @@ class archConst:
 
     phyArraySize = (16, 64)
 
-    splitBits = True
+    splitBits = False
     cellBits = 1
 
     class PE:
@@ -31,8 +31,8 @@ class archConst:
         SH_n = 4
         SA_n = 1
 
-    mode = 0  # 0:p&n 1:ref
-    times = 1 if mode == 1 else 2
+    array_mode = 0  # 0:p&n 1:ref
+    # times = 1 if array_mode == 1 else 2
 
     class PIMRunMode(Enum):
         # normal training, transient data used for backward is also stored in phy pim array.

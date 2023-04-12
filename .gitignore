@@ -2,5 +2,5 @@ build
 data
 cmake-build-debug-wsl/
 .vscode/
-*/__pycache__/
+*__pycache__/
 *.idea/

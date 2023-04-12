@@ -1,9 +1,9 @@
 import math
 import numpy as np
 # from functools import reduce
-from .archConst import archConst
-from .archRecord import ArchCrxUsageRecord, Arch
-from .archFunctional import ArchLevel, usageStatus
+from mapping.archConst import archConst
+from mapping.archRecord import ArchCrxUsageRecord, Arch
+from mapping.archFunctional import ArchLevel, usageStatus
 
 
 class LogicalArray:

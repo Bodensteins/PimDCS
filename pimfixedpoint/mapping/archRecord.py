@@ -1,7 +1,7 @@
 import math
 from functools import reduce
-from mapping.archConst import archConst
-from mapping.archFunctional import segmentTree, Archid, ArchLevel, usageStatus
+from .archConst import archConst
+from .archFunctional import segmentTree, Archid, ArchLevel, usageStatus
 
 
 class Arch:

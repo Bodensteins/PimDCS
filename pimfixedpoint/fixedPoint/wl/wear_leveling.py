@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import math
 import warnings
@@ -86,7 +87,7 @@ class LogicalArray:
     for i in range(self.cellNumPerValue):
       for j in range(self.cellBits):
         self.intervalDiffCntList[i] += diff & 1
-        diff = diff >> 1
+        diff.bitwise_right_shift_(1)
 
 
   def resetDiffCntList(self, wlManager):
@@ -113,8 +114,7 @@ class LogicalArray:
           wlManager.updateWriteCountDict(pid, col_split)
 
     # reset intervalDiffCntList
-    self.intervalDiffCntList = [torch.zeros(self.logicalArraySize, dtype=torch.int64, device=self.device) for i in range(self.cellNumPerValue)]
-
+    self.intervalDiffCntList = list(map(lambda x: x.zero_(), self.intervalDiffCntList))
 
 class PhysicalArray:
   def __init__(self):
@@ -317,11 +317,11 @@ class PimWearLeveling:
       logicalArray.resetDiffCntList(self)
 
       # record new data
-      new_bit_list = [torch.zeros_like(new_data, dtype=torch.int64, device=self.device) for i in range(cellNumPerValue)]
+      new_bit_list = [None for i in range(cellNumPerValue)]
       mask = (1 << self.cellBits) - 1
       for i in range(cellNumPerValue):
         new_bit_list[i] = new_data & mask
-        new_data = new_data >> self.cellBits
+        new_data.bitwise_right_shift_(self.cellBits)
       if self.splitBits:
         # record_data shape: [logicRowSize, logicColSize * cellNumPerValue]
         colOffset = math.ceil(logicalArray.logicalArraySize[1] / self.physicalArraySize[1])
@@ -449,8 +449,8 @@ class PimWearLeveling:
         swapPhysicalArray(pid_a, pid_b)
 
     # create new iwc and twc map
-    sort_iwc = self.peInfo[self.peInfo[:, 2].argsort(), 0].tolist()
-    sort_twc = np.flip(self.peInfo[self.peInfo[:, 3].argsort(), 0]).tolist()
+    sort_iwc = np.flip(self.peInfo[self.peInfo[:, 2].argsort(), 0]).tolist()
+    sort_twc = self.peInfo[self.peInfo[:, 3].argsort(), 0].tolist()
     while len(sort_iwc) > 1:
       pe_id_a = sort_iwc[0]
       pe_id_b = sort_twc[0]
@@ -461,13 +461,13 @@ class PimWearLeveling:
       sort_iwc.remove(pe_id_a)
       sort_twc.remove(pe_id_b)
 
+
   def intraArrayShift(self, isFinalWL):
     """
     Shifts crossbar within a PE.
     @param isFinalWL: If this is the final wera-leveling operation, update the IWC and TWC.
     @return:
     """
-    # old_pid2lidDataFrame = self.pid2lidDataFrame.copy()
     for pe_id in self.peid2pid:
       new_pid_list = np.roll(self.peid2pid[pe_id], shift=(1), axis=(0))
 
@@ -544,7 +544,7 @@ class PimWearLeveling:
     if diff.sum() != 0:
       for i in range(self.cellBits):
         wrtCnt = diff & 1
-        diff = diff >> 1
+        diff.bitwise_right_shift_(1)
         self.cellWriteCountDict[pid] += wrtCnt
         wrtCntSum = wrtCnt.sum()
         if isFinalWL:
@@ -554,6 +554,20 @@ class PimWearLeveling:
           self.physicalArrayInfo[pid_idx][3] += wrtCntSum
           self.peInfo[pe_id_idx][3] += wrtCntSum
 
+
+  def save_wl_data(self, filepath):
+    batch_idx = self.stepCount - 1
+    wl_data = {
+      "step": batch_idx,
+      "pid2lid": self.pid2lid,
+      "peid2pid": self.peid2pid,
+      "physicalArrayInfo": self.physicalArrayInfo,
+      "peInfo": self.peInfo,
+      "cellWriteCountDict": self.cellWriteCountDict,
+    }
+    with open(filepath, "wb") as f:
+      torch.save(wl_data, f)
+
 # Utils
 def copy_fixed_point_params(nn_model):
   params_dict = {}
@@ -561,3 +575,5 @@ def copy_fixed_point_params(nn_model):
     if hasattr(layer, 'weightBits') and hasattr(layer, 'fp_weight'):
       params_dict[name] = fpA.to_int(layer.fp_weight).clone()
   return params_dict
+
+

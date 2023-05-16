@@ -1,4 +1,3 @@
-import os
 import numpy as np
 import math
 import warnings
@@ -321,7 +320,7 @@ class PimWearLeveling:
       mask = (1 << self.cellBits) - 1
       for i in range(cellNumPerValue):
         new_bit_list[i] = new_data & mask
-        new_data.bitwise_right_shift_(self.cellBits)
+        new_data = new_data >> self.cellBits
       if self.splitBits:
         # record_data shape: [logicRowSize, logicColSize * cellNumPerValue]
         colOffset = math.ceil(logicalArray.logicalArraySize[1] / self.physicalArraySize[1])
@@ -425,12 +424,11 @@ class PimWearLeveling:
       logical_key_b = self.pid2lid.pop(pid_b)
       self.pid2lid[pid_a] = logical_key_b
       self.pid2lid[pid_b] = logical_key_a
-      if logical_key_a in self.logicalArrayDict:
-        idx_a = np.where(self.logicalArrayDict[logical_key_a].pidMap2D == pid_a)
-        self.logicalArrayDict[logical_key_a].pidMap2D[idx_a] = pid_b
-      if logical_key_b in self.logicalArrayDict:
-        idx_b = np.where(self.logicalArrayDict[logical_key_b].pidMap2D == pid_b)
-        self.logicalArrayDict[logical_key_b].pidMap2D[idx_b] = pid_a
+      idx_a = np.where(self.logicalArrayDict[logical_key_a].pidMap2D == pid_a)
+      idx_b = np.where(self.logicalArrayDict[logical_key_b].pidMap2D == pid_b)
+      self.logicalArrayDict[logical_key_a].pidMap2D[idx_a] = pid_b
+      self.logicalArrayDict[logical_key_b].pidMap2D[idx_b] = pid_a
+
       if not self.wlConfig.overlapUpdate:
         srcTensor = self.cellCurrentTensorDict[pid_a]
         diff = srcTensor ^ self.cellCurrentTensorDict[pid_b]

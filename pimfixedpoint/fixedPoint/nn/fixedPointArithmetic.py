@@ -39,10 +39,11 @@ def _matmul_int_cuda(int_tensor1, int_tensor2):
 def _get_fixed_point_position(max_abs: float, bit_width: int, tensor_type=TensorType.Normal) -> int:
     if math.isclose(max_abs, 0.0):
         max_abs = 1e-12
-    if tensor_type == TensorType.Normal:
-        return math.ceil(math.log2(max_abs / ((1 << (bit_width - 1)) - 1)))
-    elif tensor_type == TensorType.PN:
+
+    if tensor_type == TensorType.PN or bit_width == 1:
         return math.ceil(math.log2(max_abs / ((1 << bit_width) - 1)))
+    elif tensor_type == TensorType.Normal:
+        return math.ceil(math.log2(max_abs / ((1 << (bit_width - 1)) - 1)))
     else:
         raise Exception("Unknown tensor type : " + str(tensor_type.value))
 
@@ -63,6 +64,15 @@ def _round_rshift_(int_tensor, shift: int):
     else:
         round_bit = int_tensor.bitwise_and(1 << (shift - 1))
         int_tensor.add_(round_bit).__irshift__(shift)
+
+
+def _rshift_(int_tensor, shift: int):
+    if shift <= 0:
+        raise Exception("Inappropriate shift value: " + str(shift))
+    elif shift > system_bit_width - 1:
+        int_tensor.zero_()
+    else:
+        int_tensor.__irshift__(shift)
 
 
 def _round_rshift(int_tensor, shift: int):
@@ -104,7 +114,7 @@ def _round_to_nearest_even_rshift_(int_tensor, shift: int):
 
 
 def _parse_quantization_para(quantization_para):
-    """"
+    """
     input: quantization parameters, should be int Tensor
     return: quantization para. {s, bit_width, tensor_type(Normal or ref or PN)}
     """
@@ -155,8 +165,9 @@ def quantization_tensor(tensor: Tensor, bit_width: int, tensor_type: TensorType)
         _creat_quantization_para(s=s, tensor_type=tensor_type, device=tensor.device)
 
     resolution = pow(2, s)
-
-    if tensor_type == TensorType.Normal or tensor_type == TensorType.PN:
+    if bit_width == 1:
+        int_tensor = tensor.less(0).to(torch_int).mul(-1)
+    elif tensor_type == TensorType.Normal or tensor_type == TensorType.PN:
         int_tensor = tensor.div(resolution).round().to(torch_int)
     else:
         raise Exception("Unknown tensor type: " + str(tensor_type.value))

@@ -48,6 +48,14 @@ class Arch:
         local_id_arr = list(map(self._get_local_id, [pid]*5, range(1, 6)))
         return Archid(*local_id_arr)
 
+    def pid2LongLevelid(self, pid, level: ArchLevel):
+        shift_bits = self._mask_size_list[level - 1]
+        return (pid >> shift_bits) << shift_bits
+
+    def pid2ShortLevelid(self, pid, level: ArchLevel):
+        shift_bits = self._mask_size_list[level - 1]
+        return pid >> shift_bits
+
     def Archid2pid(self, Arch_id: Archid) -> int:
         pid = reduce(lambda x, y: x+y, map(lambda x, y: x << y, Arch_id.get_arch_id_list(), self._mask_size_list[0:-1]))
         return pid

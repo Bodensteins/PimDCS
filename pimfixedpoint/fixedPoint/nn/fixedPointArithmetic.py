@@ -70,8 +70,8 @@ def _round_rshift(int_tensor, shift: int):
         raise Exception("Inappropriate shift value: " + str(shift))
 
     if shift > system_bit_width - 1:
-        raise Exception("warning! right shift too many bits: " + str(shift))
-        # return torch.zeros_like(int_tensor)
+        # raise Exception("warning! right shift too many bits: " + str(shift))
+        return torch.zeros_like(int_tensor)
 
     round_bit = int_tensor.bitwise_and(1 << (shift - 1))
     return int_tensor.add(round_bit).__rshift__(shift)

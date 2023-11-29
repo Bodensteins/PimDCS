@@ -6,13 +6,11 @@ class archConst:
     bank_n = 8
     tile_n = 64
     pe_n = 16
-    crx_n = 8
+    crx_n = 16
 
     arch_n_list = (crx_n, pe_n, tile_n, bank_n, chip_n)
 
-    phyArraySize = (16, 64)
-
-    splitBits = False
+    phyArraySize = (16, 16)
     cellBits = 1
 
     class PE:
@@ -42,3 +40,4 @@ class archConst:
         inference = 2
         # transient data used for backward is stored in buffer.
         train_transientInBuffer = 3
+

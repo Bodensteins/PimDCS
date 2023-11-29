@@ -21,6 +21,7 @@ class ArchLevel(IntEnum):
     tile_level = 3
     bank_level = 4
     chip_level = 5
+    off_chip_level = 6
 
 
 class usageStatus(IntEnum):

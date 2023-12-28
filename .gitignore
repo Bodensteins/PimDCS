@@ -1,5 +1,7 @@
 build
 data
+model
+onn
 cmake-build-debug-wsl/
 .vscode/
 *__pycache__/

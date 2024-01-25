@@ -132,10 +132,11 @@ class LogicalTensorForWL(LogicalTensor):
       countMap = torch.vstack(tuple(self.writeCountBuffer.permute(2, 1, 0).transpose(1, 2))).transpose(0, 1)
       # padShape = (0, self.cellMapShape[1] - countMap.size(1), 0, self.cellMapShape[0] - countMap.size(0))
       cellMap = F.pad(input=countMap, pad=self.paddingShape, mode='constant', value=0)
-      for idx, crxWriteCounts in enumerate(torch.tensor_split(cellMap, self.mappingShape[1], dim=1)):
-        rowIdx = idx // self.mappingShape[1]
-        colIdx = idx % self.mappingShape[1]
-        self.wlManager.updateWriteCounts(self.mapping2D[rowIdx][colIdx], crxWriteCounts)
+      row_indices = [i * cfg.crxShape[0] for i in range(1, self.mappingShape[0])]
+      col_indices = [i * cfg.crxShape[1] for i in range(1, self.mappingShape[1])]
+      for i, row_split in enumerate(torch.tensor_split(countMap, row_indices, dim=0)):
+        for j, col_split in enumerate(torch.tensor_split(row_split, col_indices, dim=1)):
+          self.wlManager.updateWriteCounts(self.mapping[i][j], col_split)
 
     # reset buffer
     self.writeCountBuffer.zero_()
@@ -155,8 +156,9 @@ class LogicalTensorForWL(LogicalTensor):
       countMap = torch.vstack(tuple(data.permute(2, 1, 0).transpose(1, 2))).transpose(0, 1)
       # padShape = (0, self.cellMapShape[1] - countMap.size(1), 0, self.cellMapShape[0] - countMap.size(0))
       cellMap = F.pad(input=countMap, pad=self.paddingShape, mode='constant', value=0)
-      for idx, crxWriteCounts in enumerate(torch.tensor_split(cellMap, self.mappingShape[1], dim=1)):
-        rowIdx = idx // self.mappingShape[1]
-        colIdx = idx % self.mappingShape[1]
-        self.wlManager.updateLastCellBit(self.mapping2D[rowIdx][colIdx], crxWriteCounts)
+      row_indices = [i * cfg.crxShape[0] for i in range(1, self.mappingShape[0])]
+      col_indices = [i * cfg.crxShape[1] for i in range(1, self.mappingShape[1])]
+      for i, row_split in enumerate(torch.tensor_split(countMap, row_indices, dim=0)):
+        for j, col_split in enumerate(torch.tensor_split(row_split, col_indices, dim=1)):
+          self.wlManager.updateLastCellBit(self.mapping[i][j], col_split)
 

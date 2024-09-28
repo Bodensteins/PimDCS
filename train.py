@@ -6,9 +6,9 @@ import torch.optim as optim
 from torchvision import datasets, transforms
 from src.pimtorch.config.globalCfg import OptimMode
 import src.pimtorch.optim as pimOptim
-from trainCommon import split_data_loader, train_model, test_model, create_layer_weight_bit_width_list, \
+from examples.trainCommon import split_data_loader, train_model, test_model, create_layer_weight_bit_width_list, \
     load_float_weight_for_fixed_point
-from mnist_model import PimFcMnist, FcMnist, ConvMnist, PimConvMnist, PimDeepFcMnist
+from examples.mnist_model import PimFcMnist, FcMnist, ConvMnist, PimConvMnist, PimDeepFcMnist
 
 
 def main():
@@ -38,13 +38,13 @@ def main():
                         help='dir of dataset')
     parser.add_argument('--model-dir', default='model', metavar='MD',
                         help='dir of load/save model')
-    parser.add_argument('--load-model-type', type=int, default=0, metavar='LD',
+    parser.add_argument('--load-model-type', type=int, default=2, metavar='LD',
                         help='load mode type (0:no 1:float point model 2:fixed point model')
-    parser.add_argument('--load-filename', default='ConvMnist_checkpoint.pt', metavar='LF',
+    parser.add_argument('--load-filename', default='PimFcMnist_checkpoint.pt', metavar='LF',
                         help='filename of load model')
-    parser.add_argument('--train', action='store_true', default=True,
+    parser.add_argument('--train', action='store_true', default=False,
                         help='train the model')
-    parser.add_argument('--fixed-point', action='store_true', default=False,
+    parser.add_argument('--fixed-point', action='store_true', default=True,
                         help='For use fixed point')
     parser.add_argument('--half-float', action='store_true', default=False,
                         help='For use 16b float')
@@ -114,9 +114,12 @@ def main():
 
     model_name = type(model).__name__
 
-    model_save_filename = os.path.join(os.path.abspath(args.model_dir), model_name + '_checkpoint.pt')
+    # model_save_filename = os.path.join(os.path.abspath(args.model_dir), model_n
+    # ame + '_checkpoint.pt')
+    model_save_filename = args.model_dir + '/' + model_name + '_checkpoint.pt'
 
-    model_load_filename = os.path.join(os.path.abspath(args.model_dir), args.load_filename)
+    # model_load_filename = os.path.join(os.path.abspath(args.model_dir), args.load_filename)
+    model_load_filename = args.model_dir + '/' + args.load_filename
 
     try:
         if (args.load_model_type == 1 and not args.fixed_point) or (args.load_model_type == 2 and args.fixed_point):

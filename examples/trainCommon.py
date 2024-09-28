@@ -303,18 +303,25 @@ def create_layer_weight_bit_width_list(model):
     return bit_width_list
 
 
+# 这个函数有bug，当hasbias为True时，预先储存的bias一般已经跟weight接在一起了，不需要再单独load一次bias
 def load_float_weight_for_fixed_point(model_load_filename, model):
     param_dict = torch.load(model_load_filename)
     param_list = []
     for name, param in param_dict.items():
+        if 'cfg' in name:
+            continue
+        # print(name)
         param_list.append(param)
 
     for layer in model.modules():
         if hasattr(layer, 'weightBits'):
+            # print(layer)
             weight = param_list.pop(0)
+            # print(weight.size())
             bias = None
             if layer.hasBias:
                 bias = param_list.pop(0)
+                # print(bias.size())
 
             layer.reset_parameters_from_float_parameters(weight, bias)
 

@@ -267,7 +267,7 @@ def get_clone(fp_tensor_tuple: tuple, new_bit_width: int, mode: RightShiftMode =
 
     return to_float(clone_tensor), to_float(clone_para)
 
-
+# 这个函数会同时将浮点tensor定点化
 def add_additional_col_of_one(fp_tensor_tuple: tuple):
     int_tensor, quantization_para = _parse_tensor_tuple_to_int(fp_tensor_tuple)
     s, tensor_type = _parse_quantization_para(quantization_para)

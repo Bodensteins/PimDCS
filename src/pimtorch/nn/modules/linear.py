@@ -9,12 +9,12 @@ class linear(Function):
     @staticmethod
     def forward(ctx, fp_input, fp_input_config, fp_weight, fp_weight_config, has_bias: bool,
                 output_bit_width: int, grad_output_bit_width: int, compute_weight_bit_width: int, training=True):
+        # 似乎有bug，has_bias为false的时候就没有定点化了
         if has_bias:
             fp_input, fp_input_config = fpA.add_additional_col_of_one((fp_input, fp_input_config))
-
+        
         if compute_weight_bit_width is not None:
             fp_weight, fp_weight_config = fpA.get_clone((fp_weight, fp_weight_config), compute_weight_bit_width)
-
         if training:
             ctx.save_for_backward(fp_input, fp_input_config, fp_weight, fp_weight_config)
             ctx.gradOutputBits = grad_output_bit_width
@@ -101,6 +101,7 @@ class Linear(Module):
         fpA.fixed_point_copy_((self.fp_weight, self.fp_weight_cfg), (fp_weight, fp_weight_cfg))
 
     def forward(self, qinput, qinput_config):
+        # print(qinput.size(), qinput_config)
         qoutput, qoutput_config \
             = linear.apply(qinput, qinput_config, self.fp_weight, self.fp_weight_cfg, self.hasBias,
                                self.outputBits, self.gradOutputBits, self.computeWeightBits, self.training)

@@ -3,7 +3,6 @@ import torch
 from torch import Tensor
 from src.pimtorch.config.globalCfg import TensorType, globalCfg
 import src.pimtorch.nn.fixedPointArithmetic as fpA
-import src.pimtorch.nn.fixedPointDataAnalyze as fpDA
 
 
 # 仅仅是将输入和权重分片，然后分片相乘，移位累加
@@ -11,7 +10,6 @@ import src.pimtorch.nn.fixedPointDataAnalyze as fpDA
 class FixedPointMatMulManager:
     def __init__(self, weight:Tensor, weight_bit_width:int, input_bit_width:int,
                  input_slice_bit:int=1, weight_slice_bit:int=globalCfg.cellBits,
-                 fp_data_analyzer:fpDA.FpDataAnalyzer=None,
                  is_slice_in_init:bool=True) -> None:
         # 计算设备，cpu or cuda
         self.device = weight.device
@@ -39,15 +37,22 @@ class FixedPointMatMulManager:
 
         # 权重比特分片结果的三维Tensor，[bits, in_size, out_size]
         if is_slice_in_init:
-            self.fp_weight_slices = FixedPointMatMulManager.tensor_slice(
+            self.fp_weight_slices = FixedPointMatMulManager.slice_tensor(
                 self.fp_weight, self.weight_bit_width, self.weight_slice_bit)
 
         # 数据分析器
+        self.fp_data_analyzer = None
+
+        # 输入暂存
+        self.fp_input = None
+        self.fp_input_slices = None
+
+    def set_data_analyzer(self, fp_data_analyzer):
         self.fp_data_analyzer = fp_data_analyzer
 
     # 矩阵比特分片
     @staticmethod
-    def tensor_slice(fp_tensor:Tensor, mat_bit_width:int, slice_bit:int=1) -> Tensor:
+    def slice_tensor(fp_tensor:Tensor, mat_bit_width:int, slice_bit:int=1) -> Tensor:
         total_slice_num = math.ceil(mat_bit_width / slice_bit)
         fp_mat_slices = torch.zeros((total_slice_num, *fp_tensor.shape), dtype=torch.int8, device=fp_tensor.device)
         # 按slice_bit进行分片
@@ -64,9 +69,11 @@ class FixedPointMatMulManager:
 
         # 输入量化
         fp_input, params = fpA.quantization_tensor(input, self.input_bit_width, TensorType.Normal)
+        self.fp_input = fp_input
         input_s = params[0].item()
 
-        fp_input_slices = FixedPointMatMulManager.tensor_slice(fp_input, self.input_bit_width, self.input_slice_bit)
+        fp_input_slices = FixedPointMatMulManager.slice_tensor(fp_input, self.input_bit_width, self.input_slice_bit)
+        self.fp_input_slices = fp_input_slices
         output = torch.zeros(batch_size, self.out_size, device=self.device)
 
         # 简单起见，暂时只考虑1bit分片
@@ -104,13 +111,17 @@ class FixedPointMatMulManager_OU(FixedPointMatMulManager):
     def __init__(self, weight:Tensor, weight_bit_width:int, input_bit_width,
                  xbr_size:tuple=globalCfg.crxShape, ou_size:tuple=globalCfg.ouShape, 
                  input_slice_bit:int=1, weight_slice_bit:int=globalCfg.cellBits,
-                 fp_data_analyzer:fpDA.FpDataAnalyzer=None,
                  is_slice_in_init:bool=True, is_split_in_init:bool=True) -> None:
         super().__init__(weight, weight_bit_width, input_bit_width, input_slice_bit, weight_slice_bit, is_slice_in_init=False)
 
         # xbr、OU大小
         self.xbr_size = xbr_size
         self.ou_size = ou_size
+
+        # 输入和权重分片是否合并及合并维度
+        # -1为不合并，0为横向合并，1为纵向合并
+        self.input_slice_cat_dim = 1
+        self.weight_slice_cat_dim = 0
 
         # 根据OU大小对权重矩阵进行补全，使权重矩阵与OU大小对齐
         if self.original_in_size % self.ou_size[0] != 0:
@@ -126,23 +137,27 @@ class FixedPointMatMulManager_OU(FixedPointMatMulManager):
         
         # 权重比特分片结果的二维Tensor，[in_size, out_size * bit_width]
         if is_slice_in_init:
-            self.fp_weight_slices = FixedPointMatMulManager_OU.tensor_slice(
-                self.fp_weight, self.weight_bit_width, self.weight_slice_bit, cat_dim=0)
+            self.fp_weight_slices = FixedPointMatMulManager_OU.slice_tensor(
+                self.fp_weight, self.weight_bit_width, self.weight_slice_bit, cat_dim=self.weight_slice_cat_dim)
 
         self.fp_weight_split = None
 
         # 权重比特分片后按OU大小拆分
         if is_split_in_init:
-            self.fp_weight_split = FixedPointMatMulManager_OU.weight_split(self.fp_weight_slices, ou_size)
+            self.fp_weight_split = FixedPointMatMulManager_OU.split_weight(self.fp_weight_slices, ou_size)
 
         # 数据分析器
-        self.fp_data_analyzer = fp_data_analyzer
+        self.fp_data_analyzer = None
+
+        # 切分后的输入暂存
+        self.fp_input_split = None
+
 
     # 矩阵比特分片
     # 与父类不同的是，提供将每个切片拼接起来的选项
     # cat_dim=-1为不拼接，0为横向拼接，1为纵向拼接
     @staticmethod
-    def tensor_slice(fp_tensor:Tensor, mat_bit_width:int, slice_bit:int=1, cat_dim:int=-1) -> Tensor:
+    def slice_tensor(fp_tensor:Tensor, mat_bit_width:int, slice_bit:int=1, cat_dim:int=-1) -> Tensor:
         total_slice_num = math.ceil(mat_bit_width / slice_bit)
         fp_mat_slices = torch.zeros((total_slice_num, *fp_tensor.shape), dtype=torch.int64, device=fp_tensor.device)
         # 按slice_bit进行分片
@@ -162,7 +177,7 @@ class FixedPointMatMulManager_OU(FixedPointMatMulManager):
     # 二维的矩阵分片按固定大小拆分，获得四维Tensor，[ou_row_num, ou_col_num * bit_width, ou_row_size, ou_col_size]
     # 已测试，注意view方法需要tensor中的数据在内存中为连续存储
     @staticmethod
-    def weight_split(weight_slices:Tensor, split_size:tuple) -> Tensor:
+    def split_weight(weight_slices:Tensor, split_size:tuple) -> Tensor:
         height, width = weight_slices.shape
 
         assert height % split_size[0] == 0 and width % split_size[1] == 0
@@ -178,10 +193,8 @@ class FixedPointMatMulManager_OU(FixedPointMatMulManager):
     # 三维的输入分片按ou_row大小拆分，获得三维Tensor，[ou_row_num, batch_size*bit_width, ou_row_size]
     # 已测试，注意view方法需要tensor中的数据在内存中为连续存储
     @staticmethod
-    def input_split(input_slices:Tensor, split_in_size:int) -> Tensor:
-        # print(input_slices.shape)
+    def split_input(input_slices:Tensor, split_in_size:int) -> Tensor:
         b_size, in_size = input_slices.shape
-        # print(b_size,in_size,split_in_size)
         assert in_size % split_in_size == 0
         split_num = in_size // split_in_size
 
@@ -206,12 +219,15 @@ class FixedPointMatMulManager_OU(FixedPointMatMulManager):
         if self.original_in_size % self.ou_size[0] != 0:
             temp_size = self.ou_size[0] - self.original_in_size % self.ou_size[0]
             fp_input = torch.cat((fp_input, torch.zeros((batch_size, temp_size), dtype=fp_input.dtype, device=fp_input.device)), dim=1)
+        self.fp_input = fp_input
 
-        # 输入按比特分片， [batch_szie*bit_width, in_size]
-        fp_input_slices = FixedPointMatMulManager_OU.tensor_slice(fp_input, self.input_bit_width, self.input_slice_bit, cat_dim=1)
+        # 输入按比特分片，[batch_szie*bit_width, in_size]
+        fp_input_slices = FixedPointMatMulManager_OU.slice_tensor(fp_input, self.input_bit_width, self.input_slice_bit, cat_dim=self.input_slice_cat_dim)
+        self.fp_input_slices = fp_input_slices
 
         # 按OU行大小拆分输入比特，[ou_row_num, batch_size*bit_width, ou_row_size]
-        fp_input_split = FixedPointMatMulManager_OU.input_split(fp_input_slices, self.ou_size[0])
+        fp_input_split = FixedPointMatMulManager_OU.split_input(fp_input_slices, self.ou_size[0])
+        self.fp_input_split = fp_input_split
 
         # 每个OU并行执行矩阵乘法，利用einsum进行并行计算
         # 得到output[ou_row_num, ou_col_num*weight_bit_width, batch_size*input_bit_width, ou_col_size]

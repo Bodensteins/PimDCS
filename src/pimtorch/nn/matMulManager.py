@@ -5,6 +5,8 @@ from src.pimtorch.config.globalCfg import TensorType, globalCfg
 import src.pimtorch.nn.fixedPointArithmetic as fpA
 
 
+
+
 # 仅仅是将输入和权重分片，然后分片相乘，移位累加
 # 已测试
 class FixedPointMatMulManager:
@@ -13,14 +15,12 @@ class FixedPointMatMulManager:
                  is_slice_in_init:bool=True) -> None:
         # 计算设备，cpu or cuda
         self.device = weight.device
-
         # 权重量化
         self.fp_weight, params = fpA.quantization_tensor(weight, weight_bit_width, TensorType.Normal)
         self.weight_s = params[0].item()    # 权重小数点位置
         self.weight_bit_width = weight_bit_width
 
         self.input_bit_width = input_bit_width
-
         # 输入向量、输出向量大小
         self.original_in_size = weight.shape[0]
         self.original_out_size = weight.shape[1]
@@ -40,15 +40,9 @@ class FixedPointMatMulManager:
             self.fp_weight_slices = FixedPointMatMulManager.slice_tensor(
                 self.fp_weight, self.weight_bit_width, self.weight_slice_bit)
 
-        # 数据分析器
-        self.fp_data_analyzer = None
-
         # 输入暂存
         self.fp_input = None
         self.fp_input_slices = None
-
-    def set_data_analyzer(self, fp_data_analyzer):
-        self.fp_data_analyzer = fp_data_analyzer
 
     # 矩阵比特分片
     @staticmethod
@@ -62,6 +56,7 @@ class FixedPointMatMulManager:
         return fp_mat_slices
 
     # 矩阵乘法
+    # 有个问题：使用mat_mul时准确率会比fake_mat_mul低
     def mat_mul(self, input:Tensor) -> Tensor:
         assert input.shape[1] == self.in_size
         assert input.device == self.device
@@ -92,6 +87,20 @@ class FixedPointMatMulManager:
                 output = output.add(output_slice.mul(2 ** (i + j + input_s + self.weight_s)))
 
         return output[:, 0:self.original_out_size]
+
+    # 只量化，不分片的矩阵乘法
+    def fake_mat_mul(self, input:Tensor) -> Tensor:
+        assert input.shape[1] == self.in_size
+        assert input.device == self.device
+
+        # 输入量化
+        fp_input, params = fpA.quantization_tensor(input, self.input_bit_width, TensorType.Normal)
+        self.fp_input = fp_input
+        input_s = params[0].item()
+
+        output = FixedPointMatMulManager.tensor_int_mul_cuda(fp_input, self.fp_weight).to(dtype=torch.float)
+        output = output.mul(2 ** (input_s + self.weight_s))
+        return output
 
     # 用cuda对两个int类型二维tensor进行乘法
     def tensor_int_mul_cuda(mat0, mat1) -> Tensor:
@@ -152,6 +161,8 @@ class FixedPointMatMulManager_OU(FixedPointMatMulManager):
         # 切分后的输入暂存
         self.fp_input_split = None
 
+    def set_data_analyzer(self, fp_data_analyzer):
+        self.fp_data_analyzer = fp_data_analyzer
 
     # 矩阵比特分片
     # 与父类不同的是，提供将每个切片拼接起来的选项
@@ -204,6 +215,7 @@ class FixedPointMatMulManager_OU(FixedPointMatMulManager):
     # 以OU粒度进行的矩阵乘法
     # 已测试
     # einsum相比循环能提升多少性能？
+    # einsum非常吃显存
     def mat_mul(self, input:Tensor) -> Tensor:
         assert input.device == self.device
         assert input.shape[1] == self.original_in_size
@@ -261,6 +273,33 @@ class FixedPointMatMulManager_OU(FixedPointMatMulManager):
         output = temp_out.to(torch.float)
         
         # 最后根据输入和权重的小数点位置调整output大小
+        output = output.mul(2 ** (input_s + self.weight_s))
+        return output[:, 0:self.original_out_size]
+
+    def fake_mat_mul(self, input: Tensor) -> Tensor:
+        assert input.device == self.device
+        assert input.shape[1] == self.original_in_size
+        batch_size = input.shape[0]
+
+        # 输入量化
+        fp_input, params = fpA.quantization_tensor(input, self.input_bit_width, TensorType.Normal)
+        input_s = params[0].item()
+
+        # 根据ou_row大小补全输入，使输入长度与ou_row大小对齐
+        if self.original_in_size % self.ou_size[0] != 0:
+            temp_size = self.ou_size[0] - self.original_in_size % self.ou_size[0]
+            fp_input = torch.cat((fp_input, torch.zeros((batch_size, temp_size), dtype=fp_input.dtype, device=fp_input.device)), dim=1)
+        self.fp_input = fp_input
+
+        # 输入按比特分片，[batch_szie*bit_width, in_size]
+        fp_input_slices = FixedPointMatMulManager_OU.slice_tensor(fp_input, self.input_bit_width, self.input_slice_bit, cat_dim=self.input_slice_cat_dim)
+        self.fp_input_slices = fp_input_slices
+
+        # 按OU行大小拆分输入比特，[ou_row_num, batch_size*bit_width, ou_row_size]
+        fp_input_split = FixedPointMatMulManager_OU.split_input(fp_input_slices, self.ou_size[0])
+        self.fp_input_split = fp_input_split
+
+        output = FixedPointMatMulManager_OU.tensor_int_mul_cuda(fp_input, self.fp_weight).to(dtype=torch.float)
         output = output.mul(2 ** (input_s + self.weight_s))
         return output[:, 0:self.original_out_size]
 

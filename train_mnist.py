@@ -8,7 +8,7 @@ from src.pimtorch.config.globalCfg import OptimMode
 import src.pimtorch.optim as pimOptim
 from examples.trainCommon import split_data_loader, train_model, test_model, create_layer_weight_bit_width_list, \
     load_float_weight_for_fixed_point
-from examples.mnist_model import PimFcMnist, FcMnist, ConvMnist, PimConvMnist, PimDeepFcMnist
+from examples.mnist_model import PimFcMnist, FcMnist, ConvMnist, PimConvMnist, PimDeepFcMnist, PimFcMnist_OU, PimConvMnist_OU
 
 
 def main():
@@ -16,7 +16,7 @@ def main():
     parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
     parser.add_argument('--train-batch-size', type=int, default=64, metavar='N',
                         help='input batch size for training (default: 64)')
-    parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
+    parser.add_argument('--test-batch-size', type=int, default=500, metavar='N',
                         help='input batch size for testing (default: 1000)')
     parser.add_argument('--epochs', type=int, default=5, metavar='N',
                         help='number of epochs to train (default: 14)')
@@ -40,9 +40,9 @@ def main():
                         help='dir of load/save model')
     parser.add_argument('--load-model-type', type=int, default=2, metavar='LD',
                         help='load mode type (0:no 1:float point model 2:fixed point model')
-    parser.add_argument('--load-filename', default='PimFcMnist_checkpoint.pt', metavar='LF',
+    parser.add_argument('--load-filename', default='PimFcMnist_OU_checkpoint.pt', metavar='LF',
                         help='filename of load model')
-    parser.add_argument('--train', action='store_true', default=False,
+    parser.add_argument('--train', action='store_true', default=True,
                         help='train the model')
     parser.add_argument('--fixed-point', action='store_true', default=True,
                         help='For use fixed point')
@@ -77,6 +77,7 @@ def main():
         transforms.ToTensor(),
         transforms.Normalize((0.1307,), (0.3081,))
     ])
+    print(test_kwargs)
     train_data = datasets.MNIST(root=args.data_dir, train=True, download=True, transform=transform)
     test_data = datasets.MNIST(root=args.data_dir, train=False, download=True, transform=transform)
 
@@ -85,18 +86,18 @@ def main():
     if args.fixed_point:
         if args.net == 0:
             # model = PimConvMnist(args.train_batch_size, device=device).to(device)
-            model = PimConvMnist().to(device)
+            model = PimConvMnist_OU().to(device)
             # model = FixedPointSimpleConvNet(args.train_batch_size, device=device).to(device)
             # model.double()
         elif args.net == 1:
-            model = PimFcMnist().to(device)
+            model = PimFcMnist_OU().to(device)
         elif args.net == 2:
             model = PimDeepFcMnist().to(device)
         else:
             raise Exception('undefined net: ' + str(args.net))
 
         bit_width_list = create_layer_weight_bit_width_list(model)
-
+        
         optimizer = pimOptim.SGD(model.named_parameters(), bit_width_list, lr=args.lr,
                                 momentum=args.momentum, weight_decay=args.weight_decay,
                                 run_mode=OptimMode.FullFix)
@@ -114,24 +115,24 @@ def main():
 
     model_name = type(model).__name__
 
-    # model_save_filename = os.path.join(os.path.abspath(args.model_dir), model_n
-    # ame + '_checkpoint.pt')
-    model_save_filename = args.model_dir + '/' + model_name + '_checkpoint.pt'
+    model_save_filename = os.path.join(os.path.abspath(args.model_dir), model_name + '_checkpoint.pt')
 
-    # model_load_filename = os.path.join(os.path.abspath(args.model_dir), args.load_filename)
-    model_load_filename = args.model_dir + '/' + args.load_filename
+    model_load_filename = os.path.join(os.path.abspath(args.model_dir), args.load_filename)
 
-    try:
-        if (args.load_model_type == 1 and not args.fixed_point) or (args.load_model_type == 2 and args.fixed_point):
-            para = torch.load(model_load_filename)
-            model.load_state_dict(para)
-        elif args.load_model_type == 1 and args.fixed_point:
-            load_float_weight_for_fixed_point(model_load_filename, model)
-        elif args.load_model_type:
-            print("unsupported load type, load_model_type: " + str(args.load_model_type)
-                  + ", but fixed point: " + str(args.fixed_point))
-    except Exception as e:
-        print(e)
+    # print(model_save_filename)
+
+    if not args.train:
+        try:
+            if (args.load_model_type == 1 and not args.fixed_point) or (args.load_model_type == 2 and args.fixed_point):
+                para = torch.load(model_load_filename)
+                model.load_state_dict(para)
+            elif args.load_model_type == 1 and args.fixed_point:
+                load_float_weight_for_fixed_point(model_load_filename, model)
+            elif args.load_model_type:
+                print("unsupported load type, load_model_type: " + str(args.load_model_type)
+                    + ", but fixed point: " + str(args.fixed_point))
+        except Exception as e:
+            print(e)
 
     if args.scheduler:
         scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=args.lr_decay_step, gamma=args.gamma)
@@ -145,6 +146,9 @@ def main():
 
     criterion = nn.CrossEntropyLoss(reduction='sum')
     test_model(model, device, test_loader, criterion)
+
+    if not args.train:
+        model.print_statistic()
 
 
 if __name__ == '__main__':

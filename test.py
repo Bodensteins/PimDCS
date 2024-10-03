@@ -57,10 +57,8 @@ def main():
     print(mat_mul_manager_ou.fp_input_slices)
     print(mat_mul_manager_ou.fp_input_split)
 
-    ou_data_analyzer.update_input_sparsity()
     ou_data_analyzer.update_weight_sparsity()
-    ou_data_analyzer.update_bit_vec_counts()
-    ou_data_analyzer.update_bit_vec_ones_num()
+    ou_data_analyzer.update_all_input_statistic()
 
     ou_data_analyzer.print_statistic()
 

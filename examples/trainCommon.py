@@ -197,6 +197,7 @@ def test_model(model, device, test_loader, criterion, half=False):
 
     model.eval()  # prep model for evaluation
 
+    round = 0
     with torch.no_grad():
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
@@ -208,6 +209,11 @@ def test_model(model, device, test_loader, criterion, half=False):
             test_loss += criterion(output, target).item()
             pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
             correct += pred.eq(target.view_as(pred)).sum().item()
+
+            round += 1
+            print("round: {}, loss: {:.4f}, acc: {:.4f}".format(round, test_loss, correct / round / len(data)))
+            if round == 100:
+                break
 
     # calculate and print avg test loss
     test_loss /= len(test_loader.dataset)

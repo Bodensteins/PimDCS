@@ -8,7 +8,7 @@ from src.pimtorch.config.globalCfg import OptimMode
 import src.pimtorch.optim as pimOptim
 from trainCommon import split_data_loader, train_model, test_model, create_layer_weight_bit_width_list, \
     load_float_weight_for_fixed_point
-from mnist_model import PimFcMnist, FcMnist, ConvMnist, PimConvMnist, PimDeepFcMnist
+from mnist_model import PimFcMnist, FcMnist, ConvMnist, PimConvMnist, PimDeepFcMnist, PimFcMnist_OU
 
 
 def main():
@@ -38,13 +38,13 @@ def main():
                         help='dir of dataset')
     parser.add_argument('--model-dir', default='model', metavar='MD',
                         help='dir of load/save model')
-    parser.add_argument('--load-model-type', type=int, default=0, metavar='LD',
+    parser.add_argument('--load-model-type', type=int, default=2, metavar='LD',
                         help='load mode type (0:no 1:float point model 2:fixed point model')
-    parser.add_argument('--load-filename', default='ConvMnist_checkpoint.pt', metavar='LF',
+    parser.add_argument('--load-filename', default='FcMnist_checkpoint.pt', metavar='LF',
                         help='filename of load model')
     parser.add_argument('--train', action='store_true', default=True,
                         help='train the model')
-    parser.add_argument('--fixed-point', action='store_true', default=False,
+    parser.add_argument('--fixed-point', action='store_true', default=True,
                         help='For use fixed point')
     parser.add_argument('--half-float', action='store_true', default=False,
                         help='For use 16b float')
@@ -89,7 +89,7 @@ def main():
             # model = FixedPointSimpleConvNet(args.train_batch_size, device=device).to(device)
             # model.double()
         elif args.net == 1:
-            model = PimFcMnist().to(device)
+            model = PimFcMnist_OU().to(device)
         elif args.net == 2:
             model = PimDeepFcMnist().to(device)
         else:

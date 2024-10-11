@@ -56,7 +56,6 @@ class FixedPointMatMulManager:
         return fp_mat_slices
 
     # 矩阵乘法
-    # 有个问题：使用mat_mul时准确率会比fake_mat_mul低
     def mat_mul(self, input:Tensor) -> Tensor:
         assert input.shape[1] == self.in_size
         assert input.device == self.device

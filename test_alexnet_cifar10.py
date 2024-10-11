@@ -15,7 +15,7 @@ from examples.trainCommon import split_data_loader, train_model, test_model, cre
     load_float_weight_for_fixed_point
 # from examples.vgg_cifar10_model import vgg16, vgg11, vgg13, vgg19, fp_vgg16, VGG16ForMotivation, fp_vgg19, fp_vgg11, fp_vgg13
 
-from examples.vgg11_ou_model import PimVGG11_OU
+from examples.alexnet_ou_model import PimAlexNet_OU
 
 def main():
     # Training settings
@@ -25,7 +25,7 @@ def main():
     parser.add_argument('--test-batch-size', type=int, default=400, metavar='TEST_BATCH',
                         help='input batch size for testing (default: 400)')
     
-    parser.add_argument('--epochs', type=int, default=300, metavar='N',
+    parser.add_argument('--epochs', type=int, default=10, metavar='N',
                         help='number of epochs to train (default: 14)')
     parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
                         help='learning rate (default: 1.0)')
@@ -68,9 +68,9 @@ def main():
     #                     help='dir of load/save model')
     parser.add_argument('--load-model-type', type=int, default=2, metavar='LD',
                         help='load mode type (0:no 1:float point model 2:fixed point model')
-    parser.add_argument('--weight-filename', default='PimVGG11_OU_cifar100_checkpoint.pt', metavar='LF',
+    parser.add_argument('--weight-filename', default='PimAlexNet_OU_cifar10_checkpoint.pt', metavar='LF',
                         help='filename of load model')
-    parser.add_argument('--train', action='store_true', default=True,
+    parser.add_argument('--train', action='store_true', default=False,
                         help='train the model')
     parser.add_argument('--fixed-point', action='store_true', default=True,
                         help='For use fixed point')
@@ -107,14 +107,14 @@ def main():
     ])
 
     train_datasets = \
-        torchvision.datasets.CIFAR100(root=args.data_dir, train=True, download=False, transform=transform_train)
+        torchvision.datasets.CIFAR10(root=args.data_dir, train=True, download=False, transform=transform_train)
 
     test_datasets = \
-        torchvision.datasets.CIFAR100(root=args.data_dir, train=False, download=False, transform=transform_test)
+        torchvision.datasets.CIFAR10(root=args.data_dir, train=False, download=False, transform=transform_test)
 
     train_loader, test_loader, _ = split_data_loader(train_datasets, test_datasets, train_kwargs, test_kwargs)
 
-    model = PimVGG11_OU(num_classes=100).to(device)
+    model = PimAlexNet_OU().to(device)
 
     if args.fixed_point:
         weight_bit_width_list = create_layer_weight_bit_width_list(model)
@@ -133,7 +133,7 @@ def main():
 
     try:
         if (args.load_model_type == 1 and not args.fixed_point) or (args.load_model_type == 2 and args.fixed_point):
-            para = torch.load(model_load_filename)
+            para = torch.load(model_load_filename, weights_only=True)
             model.load_state_dict(para)
         elif args.load_model_type == 1 and args.fixed_point:
             load_float_weight_for_fixed_point(model_load_filename, model)

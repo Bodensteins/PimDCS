@@ -15,7 +15,7 @@ from typing import Union
 # 已测试
 class Conv2d_OU(Module):
     def __init__(self, in_channels: int, out_channels: int, kernel_size: _size_2_t, stride: _size_2_t = 1,
-                 padding: Union[str, _size_2_t] = 0, dilation: _size_2_t = 1, groups: int = 1, has_bias: bool = True,
+                 padding: Union[str, _size_2_t] = 0, dilation: _size_2_t = 1, groups: int = 1, bias: bool = True,
                  padding_mode: str = 'zeros', input_bit_width: int = globalCfg.dataFlowBitWidth,
                  output_bit_width: int = globalCfg.dataFlowBitWidth, weight_bit_width: int = globalCfg.dataFlowBitWidth,
                  grad_output_bit_width: int = globalCfg.dataFlowBitWidth,
@@ -37,7 +37,7 @@ class Conv2d_OU(Module):
         self.padding = _pair(padding)
         self.dilation = _pair(dilation)
         self.groups = groups
-        self.has_bias = has_bias
+        self.has_bias = bias
         self.padding_mode = padding_mode
         self.input_bit_width = input_bit_width  # notice: input bits should be equal to out bits of last layer
         self.output_bit_width = output_bit_width

@@ -1,6 +1,7 @@
 import torch.nn as nn
 from src.pimtorch.nn.modules.conv_ou import Conv2d_OU
 from src.pimtorch.nn.modules.linear_ou import Linear_OU
+from examples.statistic import print_nn_Sequential_Modules_statistic
 
 class PimAlexNet_OU(nn.Module):
     def __init__(self):
@@ -48,12 +49,7 @@ class PimAlexNet_OU(nn.Module):
         return res
     
     def print_statistic(self):
-        for module in self.alexnet.modules():
-            if isinstance(module, Conv2d_OU) or isinstance(module, Linear_OU):
-                print("---------------------")
-                print(module)
-                module.print_statistic()
-                print("---------------------\n")   
+        print_nn_Sequential_Modules_statistic(self.alexnet.modules)
 
     def reset_analyzer(self):
         for module in self.alexnet.modules():

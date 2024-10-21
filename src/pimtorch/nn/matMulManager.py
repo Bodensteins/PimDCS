@@ -5,8 +5,6 @@ from src.pimtorch.config.globalCfg import TensorType, globalCfg
 import src.pimtorch.nn.fixedPointArithmetic as fpA
 
 
-
-
 # 仅仅是将输入和权重分片，然后分片相乘，移位累加
 # 已测试
 class FixedPointMatMulManager:
@@ -116,7 +114,7 @@ class FixedPointMatMulManager:
 # 以OU为粒度进行乘加计算
 # 尝试用cuda并行计算多个OU矩阵向量乘法
 class FixedPointMatMulManager_OU(FixedPointMatMulManager):
-    def __init__(self, weight:Tensor, weight_bit_width:int, input_bit_width,
+    def __init__(self, weight:Tensor, weight_bit_width:int, input_bit_width:int,
                  xbr_size:tuple=globalCfg.crxShape, ou_size:tuple=globalCfg.ouShape, 
                  input_slice_bit:int=1, weight_slice_bit:int=globalCfg.cellBits,
                  is_slice_in_init:bool=True, is_split_in_init:bool=True) -> None:
@@ -213,8 +211,7 @@ class FixedPointMatMulManager_OU(FixedPointMatMulManager):
     
     # 以OU粒度进行的矩阵乘法
     # 已测试
-    # einsum相比循环能提升多少性能？
-    # einsum非常吃显存
+    # einsum非常吃显存，尽量不用
     def mat_mul(self, input:Tensor) -> Tensor:
         assert input.device == self.device
         assert input.shape[1] == self.original_in_size
@@ -275,7 +272,7 @@ class FixedPointMatMulManager_OU(FixedPointMatMulManager):
         output = output.mul(2 ** (input_s + self.weight_s))
         return output[:, 0:self.original_out_size]
 
-    def fake_mat_mul(self, input: Tensor) -> Tensor:
+    def fake_mat_mul(self, input:Tensor) -> Tensor:
         assert input.device == self.device
         assert input.shape[1] == self.original_in_size
         batch_size = input.shape[0]
@@ -314,3 +311,44 @@ class FixedPointMatMulManager_OU(FixedPointMatMulManager):
 
         return einsum_result
     
+
+# 分正负阵列
+# 只实现fake_mat_mul
+class FixedPointMatMulManager_OU_PN(FixedPointMatMulManager_OU):
+    def __init__(self, weight:Tensor, weight_bit_width:int, input_bit_width:int,
+                 xbr_size:tuple=globalCfg.crxShape, ou_size:tuple=globalCfg.ouShape, 
+                 input_slice_bit:int=1, weight_slice_bit:int=globalCfg.cellBits,
+                 is_slice_in_init:bool=True, is_split_in_init:bool=True) -> None:
+        
+        # 多一位符号位
+        weight_bit_width += 1
+        super().__init__(weight, weight_bit_width, input_bit_width, input_slice_bit=input_slice_bit, xbr_size=xbr_size, ou_size=ou_size,
+                         weight_slice_bit=weight_slice_bit, is_slice_in_init=False, is_split_in_init=False)
+        
+        self.fp_weight_pos = torch.clamp(self.fp_weight, min=0)
+        self.fp_weight_neg = -torch.clamp(self.fp_weight, max=0)
+
+        # 拆分正负阵列，丢弃符号位
+        self.weight_bit_width -= 1
+
+        self.fp_weight_slices_pos = None
+        self.fp_weight_slices_neg = None
+
+        # 比特拆分
+        if is_slice_in_init:
+            # self.fp_weight_slices = FixedPointMatMulManager_OU_PN.slice_tensor(
+            #     self.fp_weight, self.weight_bit_width, self.weight_slice_bit, cat_dim=self.weight_slice_cat_dim)
+            # self.weight_slice_cat_dim = -1
+            self.fp_weight_slices_pos = FixedPointMatMulManager_OU_PN.slice_tensor(
+                self.fp_weight_pos, self.weight_bit_width, self.weight_slice_bit, cat_dim=self.weight_slice_cat_dim)
+            self.fp_weight_slices_neg = FixedPointMatMulManager_OU_PN.slice_tensor(
+                self.fp_weight_neg, self.weight_bit_width, self.weight_slice_bit, cat_dim=self.weight_slice_cat_dim)
+            
+        self.fp_weight_split_pos = None
+        self.fp_weight_split_neg = None
+        if is_split_in_init:
+            self.fp_weight_split_pos = FixedPointMatMulManager_OU_PN.split_weight(self.fp_weight_slices_pos, ou_size)
+            self.fp_weight_split_neg = FixedPointMatMulManager_OU_PN.split_weight(self.fp_weight_slices_neg, ou_size)
+
+    def mat_mul(self, input:Tensor) -> Tensor:
+        return self.fake_mat_mul(input)

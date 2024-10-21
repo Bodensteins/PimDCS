@@ -354,11 +354,11 @@ class PimResNet_OU(nn.Module):
         
 
 def resnet_ou(
-        arch: str,
+        # arch: str,
         block: Type[Union[BasicBlock_OU, Bottleneck_OU]],
         layers: List[int],
         pretrained: bool,
-        progress: bool,
+        # progress: bool,
         **kwargs: Any
 ) -> PimResNet_OU:
     model = PimResNet_OU(block, layers, **kwargs)

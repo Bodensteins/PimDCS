@@ -68,12 +68,16 @@ class Conv2d_OU(Module):
     def create_mat_mul_manager(self) -> None:
         # print("Conv create mmm")
         weight_t = self.weight.reshape(self.out_channels, -1).t()
-        self.mm_manager = mmm.FixedPointMatMulManager(weight_t, self.weight_bit_width, self.input_bit_width)
+        # self.mm_manager = mmm.FixedPointMatMulManager(weight_t, self.weight_bit_width, self.input_bit_width)
         # self.mm_manager = mmm.FixedPointMatMulManager_OU(weight_t, self.weight_bit_width, self.input_bit_width)
+        self.mm_manager = mmm.FixedPointMatMulManager_OU_PN(weight_t, self.weight_bit_width, self.input_bit_width)
         if isinstance(self.mm_manager, mmm.FixedPointMatMulManager_OU):
-            self.data_analyzer = fpDA.FpDataAnalyzer(self.mm_manager)
+            if isinstance(self.mm_manager, mmm.FixedPointMatMulManager_OU_PN):
+                self.data_analyzer = fpDA.FpDataAnalyzer_PN(self.mm_manager)
+            else:
+                self.data_analyzer = fpDA.FpDataAnalyzer(self.mm_manager)
             self.mm_manager.set_data_analyzer(self.data_analyzer)
-            self.data_analyzer.update_weight_sparsity()
+            self.data_analyzer.update_all_weight_statistic()
 
     def forward(self, input:Tensor) -> Tensor:
         if self.training:

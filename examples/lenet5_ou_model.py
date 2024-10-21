@@ -1,6 +1,7 @@
 import torch.nn as nn
 from src.pimtorch.nn.modules.conv_ou import Conv2d_OU
 from src.pimtorch.nn.modules.linear_ou import Linear_OU
+from examples.statistic import print_nn_Sequential_Modules_statistic
 
 class PimLeNet5_OU(nn.Module):
     def __init__(self):
@@ -33,12 +34,13 @@ class PimLeNet5_OU(nn.Module):
         return res
     
     def print_statistic(self):
-        for module in self.lenet5.modules():
-            if isinstance(module, Conv2d_OU) or isinstance(module, Linear_OU):
-                print("---------------------")
-                print(module)
-                module.print_statistic()
-                print("---------------------\n")   
+        print_nn_Sequential_Modules_statistic(self.lenet5.modules)
+        # for module in self.lenet5.modules():
+        #     if isinstance(module, Conv2d_OU) or isinstance(module, Linear_OU):
+        #         print("---------------------")
+        #         print(module)
+        #         module.print_statistic()
+        #         print("---------------------\n")   
 
     def reset_analyzer(self):
         for module in self.lenet5.modules():

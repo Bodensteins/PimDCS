@@ -2,7 +2,10 @@ build
 data
 model
 onn
+temp/
 cmake-build-debug-wsl/
 .vscode/
 *__pycache__/
 *.idea/
+test.py
+test2.py

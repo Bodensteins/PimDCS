@@ -2,7 +2,7 @@ build
 data
 model
 onn
-temp/
+temp
 cmake-build-debug-wsl/
 .vscode/
 *__pycache__/

@@ -3,7 +3,7 @@ import configparser as cp
 from src.hardware_model.basic_component.adder import Adder
 
 class Accumulator_PE:
-    def __init_(self, SimConfig_path):
+    def __init__(self, SimConfig_path):
         accumulator_config = cp.ConfigParser()
         accumulator_config.read(SimConfig_path, encoding='UTF-8')
         self.xbar_group_num = int(accumulator_config.get('Process element level', 'Group_Num'))

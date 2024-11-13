@@ -1,5 +1,6 @@
 import configparser as cp
 import math
+import os
 from src.hardware_model.basic_component.ADC import ADC
 from src.hardware_model.basic_component.DAC import DAC
 from src.hardware_model.basic_component.adder import Adder
@@ -22,10 +23,12 @@ class ProcessElement_Basic:
 
         self.input_bitwidth = 8 # temp
         self.xbar_group_num = int(PE_config.get('Process element level', 'Group_Num'))
+        self.xbar_ADC_num = int(PE_config.get('Process element level', 'ADC_Num'))
+        self.xbar_DAC_num = int(PE_config.get('Process element level', 'DAC_Num'))
         self.weight_bitwidth = self.xbar_group_num
 
         # 缺少一个input reg mux
-        self.input_buffer_model = Buffer(SimConfig_path, buf_level=1, buf_size=16)  # buf_level和buf_size修改
+        self.input_buffer_model = Buffer(SimConfig_path, buf_level=1, buf_size=1)  # buf_level和buf_size修改
         self.input_reg_model = Reg(SimConfig_path, bitwidth=self.input_bitwidth)
         self.DAC_model = DAC(SimConfig_path)
         self.xbar_model = Crossbar_Basic(SimConfig_path)
@@ -45,8 +48,6 @@ class ProcessElement_Basic:
         self.cell_type = self.xbar_model.cell_type
         self.PE_xbar_num = self.xbar_group_num * 2 # 正负阵列
 
-        self.xbar_ADC_num = int(PE_config.get('Process element level', 'ADC_Num'))
-        self.xbar_DAC_num = int(PE_config.get('Process element level', 'DAC_Num'))
         # print(self.xbar_ADC_num)
         self.PE_ADC_num = self.xbar_ADC_num * self.xbar_group_num
         self.PE_DAC_num = self.xbar_DAC_num * self.xbar_group_num
@@ -165,8 +166,8 @@ class ProcessElement_Basic:
 
 
     def calculate_PE_latency_no_pipeline(self):
-        self.input_buffer_model.calculate_buf_write_latency(wdata=0)     # wdata未确定
-        self.input_buffer_model.calculate_buf_read_latency(rdata=0)     # rdata未确定
+        self.input_buffer_model.calculate_buf_write_latency(wdata=1)     # wdata未确定
+        self.input_buffer_model.calculate_buf_read_latency(rdata=1)     # rdata未确定
         # self.input_buffer_model.calculate_buf_latency()
         # self.input_reg_model.calculate_reg_latency()
         self.DAC_model.calculate_DAC_latency()
@@ -179,7 +180,6 @@ class ProcessElement_Basic:
         self.accumulator_model.calculate_accumulator_latency()
         self.accumulator_demux_model.calculate_demux_latency()
         # self.output_reg_model.calculate_reg_latency()
-
 
         self.PE_input_buffer_wlatency = self.input_buffer_model.buf_wlatency
         self.PE_input_buffer_rlatency = self.input_buffer_model.buf_rlatency
@@ -211,8 +211,8 @@ class ProcessElement_Basic:
         pass
 
     def calculate_PE_energy(self):
-        self.input_buffer_model.calculate_buf_write_energy(wdata=0)     # wdata未确定
-        self.input_buffer_model.calculate_buf_read_energy(rdata=0)     # rdata未确定
+        self.input_buffer_model.calculate_buf_write_energy(wdata=1)     # wdata未确定
+        self.input_buffer_model.calculate_buf_read_energy(rdata=1)     # rdata未确定
         self.PE_input_buffer_wenergy = self.input_buffer_model.buf_wenergy
         self.PE_input_buffer_renergy = self.input_buffer_model.buf_renergy
 
@@ -221,10 +221,10 @@ class ProcessElement_Basic:
         self.PE_input_reg_renergy = self.input_reg_model.reg_energy * self.xbar_model.ou_row * self.mutiple_time   # 包括读和写两部分，每个ou计算只激活ou_row_num次input_reg
 
         self.DAC_model.calculate_DAC_energy()
-        self.PE_DAC_energy = self.DAC_model.DAC_energy * self.xbar_model.ou_row * self.mutiple_time   # 每个ou计算只激活ou_row_num次DAC
+        self.PE_DAC_energy = self.DAC_model.DAC_energy * self.xbar_model.ou_row * self.xbar_group_num * self.mutiple_time   # 每个ou计算只激活ou_row_num次DAC
 
         self.xbar_model.calculate_xbar_read_energy()
-        self.PE_xbar_energy = self.xbar_model.xbar_read_energy * self.mutiple_time
+        self.PE_xbar_energy = self.xbar_model.xbar_read_energy * self.xbar_group_num * self.mutiple_time
 
         self.ADC_mux_model.calculate_mux_energy()
         self.PE_ADC_mux_energy = self.ADC_mux_model.mux_energy * self.xbar_model.ou_column * self.xbar_group_num * self.mutiple_time
@@ -233,11 +233,11 @@ class ProcessElement_Basic:
         self.PE_ADC_energy = self.ADC_model.ADC_energy * self.xbar_model.ou_column * self.xbar_group_num * self.mutiple_time
 
         self.ADC_demux_model.calculate_demux_energy()
-        self.PE_ADC_demux_latency = self.ADC_demux_model.demux_energy * self.xbar_model.ou_column * self.xbar_group_num * self.mutiple_time
+        self.PE_ADC_demux_energy = self.ADC_demux_model.demux_energy * self.xbar_model.ou_column * self.xbar_group_num * self.mutiple_time
 
         self.shiftreg_model.calculate_shiftreg_energy()
-        self.PE_shiftreg_wlatency = self.shiftreg_model.shiftreg_energy * self.xbar_model.ou_column * self.xbar_group_num * self.mutiple_time
-        self.PE_shiftreg_rlatency = self.shiftreg_model.shiftreg_energy * self.xbar_model.ou_column * self.xbar_group_num * self.mutiple_time
+        self.PE_shiftreg_wenergy = self.shiftreg_model.shiftreg_energy * self.xbar_model.ou_column * self.xbar_group_num * self.mutiple_time
+        self.PE_shiftreg_renergy = self.shiftreg_model.shiftreg_energy * self.xbar_model.ou_column * self.xbar_group_num * self.mutiple_time
 
         self.addertree_model.calculate_addertree_energy()
         self.PE_addertree_energy = self.addertree_model.addertree_energy * self.mutiple_time
@@ -246,7 +246,7 @@ class ProcessElement_Basic:
         self.PE_accumulator_energy = self.accumulator_model.accumulator_energy * self.mutiple_time
         
         self.accumulator_demux_model.calculate_demux_energy()
-        self.PE_accumulator_demux_latency = self.accumulator_demux_model.demux_energy * self.PE_accumulator_demux_num * self.mutiple_time
+        self.PE_accumulator_demux_energy = self.accumulator_demux_model.demux_energy * self.PE_accumulator_demux_num * self.mutiple_time
 
         self.output_reg_model.calculate_reg_energy()
         self.PE_output_reg_renergy = self.output_reg_model.reg_energy * self.accumulator_model.adder_num * self.mutiple_time
@@ -267,6 +267,90 @@ class ProcessElement_Basic:
     def calculate_PE_power_pipeline(self):
         pass
 
+    def PE_print_metrics(self):
+        # print("---------------------Crossbar Configurations-----------------------")
+        # crossbar.xbar_output(self)
+        # print("------------------------DAC Configurations-------------------------")
+        # DAC.DAC_output(self)
+        # print("------------------------ADC Configurations-------------------------")
+        # ADC.ADC_output(self)
+        print("-------------------------PE Configurations-------------------------")
+        print("total crossbar number in one PE:", self.PE_xbar_num)
+        # print("			the number of crossbars sharing a set of interfaces:",self.PE_multiplex_xbar_num)
+        # print("total utilization rate:", self.PE_utilization)
+        print("total DAC number in one PE:", self.PE_DAC_num)
+        print("			the number of DAC in one set of interfaces:", self.xbar_DAC_num)
+        print("total ADC number in one PE:", self.PE_ADC_num)
+        print("			the number of ADC in one set of interfaces:", self.xbar_ADC_num)
+        print("---------------------PE Area Simulation Results--------------------")
+        print("PE area:", self.PE_area, "um^2")
+        print("			input buffer area:", self.PE_input_buffer_area, "um^2")
+        print("			crossbar area:", self.PE_xbar_area, "um^2")
+        print("			DAC area:", self.PE_DAC_area, "um^2")
+        print("			ADC area:", self.PE_ADC_area, "um^2")
+        print("			digital part area:", self.PE_digital_area, "um^2")
+        print("			|---adder tree area:", self.PE_addertree_area, "um^2")
+        print("			|---shift-reg area:", self.PE_shiftreg_area, "um^2")
+        print("			|---accumulator area:", self.PE_accumulator_area, "um^2")
+        print("			|---ADC demux area:", self.PE_ADC_demux_area, "um^2")
+        print("			|---ADC mux area:", self.PE_ADC_mux_area, "um^2")
+        print("			|---accumulator demux area:", self.PE_accumulator_demux_area, "um^2")
+        print("			|---input reg area:", self.PE_input_reg_area, "um^2")
+        print("			|---output reg area:", self.PE_output_reg_area, "um^2")
+        print("--------------------PE Latency Simulation Results-----------------")
+        print("PE latency:", self.PE_latency, "ns")
+        print("			input buffer latency:", self.PE_buffer_latency, "ns")
+        print("			|---input buffer write latency:", self.PE_input_buffer_wlatency, "ns")
+        print("			|---input buffer read latency:", self.PE_input_buffer_rlatency, "ns")
+        print("			crossbar latency:", self.PE_xbar_latency, "ns")
+        print("			DAC latency:", self.PE_DAC_latency, "ns")
+        print("			ADC latency:", self.PE_ADC_latency, "ns")
+        print("			digital part latency:", self.PE_digital_latency, "ns")
+        print("			|---adder tree latency:", self.PE_addertree_latency, "ns")
+        print("			|---shift-reg read latency:", self.PE_shiftreg_rlatency, "ns")
+        print("			|---shift-reg write latency:", self.PE_shiftreg_wlatency, "ns")
+        print("			|---accumulator latency:", self.PE_accumulator_latency, "ns")
+        print("			|---ADC demux latency:", self.PE_ADC_demux_latency, "ns")
+        print("			|---ADC mux latency:", self.PE_ADC_mux_latency, "ns")
+        print("			|---accumulator demux latency:", self.PE_accumulator_demux_latency, "ns")
+        print("			|---input reg read latency:", self.PE_input_reg_rlatency, "ns")
+        print("			|---input reg write latency:", self.PE_input_reg_wlatency, "ns")
+        print("			|---output reg read latency:", self.PE_output_reg_rlatency, "ns")
+        print("			|---output reg write latency:", self.PE_output_reg_wlatency, "ns")
+        print("------------------PE Energy Simulation Results--------------------")
+        print("PE energy:", self.PE_energy, "nJ")
+        print("			input buffer energy:", self.PE_buffer_energy, "nJ")
+        print("			|---input buffer write energy:", self.PE_input_buffer_wenergy, "nJ")
+        print("			|---input buffer read energy:", self.PE_input_buffer_renergy, "nJ")
+        print("			crossbar energy:", self.PE_xbar_energy, "nJ")
+        print("			DAC energy:", self.PE_DAC_energy, "nJ")
+        print("			ADC energy:", self.PE_ADC_energy, "nJ")
+        print("			digital part energy:", self.PE_digital_energy, "nJ")
+        print("			|---adder tree energy:", self.PE_addertree_energy, "nJ")
+        print("			|---shift-reg read energy:", self.PE_shiftreg_renergy, "nJ")
+        print("			|---shift-reg write energy:", self.PE_shiftreg_wenergy, "nJ")
+        print("			|---accumulator energy:", self.PE_accumulator_energy, "nJ")
+        print("			|---ADC demux energy:", self.PE_ADC_demux_energy, "nJ")
+        print("			|---ADC mux energy:", self.PE_ADC_mux_energy, "nJ")
+        print("			|---accumulator demux energy:", self.PE_accumulator_demux_energy, "nJ")
+        print("			|---input reg read energy:", self.PE_input_reg_renergy, "nJ")
+        print("			|---input reg write energy:", self.PE_input_reg_wenergy, "nJ")
+        print("			|---output reg read energy:", self.PE_output_reg_renergy, "nJ")
+        print("			|---output reg write energy:", self.PE_output_reg_wenergy, "nJ")
+        print("--------------------PE Power Simulation Results-------------------")
+        print("PE power:", self.PE_power, "W")
+        print("			buffer power:", self.PE_buffer_power, "W")
+        print("			analog part power:", self.PE_analog_power, "W")
+        print("			digital part power:", self.PE_digital_power, "W")
+        
 
-def test_PE():
-    pass
+def test_PE_basic():
+    test_SimConfig_path = os.path.join("/home/leitaoming/project/FADESim/", "src/hardware_model/config/hardware_config.ini")
+    print("load file:", test_SimConfig_path)
+    pe = ProcessElement_Basic(test_SimConfig_path)
+    pe.calculate_PE_area()
+    pe.calculate_PE_latency_no_pipeline()
+    pe.calculate_PE_energy()
+    pe.calculate_PE_power_no_pipeline()
+
+    pe.PE_print_metrics()

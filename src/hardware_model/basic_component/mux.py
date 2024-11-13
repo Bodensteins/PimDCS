@@ -72,4 +72,6 @@ class Mux:
         self.mux_latency = muxLatency_dict[1]
 
     def calculate_mux_energy(self):
-        self.mux_energy = self.mux_power * self.mux_energy
+        assert self.mux_power >= 0
+        assert self.mux_latency >= 0
+        self.mux_energy = self.mux_power * self.mux_power

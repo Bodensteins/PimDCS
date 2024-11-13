@@ -15,7 +15,7 @@ class Crossbar_Basic:
         # self.subarray_size = int(xbar_config.get('Crossbar level', 'Subarray_Size'))
         # assert self.xbar_row % self.subarray_size == 0, "The crossbar size must be divisible by the subarray size"
         # self.subarray_num = self.xbar_row/self.subarray_size
-        self.PIM_type = int(xbar_config.get('Process element level', 'PIM_Type'))
+        # self.PIM_type = int(xbar_config.get('Process element level', 'PIM_Type'))
         self.cell_type = xbar_config.get('Crossbar level', 'Cell_Type')
         self.transistor_tech = int(xbar_config.get('Crossbar level', 'Transistor_Tech'))
         self.wire_resistance = float(xbar_config.get('Crossbar level', 'Wire_Resistance'))
@@ -54,12 +54,14 @@ class Crossbar_Basic:
         # 使用器件工艺制程计算面积
         WL_ratio = 3
         # WL_ratio is the technology parameter W/L of the transistor
-        self.xbar_area = 3 * (WL_ratio + 1) * self.xbar_row * self.xbar_column * self.device_tech**2 * 1e-6
+        self.xbar_area = 3 * (WL_ratio + 1) * self.xbar_row * self.xbar_column * self.device_model.device_tech**2 * 1e-6
         
     def calculate_xbar_read_latency(self):
         # 计算一次OU读（计算）的延迟
         size = self.xbar_row*self.xbar_column / 1024 / 8  # KB
         wire_latency = 0.001 * (0.0002 * size ** 2 + 5 * 10 ** -6 * size + 4 * 10 ** -14)  # ns，wire latency不是很精确，不过影响很小
+        # print(wire_latency)
+        # print(self.device_model.device_read_latency)
         self.xbar_read_latency = self.device_model.device_read_latency + wire_latency
         
     def calculate_xbar_read_power(self):

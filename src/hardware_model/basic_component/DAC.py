@@ -8,10 +8,10 @@ class DAC:
 	def __init__(self, SimConfig_path):
 		DAC_config = cp.ConfigParser()
 		DAC_config.read(SimConfig_path, encoding='UTF-8')
-		self.PIM_type_dac = int(DAC_config.get('Process element level', 'PIM_Type'))
+		# self.PIM_type_dac = int(DAC_config.get('Process element level', 'PIM_Type'))
 		self.DAC_choice = int(DAC_config.get('Interface level', 'DAC_Choice'))
-		if self.PIM_type_dac == 1 and self.DAC_choice != -1:
-			self.DAC_choice = 1
+		# if self.PIM_type_dac == 1 and self.DAC_choice != -1:
+		# 	self.DAC_choice = 1
 		self.DAC_area = float(DAC_config.get('Interface level', 'DAC_Area'))
 		self.DAC_precision = int(DAC_config.get('Interface level', 'DAC_Precision'))
 		self.DAC_power = float(DAC_config.get('Interface level', 'DAC_Power'))

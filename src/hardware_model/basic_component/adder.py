@@ -15,11 +15,13 @@ class Adder:
         else:
             self.adder_bitwidth = bitwidth
         assert self.adder_bitwidth > 0
-        self.adder_frequency = float(adder_config.get('Digital module', 'Digital_Frequency'))*1e3
+        # 为什么是乘1e3而不是1e-3
+        self.adder_frequency = float(adder_config.get('Digital module', 'Digital_Frequency'))*1e-3
         if self.adder_frequency is None:
-            self.adder_frequency = 100
+            self.adder_frequency = 1
         assert self.adder_frequency > 0
         self.adder_latency = 1.0/self.adder_frequency
+        print(self.adder_latency)
         self.adder_energy = 0
         self.calculate_adder_power()
 

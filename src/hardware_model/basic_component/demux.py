@@ -28,7 +28,9 @@ class Demux:
                            64: 1944*transistor_area
         }
         # unit: um^2
-        if self.demux_out_num <= 2:
+        if self.demux_out_num  <= 1:
+            self.demux_area = 0
+        elif self.demux_out_num <= 2:
             self.demux_area = demux_area_dict[2]
         elif self.demux_out_num<=4:
             self.demux_area = demux_area_dict[4]
@@ -44,6 +46,11 @@ class Demux:
     # todo: 补全latency
     def calculate_demux_latency(self):
         # todo
+        if self.demux_out_num  <= 1:
+            self.demux_latency = 0
+            return
+
+        # 这个latency数据感觉有问题
         demux_latency_dict = {
             1:0.27933 # 1:8, technology 65nm
         }
@@ -61,20 +68,24 @@ class Demux:
                          64: 1944*transistor_power
         }
         # unit: W
-        if self.demux_out_num <= 2:
-            self.input_demux_power = demux_power_dict[2]
+        if self.demux_out_num  <= 1:
+            self.demux_power = 0
+        elif self.demux_out_num <= 2:
+            self.demux_power = demux_power_dict[2]
         elif self.demux_out_num<=4:
-            self.input_demux_power = demux_power_dict[4]
+            self.demux_power = demux_power_dict[4]
         elif self.demux_out_num<=8:
-            self.input_demux_power = demux_power_dict[8]
+            self.demux_power = demux_power_dict[8]
         elif self.demux_out_num<=16:
-            self.input_demux_power = demux_power_dict[16]
+            self.demux_power = demux_power_dict[16]
         elif self.demux_out_num<=32:
-            self.input_demux_power = demux_power_dict[32]
+            self.demux_power = demux_power_dict[32]
         else:
-            self.input_demux_power = demux_power_dict[64]
+            self.demux_power = demux_power_dict[64]
 
     # todo
     def calculate_demux_energy(self):
+        assert self.demux_power >= 0
+        assert self.demux_latency >= 0
         self.demux_energy = self.demux_latency * self.demux_power
 

@@ -8,11 +8,11 @@ class ADC:
     def __init__(self, SimConfig_path):
         ADC_config = cp.ConfigParser()
         ADC_config.read(SimConfig_path, encoding='UTF-8')
-        self.PIM_type_adc = int(ADC_config.get('Process element level', 'PIM_Type'))
+        # self.PIM_type_adc = int(ADC_config.get('Process element level', 'PIM_Type'))
         self.ADC_choice = int(ADC_config.get('Interface level', 'ADC_Choice'))
-        if self.PIM_type_adc == 1 and self.ADC_choice != -1:
-            # digital PIM architecture
-            self.ADC_choice = 8
+        # if self.PIM_type_adc == 1 and self.ADC_choice != -1:
+        #     # digital PIM architecture
+        #     self.ADC_choice = 8
         self.ADC_area = float(ADC_config.get('Interface level', 'ADC_Area'))
         self.ADC_precision = int(ADC_config.get('Interface level', 'ADC_Precision'))
         self.ADC_power = float(ADC_config.get('Interface level', 'ADC_Power'))
@@ -64,7 +64,7 @@ class ADC:
             assert self.ADC_choice in [1,2,3,4,5,6,7,8,9]
             self.ADC_precision = ADC_precision_dict[self.ADC_choice]
 
-    # ADC平均功耗
+    # ADC功耗
     def calculate_ADC_power(self):
         #unit: W
         ADC_power_dict = {1: 6.92*1e-3, #reference: A 10b 1.5GS/s Pipelined-SAR ADC with Background Second-Stage Common-Mode Regulation and Offset Calibration in 14nm CMOS FinFET

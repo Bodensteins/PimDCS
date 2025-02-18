@@ -188,6 +188,11 @@ class FpDataAnalyzer_PN(FpDataAnalyzer):
         self.weight_bit_vec_ones_num_dict_pos = {}
         self.weight_bit_vec_ones_num_dict_neg = {}
 
+        # 统计不同OU输出结果的出现频率
+        self.ou_column_output_num_dict = {}
+
+
+
     def update_weight_sparsity(self) -> None:
         assert self.mm_manager != None
         # 若各比特分片合在了一起，则需重新拆开
@@ -236,9 +241,21 @@ class FpDataAnalyzer_PN(FpDataAnalyzer):
             else:
                 self.weight_bit_vec_ones_num_dict_neg[n_neg.item()] = c_neg.item()
 
+    def update_ou_column_output_num(self) -> None:
+        assert self.mm_manager.fp_ou_column_output != None
+        # device = torch.device("cpu")
+        ou_column_output = self.mm_manager.fp_ou_column_output#.to(torch.device("cpu"))
+        out_value, counts = torch.unique(ou_column_output, return_counts=True)
+        for n, c in zip(out_value, counts):
+            if self.ou_column_output_num_dict.__contains__(n.item()):
+                self.ou_column_output_num_dict[n.item()] += c.item()
+            else:
+                self.ou_column_output_num_dict[n.item()] = c.item()
+
     def update_all_weight_statistic(self):
         self.update_weight_sparsity()
-        self.update_weight_bit_vec_ones_num()
+        # self.update_weight_bit_vec_ones_num()
+        # self.update_ou_column_output_num()
 
     def print_statistic(self):
         print("权重比特分片稀疏度:")
@@ -259,17 +276,27 @@ class FpDataAnalyzer_PN(FpDataAnalyzer):
         #         propotion = counts / total_counts
         #         print(f"bit vec:{bit_vec}, counts:{counts}, propotion:{propotion:.2%}")
             
-        print("\n不同1数量的权重OU列的出现次数和频率:")
-        total_counts_pos = sum(self.weight_bit_vec_ones_num_dict_pos.values())
-        total_counts_neg = sum(self.weight_bit_vec_ones_num_dict_neg.values())
-        for ones_num_pos in self.weight_bit_vec_ones_num_dict_pos:
-            counts_pos = self.weight_bit_vec_ones_num_dict_pos[ones_num_pos]
-            propotion_pos = counts_pos / total_counts_pos
-            print(f"positive ou -- ones num:{ones_num_pos}, counts:{counts_pos}, propotion:{propotion_pos:.2%}")
-        for ones_num_neg in self.weight_bit_vec_ones_num_dict_neg:
-            counts_neg = self.weight_bit_vec_ones_num_dict_neg[ones_num_neg]
-            propotion_neg = counts_neg / total_counts_neg
-            print(f"negative ou -- ones num:{ones_num_neg}, counts:{counts_neg}, propotion:{propotion_neg:.2%}")
+        # print("\n不同1数量的权重OU列的出现次数和频率:")
+        # total_counts_pos = sum(self.weight_bit_vec_ones_num_dict_pos.values())
+        # total_counts_neg = sum(self.weight_bit_vec_ones_num_dict_neg.values())
+        # for ones_num_pos in self.weight_bit_vec_ones_num_dict_pos:
+        #     counts_pos = self.weight_bit_vec_ones_num_dict_pos[ones_num_pos]
+        #     propotion_pos = counts_pos / total_counts_pos
+        #     print(f"positive ou -- ones num:{ones_num_pos}, counts:{counts_pos}, propotion:{propotion_pos:.2%}")
+        # for ones_num_neg in self.weight_bit_vec_ones_num_dict_neg:
+        #     counts_neg = self.weight_bit_vec_ones_num_dict_neg[ones_num_neg]
+        #     propotion_neg = counts_neg / total_counts_neg
+        #     print(f"negative ou -- ones num:{ones_num_neg}, counts:{counts_neg}, propotion:{propotion_neg:.2%}")
+        print("\n不同OU输出结果的出现次数和频率(正负OU结果相减):")
+        total_counts = sum(self.ou_column_output_num_dict.values())
+        for out_value in self.ou_column_output_num_dict:
+            counts = self.ou_column_output_num_dict[out_value]
+            propotion = counts / total_counts
+            if out_value != 0:
+                non_zero_propotion = counts / (total_counts - self.input_bit_vec_ones_num_dict[0])
+            else:
+                non_zero_propotion = 0
+            print(f"ou out value:{out_value}, counts:{counts}, propotion:{propotion:.2%}, non zero propotion:{non_zero_propotion:.2%}")
 
         print("\n不同1数量的OU粒度输入向量的出现次数和频率:")
         total_counts = sum(self.input_bit_vec_ones_num_dict.values())

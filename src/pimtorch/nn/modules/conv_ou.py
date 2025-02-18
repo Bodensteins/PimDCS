@@ -104,6 +104,7 @@ class Conv2d_OU(Module):
 
             if isinstance(self.mm_manager, mmm.FixedPointMatMulManager_OU):
                 self.data_analyzer.update_all_input_statistic()
+                self.data_analyzer.update_ou_column_output_num()
 
             if self.has_bias:
                 output += self.bias

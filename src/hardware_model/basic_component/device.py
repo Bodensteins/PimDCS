@@ -2,7 +2,7 @@ import configparser as cp
 import os
 import math
 
-
+# 需修改为多bit cell情况
 class Device:
     def __init__(self, SimConfig_path):
         device_config = cp.ConfigParser()

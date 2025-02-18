@@ -4,6 +4,7 @@ from torch import Tensor
 from src.pimtorch.config.globalCfg import TensorType, globalCfg
 import src.pimtorch.nn.fixedPointArithmetic as fpA
 
+# 需要改为考虑多比特单元
 
 # 仅仅是将输入和权重分片，然后分片相乘，移位累加
 # 已测试
@@ -350,5 +351,42 @@ class FixedPointMatMulManager_OU_PN(FixedPointMatMulManager_OU):
             self.fp_weight_split_pos = FixedPointMatMulManager_OU_PN.split_weight(self.fp_weight_slices_pos, ou_size)
             self.fp_weight_split_neg = FixedPointMatMulManager_OU_PN.split_weight(self.fp_weight_slices_neg, ou_size)
 
+        self.fp_ou_column_output = None
+
     def mat_mul(self, input:Tensor) -> Tensor:
         return self.fake_mat_mul(input)
+    
+    def fake_mat_mul(self, input:Tensor) -> Tensor:
+        assert input.device == self.device
+        assert input.shape[1] == self.original_in_size
+        batch_size = input.shape[0]
+        # ou_col_num = self.fp_weight_split.shape[1] // self.weight_bit_width
+        # ou_col_size = self.fp_weight_split.shape[3]
+
+        # 输入量化
+        fp_input, params = fpA.quantization_tensor(input, self.input_bit_width, TensorType.Normal)
+        input_s = params[0].item()
+
+        # 根据ou_row大小补全输入，使输入长度与ou_row大小对齐
+        if self.original_in_size % self.ou_size[0] != 0:
+            temp_size = self.ou_size[0] - self.original_in_size % self.ou_size[0]
+            fp_input = torch.cat((fp_input, torch.zeros((batch_size, temp_size), dtype=fp_input.dtype, device=fp_input.device)), dim=1)
+        self.fp_input = fp_input
+
+        # 输入按比特分片，[batch_szie*bit_width, in_size]
+        fp_input_slices = FixedPointMatMulManager_OU.slice_tensor(fp_input, self.input_bit_width, self.input_slice_bit, cat_dim=self.input_slice_cat_dim)
+        self.fp_input_slices = fp_input_slices
+
+        # 按OU行大小拆分输入比特，[ou_row_num, batch_size*bit_width, ou_row_size]
+        fp_input_split = FixedPointMatMulManager_OU.split_input(fp_input_slices, self.ou_size[0])
+        self.fp_input_split = fp_input_split
+
+        self.fp_ou_column_output = self.fp_weight_split_pos - self.fp_weight_split_neg
+
+        # 每个OU并行执行矩阵乘法，利用einsum进行并行计算
+        # 得到output[ou_row_num, ou_col_num*weight_bit_width, batch_size*input_bit_width, ou_col_size]
+        self.fp_ou_column_output = FixedPointMatMulManager_OU.tensor_int_einsum_cuda('rbh,rchw->rcbw', fp_input_split, self.fp_ou_column_output)
+
+        output = FixedPointMatMulManager_OU.tensor_int_mul_cuda(fp_input, self.fp_weight).to(dtype=torch.float)
+        output = output.mul(2 ** (input_s + self.weight_s))
+        return output[:, 0:self.original_out_size]

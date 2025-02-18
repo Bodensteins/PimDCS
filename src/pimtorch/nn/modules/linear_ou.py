@@ -70,6 +70,7 @@ class Linear_OU(Module):
             output = self.mm_manager.fake_mat_mul(input)
             if isinstance(self.mm_manager, mmm.FixedPointMatMulManager_OU):
                 self.data_analyzer.update_all_input_statistic()
+                self.data_analyzer.update_ou_column_output_num()
             return output
 
     def extra_repr(self) -> str:

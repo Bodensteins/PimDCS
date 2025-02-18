@@ -25,6 +25,7 @@ class ProcessElement_Basic:
         self.xbar_group_num = int(PE_config.get('Process element level', 'Group_Num'))
         self.xbar_ADC_num = int(PE_config.get('Process element level', 'ADC_Num'))
         self.xbar_DAC_num = int(PE_config.get('Process element level', 'DAC_Num'))
+        self.cell_bit = int(PE_config.get('Device level', 'Cell_Bit'))
         self.weight_bitwidth = self.xbar_group_num
 
         # 缺少一个input reg mux
@@ -60,7 +61,8 @@ class ProcessElement_Basic:
         self.PE_output_reg_num = self.xbar_model.xbar_column * 2    #输出双缓冲
         # 输出双缓冲需要额外的mux和demux
     
-        self.mutiple_time = self.xbar_model.ou_num * math.ceil(self.input_bitwidth / self.DAC_model.DAC_precision)
+        # self.mutiple_time = self.xbar_model.ou_num * math.ceil(self.input_bitwidth / self.DAC_model.DAC_precision)
+        self.mutiple_time = self.xbar_model.ou_num
 
         # area
         self.PE_input_buffer_area = 0

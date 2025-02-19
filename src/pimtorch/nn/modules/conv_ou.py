@@ -69,8 +69,8 @@ class Conv2d_OU(Module):
         # print("Conv create mmm")
         weight_t = self.weight.reshape(self.out_channels, -1).t()
         # self.mm_manager = mmm.FixedPointMatMulManager(weight_t, self.weight_bit_width, self.input_bit_width)
-        # self.mm_manager = mmm.FixedPointMatMulManager_OU(weight_t, self.weight_bit_width, self.input_bit_width)
-        self.mm_manager = mmm.FixedPointMatMulManager_OU_PN(weight_t, self.weight_bit_width, self.input_bit_width)
+        self.mm_manager = mmm.FixedPointMatMulManager_OU(weight_t, self.weight_bit_width, self.input_bit_width)
+        # self.mm_manager = mmm.FixedPointMatMulManager_OU_PN(weight_t, self.weight_bit_width, self.input_bit_width)
         if isinstance(self.mm_manager, mmm.FixedPointMatMulManager_OU):
             if isinstance(self.mm_manager, mmm.FixedPointMatMulManager_OU_PN):
                 self.data_analyzer = fpDA.FpDataAnalyzer_PN(self.mm_manager)
@@ -104,6 +104,7 @@ class Conv2d_OU(Module):
 
             if isinstance(self.mm_manager, mmm.FixedPointMatMulManager_OU):
                 self.data_analyzer.update_all_input_statistic()
+            if isinstance(self.mm_manager, mmm.FixedPointMatMulManager_OU_PN):
                 self.data_analyzer.update_ou_column_output_num()
 
             if self.has_bias:

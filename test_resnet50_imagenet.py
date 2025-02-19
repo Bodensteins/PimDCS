@@ -56,9 +56,9 @@ def main():
     parser.add_argument('--cuda', action='store_true', default=True,
                         help='use CUDA training')
     
-    parser.add_argument('--data-dir', default='/home/leitaoming/data/pimtorch_data/dataset/ImageNet', metavar='DD',
+    parser.add_argument('--data-dir', default='/home/leitaoming/Data/FADESim_data/dataset/ImageNet', metavar='DD',
                         help='dir of dataset')
-    parser.add_argument('--model-dir', default='/home/leitaoming/data/pimtorch_data/model_weight', metavar='MD',
+    parser.add_argument('--model-dir', default='/home/leitaoming/Data/FADESim_data/model_weight', metavar='MD',
                         help='dir of load/save model')
     # parser.add_argument('--data-dir', default='data/ImageNet', metavar='DD',
     #                     help='dir of dataset')

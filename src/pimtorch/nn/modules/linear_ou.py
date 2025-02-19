@@ -47,8 +47,8 @@ class Linear_OU(Module):
         if self.has_bias:
             weight_t = torch.cat((weight_t, self.bias.unsqueeze(0)), 0)
         # self.mm_manager = mmm.FixedPointMatMulManager(weight_t, self.weight_bit_width, self.input_bit_width)
-        # self.mm_manager = mmm.FixedPointMatMulManager_OU(weight_t, self.weight_bit_width, self.input_bit_width)
-        self.mm_manager = mmm.FixedPointMatMulManager_OU_PN(weight_t, self.weight_bit_width, self.input_bit_width)
+        self.mm_manager = mmm.FixedPointMatMulManager_OU(weight_t, self.weight_bit_width, self.input_bit_width)
+        # self.mm_manager = mmm.FixedPointMatMulManager_OU_PN(weight_t, self.weight_bit_width, self.input_bit_width)
         if isinstance(self.mm_manager, mmm.FixedPointMatMulManager_OU):
             if isinstance(self.mm_manager, mmm.FixedPointMatMulManager_OU_PN):
                 self.data_analyzer = fpDA.FpDataAnalyzer_PN(self.mm_manager)
@@ -66,11 +66,15 @@ class Linear_OU(Module):
             if self.has_bias:
                 add_col = torch.ones((input.shape[0]), dtype=input.dtype, device=input.device).unsqueeze(1)
                 input = torch.cat((input, add_col), dim=1)
+                
             # mm_res = self.mm_manager.mat_mul(input)
             output = self.mm_manager.fake_mat_mul(input)
+
             if isinstance(self.mm_manager, mmm.FixedPointMatMulManager_OU):
                 self.data_analyzer.update_all_input_statistic()
+            if isinstance(self.mm_manager, mmm.FixedPointMatMulManager_OU_PN):
                 self.data_analyzer.update_ou_column_output_num()
+
             return output
 
     def extra_repr(self) -> str:

@@ -34,10 +34,14 @@ def main():
                         metavar='W', help='weight decay (default: 5e-4)')
     parser.add_argument('--seed', type=int, default=4, metavar='S',
                         help='random seed (default: 1)')
-    parser.add_argument('--data-dir', default='data', metavar='DD',
+    parser.add_argument('--data-dir', default='/home/leitaoming/Data/FADESim_data/dataset/ImageNet', metavar='DD',
                         help='dir of dataset')
-    parser.add_argument('--model-dir', default='model', metavar='MD',
+    parser.add_argument('--model-dir', default='/home/leitaoming/Data/FADESim_data/model_weight', metavar='MD',
                         help='dir of load/save model')
+    # parser.add_argument('--data-dir', default='data', metavar='DD',
+    #                     help='dir of dataset')
+    # parser.add_argument('--model-dir', default='model', metavar='MD',
+    #                     help='dir of load/save model')
     parser.add_argument('--load-model-type', type=int, default=2, metavar='LD',
                         help='load mode type (0:no 1:float point model 2:fixed point model')
     parser.add_argument('--load-filename', default='PimFcMnist_OU_checkpoint.pt', metavar='LF',

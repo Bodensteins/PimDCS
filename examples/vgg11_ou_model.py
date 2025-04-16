@@ -7,48 +7,48 @@ class PimVGG11_OU(nn.Module):
     def __init__(self, num_classes=100):
         super().__init__()
         self.totalDecodeTimes = 0
-        self.vgg11 = nn.Sequential(Conv2d_OU(3, 64, (3, 3), padding=(1, 1)),
+        self.vgg11 = nn.Sequential(Conv2d_OU(3, 64, (3, 3), padding=(1, 1), mm_manager_type=2),
                                    nn.BatchNorm2d(64),
                                    nn.ReLU(),
                                    nn.MaxPool2d(kernel_size=(2, 2), stride=2),
 
-                                   Conv2d_OU(64, 128, (3, 3), padding=(1, 1)),
+                                   Conv2d_OU(64, 128, (3, 3), padding=(1, 1), mm_manager_type=2),
                                    nn.BatchNorm2d(128),
                                    nn.ReLU(),
                                    nn.MaxPool2d(kernel_size=(2, 2), stride=2),
 
-                                   Conv2d_OU(128, 256, (3, 3), padding=(1, 1)),
+                                   Conv2d_OU(128, 256, (3, 3), padding=(1, 1), mm_manager_type=2),
                                    nn.BatchNorm2d(256),
                                    nn.ReLU(),
-                                   Conv2d_OU(256, 256, (3, 3), padding=(1, 1)),
+                                   Conv2d_OU(256, 256, (3, 3), padding=(1, 1), mm_manager_type=2),
                                    nn.BatchNorm2d(256),
                                    nn.ReLU(),
                                    nn.MaxPool2d(kernel_size=(2, 2), stride=2),
 
-                                   Conv2d_OU(256, 512, (3, 3), padding=(1, 1)),
+                                   Conv2d_OU(256, 512, (3, 3), padding=(1, 1), mm_manager_type=2),
                                    nn.BatchNorm2d(512),
                                    nn.ReLU(),
-                                   Conv2d_OU(512, 512, (3, 3), padding=(1, 1)),
+                                   Conv2d_OU(512, 512, (3, 3), padding=(1, 1), mm_manager_type=0),
                                    nn.BatchNorm2d(512),
                                    nn.ReLU(),
                                    nn.MaxPool2d(kernel_size=(2, 2), stride=2),
 
-                                   Conv2d_OU(512, 512, (3, 3), padding=(1, 1)),
+                                   Conv2d_OU(512, 512, (3, 3), padding=(1, 1), mm_manager_type=0),
                                    nn.BatchNorm2d(512),
                                    nn.ReLU(),
-                                   Conv2d_OU(512, 512, (3, 3), padding=(1, 1)),
+                                   Conv2d_OU(512, 512, (3, 3), padding=(1, 1), mm_manager_type=0),
                                    nn.BatchNorm2d(512),
                                    nn.ReLU(),
                                    nn.MaxPool2d(kernel_size=(2, 2), stride=2),
 
                                    nn.Flatten(),
-                                   Linear_OU(1 * 1 * 512, 512),
+                                   Linear_OU(1 * 1 * 512, 512, mm_manager_type=2),
                                    nn.ReLU(),
                                    nn.Dropout(),
-                                   Linear_OU(512, 512),
+                                   Linear_OU(512, 512, mm_manager_type=2),
                                    nn.ReLU(),
                                    nn.Dropout(),
-                                   Linear_OU(512, num_classes)
+                                   Linear_OU(512, num_classes, mm_manager_type=2)
                                    )
       
 

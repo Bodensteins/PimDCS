@@ -56,7 +56,7 @@ def main():
                         help='use which model (0:conv 1:fc 2:deepFc)')
     parser.add_argument('--cuda', action='store_true', default=True,
                         help='use CUDA training')
-    parser.add_argument('--cuda_use_num', type=int, default=0, metavar='CUDA',
+    parser.add_argument('--cuda_use_num', type=int, default=3, metavar='CUDA',
                         help='use which cuda (choice: 0-2)')
 
     args = parser.parse_args()

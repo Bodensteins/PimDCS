@@ -13,7 +13,7 @@ from src.pimtorch.nn import fixedPointDataAnalyze as fpDA
 class Linear_OU(Module):
     def __init__(self, in_features: int, out_features: int, bias: bool = True, input_bit_width: int = globalCfg.dataFlowBitWidth, 
                  output_bit_width: int = globalCfg.dataFlowBitWidth, weight_bit_width: int = globalCfg.dataFlowBitWidth,
-                 grad_output_bit_width: int = globalCfg.dataFlowBitWidth) -> None:
+                 grad_output_bit_width: int = globalCfg.dataFlowBitWidth, mm_manager_type: int = 0) -> None:
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
@@ -23,6 +23,7 @@ class Linear_OU(Module):
         self.output_bit_width = output_bit_width
         self.weight_bit_width = weight_bit_width
         self.grad_output_bit_width = grad_output_bit_width
+        self.mm_manager_type = mm_manager_type
 
         self.weight = Parameter(torch.empty((out_features, in_features), dtype=torch.float))
         if self.has_bias:
@@ -46,9 +47,14 @@ class Linear_OU(Module):
         weight_t = self.weight.t()
         if self.has_bias:
             weight_t = torch.cat((weight_t, self.bias.unsqueeze(0)), 0)
-        # self.mm_manager = mmm.FixedPointMatMulManager(weight_t, self.weight_bit_width, self.input_bit_width)
-        self.mm_manager = mmm.FixedPointMatMulManager_OU(weight_t, self.weight_bit_width, self.input_bit_width)
-        # self.mm_manager = mmm.FixedPointMatMulManager_OU_PN(weight_t, self.weight_bit_width, self.input_bit_width)
+        
+        if self.mm_manager_type == 1:
+            self.mm_manager = mmm.FixedPointMatMulManager_OU(weight_t, self.weight_bit_width, self.input_bit_width)
+        elif self.mm_manager_type == 2:
+            self.mm_manager = mmm.FixedPointMatMulManager_OU_PN(weight_t, self.weight_bit_width, self.input_bit_width)
+        else:
+            self.mm_manager = mmm.FixedPointMatMulManager(weight_t, self.weight_bit_width, self.input_bit_width)
+
         if isinstance(self.mm_manager, mmm.FixedPointMatMulManager_OU):
             if isinstance(self.mm_manager, mmm.FixedPointMatMulManager_OU_PN):
                 self.data_analyzer = fpDA.FpDataAnalyzer_PN(self.mm_manager)

@@ -10,6 +10,9 @@ def print_nn_Sequential_Modules_statistic(modules:nn.Sequential):
     ou_out_count_dict = {}
     for module in modules():
         if isinstance(module, Conv2d_OU) or isinstance(module, Linear_OU):
+            if module.mm_manager_type == 0:
+                continue
+
             print("---------------------")
             print(module)
             module.print_statistic()
@@ -41,10 +44,13 @@ def print_nn_Sequential_Modules_statistic(modules:nn.Sequential):
                 #         weight_count_dict_neg[ones] = weight_ones_num_dict_neg[ones]
                 ou_out_dict = module.data_analyzer.ou_column_output_num_dict
                 for value in ou_out_dict:
-                    if ou_out_count_dict.__contains__(ones):
+                    if ou_out_count_dict.__contains__(value):
                         ou_out_count_dict[value] += ou_out_dict[value]
                     else:
                         ou_out_count_dict[value] = ou_out_dict[value]
+
+    # 排序
+    ou_out_count_dict = dict(sorted(ou_out_count_dict.items()))
 
     print("\n----------total-----------")
     print("\n不同1数量的输入向量的出现次数和频率:")

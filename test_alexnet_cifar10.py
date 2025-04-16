@@ -22,7 +22,7 @@ def main():
     parser = argparse.ArgumentParser(description='PyTorch Cifar10 Example')
     parser.add_argument('--train-batch-size', type=int, default=64, metavar='TRAIN_BATCH',
                         help='input batch size for training (default: 64)')
-    parser.add_argument('--test-batch-size', type=int, default=1, metavar='TEST_BATCH',
+    parser.add_argument('--test-batch-size', type=int, default=100, metavar='TEST_BATCH',
                         help='input batch size for testing (default: 400)')
     
     parser.add_argument('--epochs', type=int, default=10, metavar='N',
@@ -74,7 +74,7 @@ def main():
                         help='train the model')
     parser.add_argument('--fixed-point', action='store_true', default=True,
                         help='For use fixed point')
-    parser.add_argument('--cuda-use-num', type=int, default=0, metavar='CUDA',
+    parser.add_argument('--cuda-use-num', type=int, default=3, metavar='CUDA',
                         help='use which cuda (choice: 0-3)')
 
     args = parser.parse_args()

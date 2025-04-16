@@ -212,6 +212,7 @@ def test_model(model, device, test_loader, criterion, half=False):
 
             round += 1
             print("round: {}, loss: {:.4f}, acc: {:.4f}".format(round, test_loss, correct / round / len(data)))
+            
             if round == 10:
                 break
 

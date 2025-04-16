@@ -72,7 +72,7 @@ def main():
                         help='train the model')
     parser.add_argument('--fixed-point', action='store_true', default=True,
                         help='For use fixed point')
-    parser.add_argument('--cuda-use-num', type=int, default=1, metavar='CUDA',
+    parser.add_argument('--cuda-use-num', type=int, default=3, metavar='CUDA',
                         help='use which cuda (choice: 0-3)')
 
     args = parser.parse_args()

@@ -20,7 +20,7 @@ class Conv2d_OU(Module):
                  output_bit_width: int = globalCfg.dataFlowBitWidth, weight_bit_width: int = globalCfg.dataFlowBitWidth,
                  grad_output_bit_width: int = globalCfg.dataFlowBitWidth,
                  next_grad_output_bit_width: int = globalCfg.dataFlowBitWidth,
-                 batch_norm=True) -> None:
+                 batch_norm=True, mm_manager_type: int = 0) -> None:
         super().__init__()
 
         if groups <= 0:
@@ -45,6 +45,7 @@ class Conv2d_OU(Module):
         self.grad_output_bits = grad_output_bit_width
         self.next_grad_output_bits = next_grad_output_bit_width
         self.batch_norm = batch_norm
+        self.mm_manager_type = mm_manager_type
 
         self._reversed_padding_repeated_twice = _reverse_repeat_tuple(self.padding, 2)
 
@@ -68,9 +69,14 @@ class Conv2d_OU(Module):
     def create_mat_mul_manager(self) -> None:
         # print("Conv create mmm")
         weight_t = self.weight.reshape(self.out_channels, -1).t()
-        # self.mm_manager = mmm.FixedPointMatMulManager(weight_t, self.weight_bit_width, self.input_bit_width)
-        self.mm_manager = mmm.FixedPointMatMulManager_OU(weight_t, self.weight_bit_width, self.input_bit_width)
-        # self.mm_manager = mmm.FixedPointMatMulManager_OU_PN(weight_t, self.weight_bit_width, self.input_bit_width)
+        
+        if self.mm_manager_type == 1:
+            self.mm_manager = mmm.FixedPointMatMulManager_OU(weight_t, self.weight_bit_width, self.input_bit_width)
+        elif self.mm_manager_type == 2:
+            self.mm_manager = mmm.FixedPointMatMulManager_OU_PN(weight_t, self.weight_bit_width, self.input_bit_width)
+        else:
+            self.mm_manager = mmm.FixedPointMatMulManager(weight_t, self.weight_bit_width, self.input_bit_width)
+
         if isinstance(self.mm_manager, mmm.FixedPointMatMulManager_OU):
             if isinstance(self.mm_manager, mmm.FixedPointMatMulManager_OU_PN):
                 self.data_analyzer = fpDA.FpDataAnalyzer_PN(self.mm_manager)

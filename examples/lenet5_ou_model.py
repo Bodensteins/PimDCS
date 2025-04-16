@@ -7,19 +7,19 @@ class PimLeNet5_OU(nn.Module):
     def __init__(self):
         super().__init__()
         self.lenet5 = nn.Sequential(
-            Conv2d_OU(1, 6, kernel_size=(5, 5), padding=2),
+            Conv2d_OU(1, 6, kernel_size=(5, 5), padding=2, mm_manager_type=0),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=(2, 2), stride=2),
-            Conv2d_OU(6, 16, kernel_size=(5, 5)),
+            Conv2d_OU(6, 16, kernel_size=(5, 5), mm_manager_type=0),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=(2, 2), stride=2),
-            Conv2d_OU(16, 120, kernel_size=(5, 5)),
+            Conv2d_OU(16, 120, kernel_size=(5, 5), mm_manager_type=0),
             nn.ReLU(),
             
             nn.Flatten(),
-            Linear_OU(120, 84),
+            Linear_OU(120, 84, mm_manager_type=0),
             nn.ReLU(),
-            Linear_OU(84, 10)
+            Linear_OU(84, 10, mm_manager_type=0)
         )
         
     def forward(self, x):

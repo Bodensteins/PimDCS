@@ -9,3 +9,10 @@ cmake-build-debug-wsl/
 *.idea/
 test.py
 test2.py
+test_spec.py
+*.log
+old/
+log/
+test/
+figure/
+adc_energy_model.py

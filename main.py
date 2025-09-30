@@ -2,9 +2,8 @@ import argparse
 import torch.nn as nn
 import torch.utils.data
 from torch.utils.data import DataLoader
-from src.utils import prepare
+from src.utils import common
 from src.utils import statistic
-from src.adc_algorithm.adc_algorithm_test import nn_test_final
 
 
 def nn_run():
@@ -14,7 +13,7 @@ def nn_run():
     # batch
     parser.add_argument('--test-batch-size', type=int, default=10, metavar='TEST_BATCH',
                         help='input batch size for testing (default: 400)')
-    parser.add_argument('--round', type=int, default=1000, metavar='ROUND',
+    parser.add_argument('--round', type=int, default=5, metavar='ROUND',
                         help='round end')
     parser.add_argument('--seed', type=int, default=4, metavar='S',
                         help='random seed (default: 1)')
@@ -57,20 +56,16 @@ def nn_run():
     print(f"device: {device}")
 
     test_kwargs = {'batch_size': args.test_batch_size}
-    model, dataset = prepare.load_model_and_dataset(args.net, args.dataset, args.model_dir, args.data_dir, device)
-    test_loader = DataLoader(dataset, **test_kwargs)
+    model, dataset = common.load_model_and_dataset(args.net, args.dataset, args.model_dir, args.data_dir, device)
+    test_loader = DataLoader(dataset, **test_kwargs, shuffle=True)
 
     criterion = nn.CrossEntropyLoss(reduction='sum')
-    prepare.test_model(model, device, test_loader, criterion, round_end=args.round)
+    common.test_model(model, device, test_loader, criterion, round_end=args.round)
 
-    statistic.save_statistic(model, args.save_dir, args.postfix)
-
-
-def adc_test():
-    nn_test_final()
+    if args.postfix == 'sample' or args.postfix == 'test':
+        statistic.save_statistic(model, args.save_dir, args.postfix)
 
 
 if __name__ == "__main__":
     nn_run()
-    # adc_test()
 

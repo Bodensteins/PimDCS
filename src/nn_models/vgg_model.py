@@ -85,21 +85,24 @@ VGG_cfg = {
 }
 
 
-def vgg11(batch_norm=False):
+def vgg11_imagenet(batch_norm=False):
     """VGG 11-layer model (configuration "A")"""
     return VGG_imagenet(make_layers(VGG_cfg['A'], batch_norm=batch_norm))
 
+def vgg11_cifar10(batch_norm=False):
+    """VGG 11-layer model (configuration "A")"""
+    return VGG_cifar10(make_layers(VGG_cfg['A'], batch_norm=batch_norm))
 
-def vgg13(batch_norm=False):
+def vgg13_imagenet(batch_norm=False):
     """VGG 13-layer model (configuration "B")"""
     return VGG_imagenet(make_layers(VGG_cfg['B'], batch_norm=batch_norm))
 
 
-def vgg16(batch_norm=False):
+def vgg16_imagenet(batch_norm=False):
     """VGG 16-layer model (configuration "D")"""
     return VGG_imagenet(make_layers(VGG_cfg['D'], batch_norm=batch_norm))
 
 
-def vgg19(batch_norm=False):
+def vgg1_imagenet(batch_norm=False):
     """VGG 19-layer model (configuration "E")"""
     return VGG_imagenet(make_layers(VGG_cfg['E'], batch_norm=batch_norm))

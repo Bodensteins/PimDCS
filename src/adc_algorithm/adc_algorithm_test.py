@@ -7,8 +7,8 @@ from src.adc_algorithm import dcs, naive, tailor, trq, adc_energy_model
 # vgg16
 # resnet18
 def nn_test_final():
-    data_path, layer_num = '/home/leitaoming/Data/FADESim_data/exp_data/alexnet_cifar10/', 7
-    # data_path, layer_num = '/home/leitaoming/Data/FADESim_data/exp_data/vgg11_cifar10/', 11
+    # data_path, layer_num = '/home/leitaoming/Data/FADESim_data/exp_data/alexnet_cifar10/', 7
+    data_path, layer_num = '/home/leitaoming/Data/FADESim_data/exp_data/vgg11_cifar10/', 11
     # data_path, layer_num = '/home/leitaoming/Data/FADESim_data/exp_data/vgg16_imagenet/', 16
     # data_path, layer_num = '/home/leitaoming/Data/FADESim_data/exp_data/resnet18_imagenet/', 21
 
@@ -26,8 +26,7 @@ def nn_test_final():
     for layer_no in range(layer_num):
         sample_file = '/layer' + str(layer_no) + '_spec_xbr128_cellbit2_sample_xbr_output.pkl' 
         test_file = '/layer' + str(layer_no) + '_spec_xbr128_cellbit2_test_xbr_output.pkl'
-        trq_sample_file = '/layer' + str(layer_no) + '_trq_xbr128_cellbit2_test_xbr_output.pkl' 
-        # trq_test_file = '/layer' + str(layer_no) + '_trq_xbr128_cellbit2_test_xbr_output.pkl'
+        trq_sample_file = '/layer' + str(layer_no) + '_trq_xbr128_cellbit2_test_xbr_output.pkl'
 
         try:
             with open(data_path+sample_file, 'rb') as f:

@@ -191,3 +191,27 @@ def cal_layer_cmp_times(dict_list_sample, dict_list_test, resolution):
 
     return total_trq_cmp_times, trq_para_list_dict
 
+
+def cal_layer_conv_step_nums(dict_list_sample, dict_list_test, resolution):
+    input_slice_num = len(dict_list_test[0])
+    weight_slice_num = len(dict_list_test[0][0])
+    trq_para_list_dict = {}
+    total_trq_cmp_times = 0
+
+    trq_dict_list_sample = merge_input_data_dict_list(dict_list_sample, input_slice_num, weight_slice_num)
+    trq_dict_list_test = merge_input_data_dict_list(dict_list_test, input_slice_num, weight_slice_num)
+
+    for sign in range(2):
+        for w in range(weight_slice_num):
+            data_dict_sample = trq_dict_list_sample[sign][w]
+            data_dict_test = trq_dict_list_test[sign][w]
+
+            trq_nr1, trq_nr2, trq_bias = trq_caibration(data_dict_sample, resolution)
+
+            trq_str = str(trq_nr1) + '_' + str(trq_nr2)
+            add_to_dict(trq_str, 1, trq_para_list_dict)
+            
+            trq_cmp_times = twin_range_quantize_sar(data_dict_test, trq_nr1, trq_nr2, trq_bias)
+            total_trq_cmp_times += trq_cmp_times
+
+    return total_trq_cmp_times, trq_para_list_dict

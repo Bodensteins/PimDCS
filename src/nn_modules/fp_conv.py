@@ -107,8 +107,6 @@ class FpConv2d(Module):
             input_h = input.size()[2]
             input_w = input.size()[3]
 
-            # print(input.shape)
-
             # unfold input tensor
             input = torch.nn.functional.unfold(input, self.kernel_size, dilation=self.dilation, padding=self.padding, stride=self.stride)
             input = input.transpose(1, 2).reshape(-1, self.in_channels * self.kernel_size[0] * self.kernel_size[1])

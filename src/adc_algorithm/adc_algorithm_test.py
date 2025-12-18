@@ -8,12 +8,12 @@ from src.adc_algorithm import dcs, naive, tailor, trq, adc_energy_model
 # resnet18
 def nn_test_final():
     # data_path, layer_num = '/home/leitaoming/Data/FADESim_data/exp_data/alexnet_cifar10/', 7
-    data_path, layer_num = '/home/leitaoming/Data/FADESim_data/exp_data/vgg11_cifar10/', 11
+    # data_path, layer_num = '/home/leitaoming/Data/FADESim_data/exp_data/vgg11_cifar10/', 11
     # data_path, layer_num = '/home/leitaoming/Data/FADESim_data/exp_data/vgg16_imagenet/', 16
-    # data_path, layer_num = '/home/leitaoming/Data/FADESim_data/exp_data/resnet18_imagenet/', 21
+    data_path, layer_num = '/home/leitaoming/Data/FADESim_data/exp_data/resnet18_imagenet/', 21
 
     resolution = 8
-    spec_cmp_times_threshold = 10
+    spec_cmp_times_threshold = 16
 
     total_spec_cmp_times = 0
     total_naive_cmp_times = 0

@@ -247,10 +247,12 @@ class FixedPointMatMulManager_Spec(FixedPointMatMulManager):
         # layer_no, sign, in_slice, w_slice, in_pos, out_pos
         # print(self.weight_slice_num)
         # 输入只支持1bit
-        for i in range(self.input_slice_num):
-            for w in range(self.weight_slice_num):
-                for r in range(self.ou_row_num):
-                    for c in range(self.ou_col_num):
+        for w in range(self.weight_slice_num):
+            for r in range(self.ou_row_num):
+                for c in range(self.ou_col_num):
+                    partial_out_list_p = []
+                    partial_out_list_n = []
+                    for i in range(self.input_slice_num):
                         weight_tensor_pos = self.fp_weight_split_pos[w, r, c, :, :]
                         weight_tensor_neg = self.fp_weight_split_neg[w, r, c, :, :]
                         input_tensor = fp_input_split[i, r, :, :]
@@ -259,9 +261,13 @@ class FixedPointMatMulManager_Spec(FixedPointMatMulManager):
                         partial_out = partial_out_p - partial_out_n
                         
                         # send to data_analyzer
-                        self.data_analyzer.update_ou_output(partial_out_p, 0, i, w, r, c)
-                        self.data_analyzer.update_ou_output(partial_out_n, 1, i, w, r, c)
+                        # self.data_analyzer.update_ou_output(partial_out_p, 0, i, w, r, c)
+                        # self.data_analyzer.update_ou_output(partial_out_n, 1, i, w, r, c)
 
+                        # print(partial_out_p.shape)
+                        partial_out_list_p.append(partial_out_p.tolist())
+                        partial_out_list_n.append(partial_out_n.tolist())
+                        
                         if i == self.input_slice_num - 1:
                             partial_out = -partial_out
                         
@@ -269,6 +275,13 @@ class FixedPointMatMulManager_Spec(FixedPointMatMulManager):
                         w_b = w * self.weight_slice_bit
                         output[:, c*self.ou_size[1]:(c+1)*self.ou_size[1]] = \
                             output[:, c*self.ou_size[1]:(c+1)*self.ou_size[1]] + partial_out.mul(2 ** (in_b + w_b + self.input_s + self.weight_s))
+
+                    self.data_analyzer.update_ou_output_cycle(partial_out_list_p, 0, w, r, c)
+                    self.data_analyzer.update_ou_output_cycle(partial_out_list_n, 1, w, r, c)
+        # for i in range(self.input_slice_num):
+        #         for r in range(self.ou_row_num):
+        #             input_tensor = fp_input_split[i, r, :, :]
+        #             self.data_analyzer.update_ou_input(input_tensor, i, r)
 
         return output[:, 0:self.original_out_size]
 
@@ -531,6 +544,10 @@ class FixedPointMatMulManager_Tailor(FixedPointMatMulManager):
 
         return input_split
     
+    @staticmethod
+    def mse():
+        pass
+
     def tailor(self, out_slice:Tensor, i, w):
         in_b = i * self.input_slice_bit
         w_b = w * self.weight_slice_bit
@@ -553,8 +570,7 @@ class FixedPointMatMulManager_Tailor(FixedPointMatMulManager):
         return out_slice
 
     def mat_mul(self, input: Tensor) -> Tensor:
-        # print(self.layer_no)
-
+       # print(self.original_in_size, self.original_out_size)
         assert input.device == self.device
         assert input.shape[1] == self.original_in_size
         batch_size = input.shape[0]
@@ -565,7 +581,7 @@ class FixedPointMatMulManager_Tailor(FixedPointMatMulManager):
             self.is_ignore_neg_input = True
 
         # 输入量化
-        fp_input, params = fpA.quantization_tensor(input, self.input_bit_width + 1, TensorType.Normal)
+        fp_input, params = fpA.quantization_tensor(input, self.input_bit_width, TensorType.Normal)
         self.input_s = params[0].item()
 
         # 根据ou_row大小补全输入，使输入长度与ou_row大小对齐
@@ -574,41 +590,34 @@ class FixedPointMatMulManager_Tailor(FixedPointMatMulManager):
             fp_input = torch.cat((fp_input, torch.zeros((batch_size, temp_size), dtype=fp_input.dtype, device=fp_input.device)), dim=1)
         self.fp_input = fp_input
 
-        # 拆分为正负输入
-        fp_input_pos = torch.clamp(self.fp_input, min=0)
-        fp_input_neg = -torch.clamp(self.fp_input, max=0)
 
-        fp_input_slices_pos = FixedPointMatMulManager_Tailor.slice_tensor(fp_input_pos, self.input_bit_width, self.input_slice_bit)
-        fp_input_slices_neg = FixedPointMatMulManager_Tailor.slice_tensor(fp_input_neg, self.input_bit_width, self.input_slice_bit)
+        fp_input_slices = FixedPointMatMulManager_Spec.slice_tensor(fp_input, self.input_bit_width, self.input_slice_bit)
         # self.fp_input_slices = fp_input_slices
 
-        fp_input_split_pos = FixedPointMatMulManager_Tailor.split_input(fp_input_slices_pos, self.ou_size[0])
-        fp_input_split_neg = FixedPointMatMulManager_Tailor.split_input(fp_input_slices_neg, self.ou_size[0])
+        fp_input_split = FixedPointMatMulManager_Spec.split_input(fp_input_slices, self.ou_size[0])
 
         output = torch.zeros(batch_size, self.out_size, device=self.device)
 
         # layer_no, sign, in_slice, w_slice, in_pos, out_pos
+        # print(self.weight_slice_num)
+        # 输入只支持1bit
         for i in range(self.input_slice_num):
             for w in range(self.weight_slice_num):
                 for r in range(self.ou_row_num):
                     for c in range(self.ou_col_num):
                         weight_tensor_pos = self.fp_weight_split_pos[w, r, c, :, :]
                         weight_tensor_neg = self.fp_weight_split_neg[w, r, c, :, :]
-                        input_tensor_pos = fp_input_split_pos[i, r, :, :]
-                        partial_out_pp = FixedPointMatMulManager_Tailor.tensor_int_mul_cuda(input_tensor_pos, weight_tensor_pos)
-                        partial_out_pn = FixedPointMatMulManager_Tailor.tensor_int_mul_cuda(input_tensor_pos, weight_tensor_neg)
-                        # print(partial_out_pp)
-                        partial_out_pp = self.tailor(partial_out_pp, i, w)
-                        partial_out_pn = self.tailor(partial_out_pn, i, w)
-                        partial_out = partial_out_pp - partial_out_pn
+                        input_tensor = fp_input_split[i, r, :, :]
+                        partial_out_p = FixedPointMatMulManager_Spec.tensor_int_mul_cuda(input_tensor, weight_tensor_pos)
+                        partial_out_n = FixedPointMatMulManager_Spec.tensor_int_mul_cuda(input_tensor, weight_tensor_neg)
+                        
+                        partial_out_p = self.tailor(partial_out_p, i, w)
+                        partial_out_n = self.tailor(partial_out_n, i, w)
 
-                        if not self.is_ignore_neg_input:
-                            input_tensor_neg = fp_input_split_neg[i, r, :, :]
-                            partial_out_np = FixedPointMatMulManager_Tailor.tensor_int_mul_cuda(input_tensor_neg, weight_tensor_pos)
-                            partial_out_nn = FixedPointMatMulManager_Tailor.tensor_int_mul_cuda(input_tensor_neg, weight_tensor_neg)
-                            partial_out_np = self.tailor(partial_out_np, i, w)
-                            partial_out_nn = self.tailor(partial_out_nn, i, w)
-                            partial_out = partial_out - partial_out_np + partial_out_nn
+                        partial_out = partial_out_p - partial_out_n
+
+                        if i == self.input_slice_num - 1:
+                            partial_out = -partial_out
                         
                         in_b = i * self.input_slice_bit
                         w_b = w * self.weight_slice_bit
@@ -626,5 +635,3 @@ class FixedPointMatMulManager_Tailor(FixedPointMatMulManager):
 
     def set_data_analyzer(self, data_analyzer) -> None:
         self.data_analyzer = data_analyzer
-
-

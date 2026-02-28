@@ -4,7 +4,7 @@ import src.nn_modules.matMulManager as mmm
 
 
 class FpDataAnalyzer_Spec:
-    def __init__(self, mm_manager:mmm.FixedPointMatMulManager_Spec=None) -> None:
+    def __init__(self, mm_manager=None) -> None:
         self.mm_manager = mm_manager
         assert mm_manager != None
 
@@ -95,6 +95,12 @@ class FpDataAnalyzer_Spec:
             save_file = "/layer" + str(self.mm_manager.layer_no) + "_spec_xbr" + str(self.mm_manager.ou_size[0]) + "_" + postfix + ".pkl"
             with open(save_path+save_file, "wb") as f:
                 pickle.dump(self.ou_cycle_list, f)
+        else:
+            # layer_no, sign, in_slice, w_slice, in_pos, out_pos
+            save_file = "/layer" + str(self.mm_manager.layer_no) + "_spec_xbr" + str(self.mm_manager.ou_size[0]) + \
+                "_cellbit" + str(self.mm_manager.weight_slice_bit) + "_" + postfix + "_xbr_output.pkl"
+            with open(save_path+save_file, "wb") as f:
+                pickle.dump(self.ou_output_dict_list, f)
 
 
 class FpDataAnalyzer_TRQ:

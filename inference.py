@@ -7,7 +7,7 @@ from src.utils import statistic
 
 
 def nn_run():
-    # Training settings
+    # Test settings
     parser = argparse.ArgumentParser(description='PyTorch ImageNet Example')
     
     # batch

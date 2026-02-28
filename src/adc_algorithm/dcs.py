@@ -101,6 +101,7 @@ def gaus_para_search(data_dict, resolution, threshold):
                     best_n_step = n_step
                     best_n_off = n_off
                     min_cmp_times = cmp_times
+                # print(n_start, n_step, n_off, cmp_times)
     return best_n_start, best_n_step, best_n_off, min_cmp_times
 
 def mono_para_search(data_dict, resolution, threshold):
@@ -125,7 +126,7 @@ def mono_para_search(data_dict, resolution, threshold):
                 best_n_step = n_step
     return best_n_start, best_n_step, min_cmp_times
 
-def para_search_diff(data_dict, resolution, threshold):
+def para_search_diff(data_dict, resolution, threshold=16):
     distribution_type = find_distribution_type(data_dict)
     n_start = 0
     n_step = 1

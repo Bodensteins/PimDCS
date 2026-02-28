@@ -2,7 +2,8 @@
 
 module adc #(
     parameter resolution = 8, 
-    digital_size = 3
+    digital_size = 3,
+    err_size = 3
 )(
     input clk,
     input rst_n,
@@ -11,6 +12,7 @@ module adc #(
     input [digital_size-1:0] noff_start,
     input [resolution-1:0] pseduo_vol_in,
     output [resolution-1:0] digital_output,
+    output [err_size-1:0] err_state,
     output fin_flag
 );
 
@@ -27,12 +29,11 @@ ad_controller u_ad_controller(
     .ns_start(ns_start),
     .noff_start(noff_start),
     .digital_code(reference),
+    .err_state(err_state),
     .fin_flag(fin_flag)
 );
 
 pseudo_cmp u_pseudo_cmp(
-    .clk(clk),
-    .rst_n(rst_n),
     .pseduo_vol_in(pseduo_vol_in),
     .pseduo_vol_ref(reference),
     .cmp_flag(cmp_flag)

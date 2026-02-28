@@ -3,7 +3,8 @@
 module adc_tb #(
     parameter resolution = 8, 
     digital_size = 3,
-    state_size = 4
+    state_size = 4,
+    err_size = 3
 );
 
 reg clk;
@@ -18,6 +19,7 @@ wire [digital_size-1:0] ns;
 wire [digital_size-1:0] noff;
 wire [state_size-1:0] ctrl_state;
 wire [digital_size-1:0] cur_bit;
+wire [err_size-1:0] err_state;
 wire cmp_flag;
 
 adc u_adc(
@@ -28,6 +30,7 @@ adc u_adc(
     .noff_start(noff_start),
     .pseduo_vol_in(pseduo_vol_in),
     .digital_output(digital_output),
+    .err_state(err_state),
     .fin_flag(fin_flag)
 );
 
@@ -38,7 +41,7 @@ assign cur_bit = u_adc.u_ad_controller.cur_bit;
 assign cmp_flag = u_adc.u_ad_controller.cmp_flag;
 
 initial begin
-    #200;
+    #20000;
     $finish;
 end
 

@@ -52,12 +52,13 @@ def load_model_and_dataset(model_name, dataset_name, weight_path, dataset_path, 
     
     return model, dataset
 
-def test_model(model, device, test_loader, criterion, round_end=10):
+def test_model(model, device, test_loader, criterion, is_wrapper=True, round_end=10):
     # initialize lists to monitor test loss and accuracy
     test_loss = 0.0
     correct = 0
 
-    wrapper.wrap_modules(model)
+    if is_wrapper:
+        wrapper.wrap_modules(model)
     print(model)
 
     model.eval()  # prep model for evaluation
@@ -282,6 +283,7 @@ def train_model(model, device, train_loader, valid_loader, criterion, optimizer,
             break
 
     # load the last checkpoint with the best model
-    model.load_state_dict(torch.load(model_filename))
+    model.load_state_dict(torch.load(model_filename, weights_only=True))
 
     return avg_train_losses, avg_valid_losses, valid_acc_list
+

@@ -3,7 +3,7 @@ from src.nn_modules.fp_linear import FpLinear
 from config.globalCfg import globalCfg
 
 def save_statistic(model, save_path:str=None, postfix:str='test'):
-   if globalCfg.mmManagerTpye != 5 and globalCfg.mmManagerTpye != 6:
+   if globalCfg.mmManagerTpye != 4 and globalCfg.mmManagerTpye != 5 and globalCfg.mmManagerTpye != 6:
         return
    print(save_path)
    for name, m in [_ for _ in model.named_modules()]:

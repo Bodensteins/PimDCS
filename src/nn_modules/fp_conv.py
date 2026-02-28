@@ -72,7 +72,10 @@ class FpConv2d(Module):
 
     def create_mat_mul_manager(self) -> None:
         weight_t = self.weight.reshape(self.out_channels, -1).t()
-        if self.mm_manager_type == 5:
+        if self.mm_manager_type == 4:
+            self.mm_manager = mmm.FixedPointMatMulManager_Simp(weight_t, self.weight_bit_width, self.input_bit_width,
+                                                                    layer_no=self.layer_no)
+        elif self.mm_manager_type == 5:
             self.mm_manager = mmm.FixedPointMatMulManager_TRQ(weight_t, self.weight_bit_width, self.input_bit_width,
                                                                     layer_no=self.layer_no)
         elif self.mm_manager_type == 6:
@@ -89,6 +92,9 @@ class FpConv2d(Module):
             self.mm_manager.set_data_analyzer(self.data_analyzer)
         elif isinstance(self.mm_manager, mmm.FixedPointMatMulManager_TRQ):
             self.data_analyzer = dps.FpDataAnalyzer_TRQ(self.mm_manager)
+            self.mm_manager.set_data_analyzer(self.data_analyzer)
+        elif isinstance(self.mm_manager, mmm.FixedPointMatMulManager_Simp):
+            self.data_analyzer = dps.FpDataAnalyzer_Spec(self.mm_manager)
             self.mm_manager.set_data_analyzer(self.data_analyzer)
 
     def forward(self, input:Tensor) -> Tensor:
@@ -135,6 +141,8 @@ class FpConv2d(Module):
         if isinstance(self.mm_manager, mmm.FixedPointMatMulManager_Spec):
             self.data_analyzer.save_statistic(save_path, postfix)
         elif isinstance(self.mm_manager, mmm.FixedPointMatMulManager_TRQ):
+            self.data_analyzer.save_statistic(save_path, postfix)
+        elif isinstance(self.mm_manager, mmm.FixedPointMatMulManager_Simp):
             self.data_analyzer.save_statistic(save_path, postfix)
 
     def extra_repr(self) -> str:

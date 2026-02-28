@@ -56,8 +56,9 @@ def fold_bn_into_conv(conv_module, bn_module):
 
 def wrap_modules(model):
     if globalCfg.mmManagerTpye != 0 \
-          and globalCfg.mmManagerTpye != 5 \
-          and globalCfg.mmManagerTpye != 6:
+            and globalCfg.mmManagerTpye != 4 \
+            and globalCfg.mmManagerTpye != 5 \
+            and globalCfg.mmManagerTpye != 6:
         return
 
     wrapped_modules_dict = {}
